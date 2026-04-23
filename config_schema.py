@@ -1,9 +1,6 @@
 """
-Shared configuration schema for the Claude Code project configurator.
-Consumed by both build_configurator.py (produces the HTML UI) and
-configure.py (the headless CLI).
-
-No external dependencies — pure stdlib data.
+Shared configuration schema for the headless Claude Code project configurator.
+Consumed by configure.py. No external dependencies — pure stdlib data.
 """
 
 # ---- module definitions ----
