@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Added
+- **`## Contributing` section in README.** Describes the branch + PR workflow now that `MainBrnchRuleset` enforces PRs + the `check` CI job on every change to `main`. Lists local-verification command (`python3 configure.py --check`) and the canonical `gh` commands for the round-trip.
+
 ## [1.0.0] — 2026-04-24
 
 First tagged release. The CLI, module catalog, preflight discipline, CI gate, and attribution posture are stable enough to commit to an API.
