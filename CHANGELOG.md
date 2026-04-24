@@ -1,8 +1,12 @@
 # Changelog
 
-All notable changes to this project. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning waits for a v1.0 tag; each entry references its commit SHA.
+All notable changes to this project. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Semantic Versioning from v1.0.0 onward; each entry references its commit SHA.
 
 ## Unreleased
+
+## [1.0.0] — 2026-04-24
+
+First tagged release. The CLI, module catalog, preflight discipline, CI gate, and attribution posture are stable enough to commit to an API.
 
 ### Added (after `93cbecd`)
 
