@@ -2,44 +2,67 @@
 # Custom status line for Claude Code.
 # Wire in settings.json: { "statusLine": { "type": "command", "command": "/absolute/path/to/statusline.sh" } }
 #
-# Receives a JSON blob on stdin with session info. Outputs a single line.
+# Receives a JSON blob on stdin. Outputs a single formatted line.
+# Format: <dir> | <branch> | <model> | ctx <n>% [ | effort <lvl> ] [ | think ]
+#
+# Uses one python3 invocation (not five) to keep per-render overhead low.
 set -euo pipefail
 
-INPUT="$(cat)"
+# stdin → env var so the heredoc below stays stdin-free for the Python reader.
+export CC_STATUSLINE_INPUT="$(cat)"
 
-MODEL="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("model",{}).get("display_name") or d.get("model",{}).get("id") or "?")' 2>/dev/null || echo "?")"
-CWD="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("cwd",""))' 2>/dev/null || echo "")"
-TOKENS="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;d=json.load(sys.stdin);c=d.get("usage",{}).get("context",{});print(c.get("used_pct","?"))' 2>/dev/null || echo "?")"
-# 2.1.119+: effort.level and thinking.enabled may arrive on stdin.
-# Empty string if absent — keeps older Claude Code versions unchanged.
-EFFORT="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("effort",{}).get("level","") or "")' 2>/dev/null || echo "")"
-THINKING="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;print("on" if json.load(sys.stdin).get("thinking",{}).get("enabled") else "")' 2>/dev/null || echo "")"
+python3 <<'PY'
+import json, os, subprocess
+from pathlib import Path
 
-# Git branch + dirty marker
-BRANCH=""
-if [ -n "$CWD" ] && git -C "$CWD" rev-parse --git-dir >/dev/null 2>&1; then
-  BRANCH="$(git -C "$CWD" symbolic-ref --short HEAD 2>/dev/null || echo 'detached')"
-  if ! git -C "$CWD" diff --quiet 2>/dev/null || ! git -C "$CWD" diff --cached --quiet 2>/dev/null; then
-    BRANCH="${BRANCH}*"
-  fi
-fi
+try:
+    data = json.loads(os.environ.get("CC_STATUSLINE_INPUT", "{}"))
+except Exception:
+    data = {}
 
-DIR="$(basename "${CWD:-$(pwd)}")"
+model_blk = data.get("model") or {}
+model = model_blk.get("display_name") or model_blk.get("id") or "?"
+cwd = data.get("cwd") or ""
+ctx_pct = ((data.get("usage") or {}).get("context") or {}).get("used_pct", "?")
+# 2.1.119+: may arrive on stdin. Empty → hidden (older versions unchanged).
+effort = (data.get("effort") or {}).get("level", "") or ""
+thinking = bool((data.get("thinking") or {}).get("enabled"))
 
-# ANSI colors
-C_DIM="\033[2m"
-C_CYAN="\033[36m"
-C_YELLOW="\033[33m"
-C_GREEN="\033[32m"
-C_RESET="\033[0m"
+# Git branch + dirty marker. Silently empty when cwd isn't a git repo.
+branch = ""
+if cwd:
+    try:
+        result = subprocess.run(
+            ["git", "-C", cwd, "symbolic-ref", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode == 0:
+            branch = result.stdout.strip() or "detached"
+            dirty = subprocess.run(
+                ["git", "-C", cwd, "status", "--porcelain"],
+                capture_output=True, text=True, timeout=2,
+            )
+            if dirty.returncode == 0 and dirty.stdout.strip():
+                branch += "*"
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
 
-printf "${C_CYAN}%s${C_RESET} ${C_DIM}|${C_RESET} ${C_GREEN}%s${C_RESET} ${C_DIM}|${C_RESET} ${C_YELLOW}%s${C_RESET} ${C_DIM}|${C_RESET} ctx %s%%" \
-  "$DIR" "${BRANCH:-no-git}" "$MODEL" "$TOKENS"
+dir_name = Path(cwd).name if cwd else Path.cwd().name
 
-# Append effort/thinking indicators only when present.
-if [ -n "$EFFORT" ]; then
-  printf " ${C_DIM}|${C_RESET} effort %s" "$EFFORT"
-fi
-if [ -n "$THINKING" ]; then
-  printf " ${C_DIM}|${C_RESET} ${C_YELLOW}think${C_RESET}"
-fi
+# ANSI.
+D, CY, G, Y, R = "\033[2m", "\033[36m", "\033[32m", "\033[33m", "\033[0m"
+sep = f" {D}|{R} "
+
+parts = [
+    f"{CY}{dir_name}{R}",
+    f"{G}{branch or 'no-git'}{R}",
+    f"{Y}{model}{R}",
+    f"ctx {ctx_pct}%",
+]
+if effort:
+    parts.append(f"effort {effort}")
+if thinking:
+    parts.append(f"{Y}think{R}")
+
+print(sep.join(parts), end="")
+PY

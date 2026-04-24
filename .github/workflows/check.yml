@@ -1,0 +1,38 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Static validation (configure.py --check)
+        run: python3 configure.py --check
+
+      - name: Smoke-test scaffold (configure.py --yes --dry-run)
+        run: |
+          mkdir -p /tmp/cc-smoke
+          python3 configure.py --yes --dry-run --dir /tmp/cc-smoke
+
+      - name: Smoke-test every opt-in module combination
+        run: |
+          set -e
+          for mod in multi-agent github-actions lockdown experiments-memory mcp ui; do
+            target=$(mktemp -d)
+            echo "--- scaffolding core + $mod into $target"
+            python3 configure.py --yes --modules "core,$mod" --dry-run --dir "$target"
+          done

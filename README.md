@@ -1,6 +1,31 @@
 # ClaudeCodeConfigurator
 
-Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.claude/settings.json`, hooks, subagents, skills, per-task MCP profiles, optional GitHub Action — from an interactive intake form. Built for a single developer working in a git-enabled workflow on Debian, a dev server, or anywhere Python 3.8+ runs.
+[![check](https://github.com/tigers1997/ClaudeCodeConfigurator/actions/workflows/check.yml/badge.svg)](https://github.com/tigers1997/ClaudeCodeConfigurator/actions/workflows/check.yml)
+
+Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.claude/settings.json`, hooks, subagents, skills, per-task MCP profiles, optional GitHub Action — from an interactive intake form. Built for a single developer working in a git-enabled workflow on Linux, macOS, or WSL.
+
+## Requirements
+
+**For running `cc-configure`:**
+- **Python 3.8+** — stdlib only, no pip dependencies
+- **git** — used by the installer and (later) by generated hooks / statusline
+- **bash** — the shipped hook scripts and `./claude-ctx` wrapper all use `#!/usr/bin/env bash`
+- **curl** — only for the one-shot install command
+
+**Generated projects need, depending on which modules you enable:**
+- **`ui`** — `python3` + `git` (used by `statusline.sh` and the last-prompt variant)
+- **`git-workflow`** — whichever formatters/checkers you've selected: typically `prettier`, `ruff`, `gofmt`, `rustfmt`, `tsc`, or `eslint`. The format-on-write hook auto-detects which to invoke based on file extension; missing tools fail silently for that file type.
+- **`safety`** — standard POSIX tools (`grep`, `tr`, etc.)
+- **`token-efficiency-pro`** — standard POSIX tools (`awk`, `tail`, `wc`)
+- **`mcp`** — `npx` (Node) or `uvx` (Python) depending on which MCP servers you enable; `./claude-ctx` wrapper needs `bash` and the `claude` CLI on PATH
+
+## Platform support
+
+| Platform | Status |
+| --- | --- |
+| **Linux** (Debian/Ubuntu/Arch/Fedora/…) | Primary target. Everything works out of the box. |
+| **macOS** (12+) | Works. Bash 3.2 from the system is sufficient; scripts use POSIX-safe flags. |
+| **Windows** | **WSL recommended.** Native cmd/PowerShell cannot execute the `.sh` hooks this project ships. For Windows-native hooks you'd need to translate each script to PowerShell and set `"shell": "powershell"` on each hook entry (per the Claude Code docs). The template directory uses `dot-claude/` (rewritten to `.claude/` at install) specifically as a OneDrive-safe workaround — but Windows-native hook execution is not supported out of the box. |
 
 ## Install
 
@@ -99,6 +124,8 @@ All three are silent on a clean default scaffold.
 --no-backup             Don't back up overwritten files
 --save-config FILE      Save answers to FILE (plus scaffolding)
 --save-config-only FILE Save answers only, no scaffolding
+--check                 Static validation of templates + MODULES (CI gate);
+                        exits 0 on clean, 1 on any failure
 ```
 
 ## Repo layout
@@ -116,6 +143,14 @@ docs/               # 9-part knowledge base (overview → memory hierarchy)
 Everything the CLI writes lives under `templates/`. Edit freely, re-run `cc-configure` in a project, and the changes flow through.
 
 To add a new module: create `templates/my-module/…`, add an entry to `MODULES` in `config_schema.py`, add a path rule to `target_path_for()` if the routing isn't covered by the defaults. Declare `dependsOn: ["other-module"]` if your module references primitives shipped by another (e.g. `commands-core` depends on `agents`).
+
+After editing, validate your changes:
+
+```bash
+python3 configure.py --check
+```
+
+The same check runs in CI on every push and PR (`.github/workflows/check.yml`). It walks `MODULES` + every template file and verifies: paths resolve, JSON parses, bash scripts pass `bash -n`, SKILL.md / agent frontmatter has `name:` and `description:`, `dependsOn:` references are valid.
 
 **Path conventions** the CLI rewrites at install time:
 

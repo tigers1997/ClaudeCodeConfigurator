@@ -245,6 +245,113 @@ HIGH_FREQ_HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PostToolUseFailure")
 GOOD_SCHEMA_URL = "https://json.schemastore.org/claude-code-settings.json"
 
 
+def _frontmatter_block(text: str) -> str:
+    """Return the YAML frontmatter block between the first two '---' lines, or ''."""
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "\n".join(lines[1:i])
+    return ""
+
+
+def run_check() -> int:
+    """Static validation of the shipped templates + MODULES registry.
+    Exit 0 if everything is fine, 1 with a per-issue summary otherwise.
+    Stdlib-only; safe to run in CI."""
+    import re
+    import subprocess as sp
+
+    module_ids = {m["id"] for m in MODULES}
+    issues = []  # list of (severity, source, message)
+
+    def err(source, msg):
+        issues.append(("ERR", source, msg))
+
+    # --- 1. MODULES registry integrity ---
+    for m in MODULES:
+        mid = m["id"]
+        # Required keys.
+        for req in ("id", "title", "description"):
+            if not m.get(req):
+                err(f"MODULES[{mid}]", f"missing required key: {req}")
+        # Paths exist.
+        for rel in m.get("paths", []) or []:
+            abs_path = TEMPLATE_DIR / rel
+            if not abs_path.exists():
+                err(f"MODULES[{mid}]", f"path does not exist: templates/{rel}")
+        # settingsPatch file exists.
+        patch = m.get("settingsPatch")
+        if patch:
+            abs_patch = TEMPLATE_DIR / patch
+            if not abs_patch.exists():
+                err(f"MODULES[{mid}]", f"settingsPatch missing: templates/{patch}")
+        # gitignoreSource exists.
+        gi = m.get("gitignoreSource")
+        if gi:
+            abs_gi = TEMPLATE_DIR / gi
+            if not abs_gi.exists():
+                err(f"MODULES[{mid}]", f"gitignoreSource missing: templates/{gi}")
+        # dependsOn references valid module IDs.
+        for dep in m.get("dependsOn", []) or []:
+            if dep not in module_ids:
+                err(f"MODULES[{mid}]", f"dependsOn references unknown module: {dep}")
+
+    # --- 2. Static file checks: walk templates/ once ---
+    for f in sorted(TEMPLATE_DIR.rglob("*")):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(TEMPLATE_DIR)
+        src = f"templates/{rel}"
+
+        if f.suffix == ".json":
+            try:
+                # Allow `//`-prefixed comment keys (we use them); json stdlib handles
+                # them as regular string keys which is fine.
+                json.loads(f.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as e:
+                err(src, f"invalid JSON: {e}")
+
+        elif f.suffix == ".sh":
+            try:
+                result = sp.run(["bash", "-n", str(f)], capture_output=True, text=True, timeout=5)
+                if result.returncode != 0:
+                    err(src, f"bash syntax error: {result.stderr.strip()}")
+            except (FileNotFoundError, sp.TimeoutExpired) as e:
+                err(src, f"could not run bash -n: {e}")
+
+        elif f.name == "SKILL.md" or (
+            rel.parts and rel.parts[0] in ("agents",) and f.suffix == ".md"
+        ) or (
+            # subagents under multi-agent/dot-claude/agents/
+            len(rel.parts) >= 3
+            and rel.parts[1] == "dot-claude"
+            and rel.parts[2] == "agents"
+            and f.suffix == ".md"
+        ):
+            fm = _frontmatter_block(f.read_text(encoding="utf-8"))
+            if not fm:
+                err(src, "missing YAML frontmatter (--- block at top of file)")
+                continue
+            if not re.search(r"^name:\s*\S+", fm, flags=re.MULTILINE):
+                err(src, "frontmatter missing required `name:` field")
+            if not re.search(r"^description:\s*\S+", fm, flags=re.MULTILINE):
+                err(src, "frontmatter missing required `description:` field")
+
+    # --- Report ---
+    if not issues:
+        print(green("✓ all checks passed"))
+        print(dim(f"  modules: {len(MODULES)}"))
+        print(dim(f"  scanned: {sum(1 for _ in TEMPLATE_DIR.rglob('*') if _.is_file())} files under templates/"))
+        return 0
+
+    print(red(f"✗ {len(issues)} issue(s) found"))
+    for sev, src, msg in issues:
+        print(f"  {red(sev)} {src}: {msg}")
+    return 1
+
+
 def check_schema_url(settings: dict) -> list:
     """Guard against the regression class that motivated the first $schema fix:
     Claude Code silently drops the entire settings file if $schema is present
@@ -636,11 +743,18 @@ def parse_args():
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
     p.add_argument("--dry-run", action="store_true", help="Show what would be written and exit")
     p.add_argument("--no-backup", action="store_true", help="Don't back up existing files")
+    p.add_argument("--check", action="store_true",
+                   help="Static validation of templates + MODULES registry (CI-friendly). "
+                        "Exits 0 on clean, 1 with a per-issue summary otherwise. "
+                        "Skips all other processing — no scaffolding, no prompts.")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    # --check short-circuits everything else: no scaffolding, no target dir creation.
+    if args.check:
+        sys.exit(run_check())
     target_dir = Path(args.dir).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     saved_config_path = target_dir / ".claude-config.json"
