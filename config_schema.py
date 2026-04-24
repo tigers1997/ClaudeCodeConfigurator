@@ -169,6 +169,22 @@ MODULES = [
 ]
 
 
+# ---- Claude Code compatibility range ----
+# Declared templates-vs-CC version envelope. Bump deliberately; each configurator
+# release should state the range it's been tested against in the CHANGELOG.
+#
+# min_version:   features in shipped templates require this at minimum. Below
+#                it, several things silently fail (currently: agent-frontmatter
+#                mcpServers http transport; DISABLE_UPDATES env; the
+#                disableBypassPermissionsMode key in safety).
+# tested_up_to:  highest CC version the maintainer has actually run the
+#                configurator against. Newer is likely fine but unverified.
+CLAUDE_CODE_COMPAT = {
+    "min_version": "2.1.116",   # agent mcpServers http (2.1.116/117)
+    "tested_up_to": "2.1.119",  # statusline effort.level / thinking.enabled
+}
+
+
 # ---- stack presets ----
 # When the user picks a stack_preset in the Tech stack section, these
 # values pre-fill the rest of the stack fields AND the Commands cheatsheet.

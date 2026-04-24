@@ -27,7 +27,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 try:
-    from config_schema import MODULES, FORM_SCHEMA, STACK_PRESETS, target_path_for
+    from config_schema import (
+        CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, target_path_for,
+    )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
     sys.exit(2)
@@ -245,6 +247,59 @@ HIGH_FREQ_HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PostToolUseFailure")
 GOOD_SCHEMA_URL = "https://json.schemastore.org/claude-code-settings.json"
 
 
+def _parse_version(s: str):
+    """Return (major, minor, patch) tuple for version strings like '2.1.119'
+    or '2.1.119 (Claude Code)'. Returns None if unparseable."""
+    import re
+    m = re.match(r"(\d+)\.(\d+)\.(\d+)", s.strip())
+    if not m:
+        return None
+    return tuple(int(x) for x in m.groups())
+
+
+def check_claude_code_version() -> list:
+    """Compare the installed Claude Code version against CLAUDE_CODE_COMPAT.
+    Warns if below min_version (several features silently fail) or if claude
+    isn't on PATH. Informational note if above tested_up_to. Silent when in range."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return [
+            f"`claude` CLI not found on PATH — cannot verify compatibility. "
+            f"Templates target Claude Code "
+            f"{CLAUDE_CODE_COMPAT['min_version']}–{CLAUDE_CODE_COMPAT['tested_up_to']}."
+        ]
+    if result.returncode != 0:
+        return [f"`claude --version` exited {result.returncode} — cannot verify compatibility."]
+    found = _parse_version(result.stdout)
+    if found is None:
+        return [f"Could not parse `claude --version` output: {result.stdout.strip()!r}"]
+    min_v = _parse_version(CLAUDE_CODE_COMPAT["min_version"])
+    max_v = _parse_version(CLAUDE_CODE_COMPAT["tested_up_to"])
+    found_str = ".".join(str(n) for n in found)
+    if found < min_v:
+        return [
+            f"installed Claude Code is {found_str}, below the supported minimum "
+            f"{CLAUDE_CODE_COMPAT['min_version']}. Several features will silently "
+            f"fail: agent-frontmatter mcpServers http transport (security-auditor's "
+            f"Sonatype wiring); DISABLE_UPDATES env (lockdown module); "
+            f"permissions.disableBypassPermissionsMode (safety module). "
+            f"Upgrade with `npm install -g @anthropic-ai/claude-code@latest` "
+            f"(or your install method)."
+        ]
+    if found > max_v:
+        return [
+            f"installed Claude Code is {found_str}, newer than the tested range "
+            f"(up to {CLAUDE_CODE_COMPAT['tested_up_to']}). Templates likely still "
+            f"work but have not been verified against this version. File an issue "
+            f"if you see anything odd."
+        ]
+    return []
+
+
 def _frontmatter_block(text: str) -> str:
     """Return the YAML frontmatter block between the first two '---' lines, or ''."""
     lines = text.splitlines()
@@ -344,6 +399,8 @@ def run_check() -> int:
         print(green("✓ all checks passed"))
         print(dim(f"  modules: {len(MODULES)}"))
         print(dim(f"  scanned: {sum(1 for _ in TEMPLATE_DIR.rglob('*') if _.is_file())} files under templates/"))
+        print(dim(f"  Claude Code compat: {CLAUDE_CODE_COMPAT['min_version']}"
+                  f"–{CLAUDE_CODE_COMPAT['tested_up_to']}"))
         return 0
 
     print(red(f"✗ {len(issues)} issue(s) found"))
@@ -812,8 +869,15 @@ def main():
     # --- scaffold ---
     files, gitignore_lines = collect_files(config["formValues"], config["selected"])
 
-    # Pre-flight: flag heavy hooks AND drift in the settings $schema URL,
-    # which silently invalidates the whole file.
+    # Pre-flight: surface version mismatches, schema drift, heavy hooks,
+    # and module prerequisites before writing any files.
+    version_warnings = check_claude_code_version()
+    if version_warnings:
+        print()
+        print(bold(yellow("[ VERSION WARNINGS ]")))
+        for w in version_warnings:
+            print(f"  {yellow('!')} {w}")
+
     merged = compute_merged_settings(config["formValues"], config["selected"])
     schema_warnings = check_schema_url(merged)
     if schema_warnings:
