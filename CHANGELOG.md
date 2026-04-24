@@ -4,6 +4,10 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+## [1.1.0] — 2026-04-24
+
+Second tagged release. Four PRs stacked since v1.0.0, all additive / backward-compatible — no saved `.claude-config.json` from v1.0.0 needs to change. Natural minor bump.
+
 ### Changed
 - **Select prompt UX clarified.** The prompt for select-type fields was ambiguous — it read `"Pick 1-N or Enter for default [X]"` where `X` was the option value, leaving users unsure whether the input expected a number or the option text. Now reads `"Pick 1-N or type an option name (prefix match); Enter for default [X]"`. Prefix matching was already supported but undocumented.
 - **Six free-text fields converted to selects with common choices + `allow_custom: True` fallthrough:** `style.naming`, `stack.database`, `stack.deployment`, `design.architecture`, `design.auth`, `design.observability`. Each now offers 5–11 curated common choices; any input that isn't a number, prefix match, or Enter is accepted verbatim as a custom value (with a confirming print of what was captured). Previous free-text behavior is preserved via the custom path; the prompt just doesn't start empty anymore.
