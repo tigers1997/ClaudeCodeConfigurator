@@ -6,6 +6,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - **`## Contributing` section in README.** Describes the branch + PR workflow now that `MainBrnchRuleset` enforces PRs + the `check` CI job on every change to `main`. Lists local-verification command (`python3 configure.py --check`) and the canonical `gh` commands for the round-trip.
+- **Claude Code version-compatibility preflight.** New `CLAUDE_CODE_COMPAT = {"min_version": "2.1.116", "tested_up_to": "2.1.119"}` in `config_schema.py`, plus a `check_claude_code_version()` helper that shells to `claude --version`, parses, and emits a `[ VERSION WARNINGS ]` block before scaffolding if the installed CC is below min, above tested-up-to, or missing entirely. Silent when in range. Matches the shape of `check_schema_url` / `check_hook_weight` / `check_github_remote`. `--check` success output now also surfaces the compat range. README Requirements section documents the range.
+
+**Claude Code compat:** 2.1.116–2.1.119
 
 ## [1.0.0] — 2026-04-24
 
