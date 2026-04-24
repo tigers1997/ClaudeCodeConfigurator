@@ -77,8 +77,8 @@ MODULES = [
     },
     {
         "id": "commands-core",
-        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context)",
-        "description": "Six workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (flags MCP/skill bloat).",
+        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro)",
+        "description": "Seven workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (flags MCP/skill bloat), /session-retro (end-of-session reflection on what to capture).",
         "paths": [
             "commands/plan/SKILL.md",
             "commands/review/SKILL.md",
@@ -86,6 +86,7 @@ MODULES = [
             "commands/ship/SKILL.md",
             "commands/sync-docs/SKILL.md",
             "commands/check-context/SKILL.md",
+            "commands/session-retro/SKILL.md",
         ],
         "dependsOn": ["agents"],
     },
@@ -102,19 +103,34 @@ MODULES = [
     },
     {
         "id": "multi-agent",
-        "title": "Multi-agent guardrails",
-        "description": "Path-scoped rule that loads when touching .claude/agents/** — 5-scenario 'when not to parallel' list + pre-flight checklist. Discipline, not mechanics.",
+        "title": "Multi-agent: guardrails + /merge-worktrees + /infinite (fanout)",
+        "description": "Path-scoped guardrails rule (loads when touching .claude/agents/**), /merge-worktrees for safe integration of parallel branches, and /infinite + parallel-generator subagent for fanout-style spec expansion (generate N variants in parallel).",
         "paths": [
             "multi-agent/dot-claude/rules/multi-agent-guardrails.md",
+            "multi-agent/dot-claude/agents/parallel-generator.md",
+            "commands/merge-worktrees/SKILL.md",
+            "commands/infinite/SKILL.md",
+        ],
+    },
+    {
+        "id": "github-actions",
+        "title": "GitHub Action (@claude mentions → Claude Code)",
+        "description": ".github/workflows/claude.yml — triggers anthropics/claude-code-action@v1 on @claude mentions in issues, PR comments, and PR reviews. Requires ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN) secret. Install via `claude` CLI → `/install-github-app` for the smoothest setup.",
+        "paths": [
+            "github-actions/dot-github/workflows/claude.yml",
         ],
     },
     {
         "id": "mcp",
-        "title": "MCP servers (.mcp.json)",
-        "description": "Writes .mcp.json with only the MCP servers you enabled. Plus a cookbook doc.",
+        "title": "MCP servers (.mcp.json + per-task profiles + claude-ctx)",
+        "description": "Writes .mcp.json with only the MCP servers you enabled. Ships three per-task profiles (.mcp.research.json, .mcp.frontend.json, .mcp.minimal.json) and a claude-ctx wrapper script that runs `claude --mcp-config <profile> --strict-mcp-config` for scoped sessions. Plus a cookbook doc.",
         "paths": [
             "mcp/mcp.json",
             "mcp/servers-cookbook.md",
+            "mcp/claude-ctx.sh",
+            "mcp/profiles/mcp.research.json",
+            "mcp/profiles/mcp.frontend.json",
+            "mcp/profiles/mcp.minimal.json",
         ],
     },
     {
@@ -449,10 +465,19 @@ def target_path_for(template_rel: str):
     module, *rest = parts
     rest_path = "/".join(rest)
     rest_path = rest_path.replace("dot-claude/", ".claude/")
+    rest_path = rest_path.replace("dot-github/", ".github/")
     if module == "mcp" and rest_path == "mcp.json":
         return ".mcp.json"
     if module == "mcp" and rest_path == "servers-cookbook.md":
         return "docs/mcp-servers.md"
+    if module == "mcp" and rest_path == "claude-ctx.sh":
+        return "claude-ctx"
+    if module == "mcp" and rest_path.startswith("profiles/"):
+        # templates/mcp/profiles/mcp.<name>.json -> .mcp.<name>.json at repo root
+        fname = rest_path.rsplit("/", 1)[1]
+        if fname.startswith("mcp.") and fname.endswith(".json"):
+            return f".{fname}"
+        return rest_path
     if module == "core":
         if rest_path == ".gitignore.append":
             return None

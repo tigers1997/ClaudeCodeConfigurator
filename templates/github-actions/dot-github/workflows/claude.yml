@@ -1,0 +1,69 @@
+# Claude Code GitHub Action.
+# Triggers Claude on @claude mentions in issues, PR comments, and PR reviews.
+#
+# SETUP
+# 1. Install the Claude GitHub App: from a `claude` CLI session in this repo, run `/install-github-app`.
+#    It walks you through the app install and required secrets.
+#    (Requires repo admin. Direct Anthropic API users only — for Bedrock/Vertex/Foundry see
+#    https://github.com/anthropics/claude-code-action/blob/main/docs/cloud-providers.md)
+# 2. Alternatively, add the ANTHROPIC_API_KEY secret manually under repo Settings → Secrets.
+# 3. Optional: swap to OAuth (Pro/Max subscription) by replacing `anthropic_api_key` with
+#    `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
+#
+# Mirrors anthropics/claude-code-action's canonical example. Bump @v1 if you pin to a newer major.
+
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read   # so Claude can read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Optional — customize trigger phrase (default: @claude)
+          # trigger_phrase: "/claude"
+
+          # Optional — trigger when a specific user is assigned to an issue
+          # assignee_trigger: "claude-bot"
+
+          # Optional — constrain Claude's behavior with CLI args
+          # claude_args: |
+          #   --max-turns 10
+          #   --allowedTools "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
+          #   --system-prompt "Follow our coding standards. Ensure all new code has tests."
+
+          # Optional — inline settings overrides
+          # settings: |
+          #   {
+          #     "env": { "NODE_ENV": "test" }
+          #   }

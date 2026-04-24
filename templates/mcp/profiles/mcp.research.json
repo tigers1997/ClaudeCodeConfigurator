@@ -1,0 +1,9 @@
+{
+  "//": "Profile: research. Library docs lookup only. Use when reading code you didn't write or investigating APIs. Runs via: ./claude-ctx research",
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    }
+  }
+}

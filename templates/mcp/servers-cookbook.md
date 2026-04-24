@@ -46,3 +46,26 @@ claude mcp remove my-server
 - Some servers need env vars. Put tokens in your shell env or `1Password` / `op run`, not in `.mcp.json`.
 - Windows paths in `args` need forward slashes or escaped backslashes.
 - Restart Claude Code after editing `.mcp.json` for changes to take effect.
+
+## Per-task profiles with `claude-ctx`
+
+A fresh session with 4 MCP servers loaded burns ~49% of a 100k context window before you type anything (system prompt ~2.2k + system tools ~12k + MCP tool descriptions ~37k). For tasks that don't need those servers, scope per-task instead of loading the full default set.
+
+Profiles live at `.mcp.<name>.json` in the project root. Three are shipped by default:
+
+| Profile | Contents | When to use |
+|---|---|---|
+| `research` | context7 | Reading code you didn't write, investigating APIs, needing accurate library docs |
+| `frontend` | playwright | Browser/UI work, regression checks, visual verification |
+| `minimal` | (none) | Pure writing or editing sessions — demonstrates the scope savings cleanly |
+
+Run via the shipped wrapper:
+```bash
+./claude-ctx research          # claude --mcp-config .mcp.research.json --strict-mcp-config
+./claude-ctx frontend --resume # any extra args pass through to claude
+./claude-ctx                   # no arg -> lists available profiles
+```
+
+`--strict-mcp-config` tells Claude Code to ignore the default MCP hierarchy (user/project/local) and only load what's in the specified file. This is the key flag — without it, the per-task file *adds* to the defaults rather than replacing them.
+
+Create your own profile by copying one of the starters and dropping in the servers you actually need for that task class.

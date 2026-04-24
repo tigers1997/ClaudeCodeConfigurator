@@ -1,0 +1,4 @@
+{
+  "//": "Profile: minimal. No MCP servers. Use for pure writing/editing sessions where external tools are dead weight. Demonstrates the --strict-mcp-config savings cleanly (no ~37k of MCP tool descriptions loaded). Runs via: ./claude-ctx minimal",
+  "mcpServers": {}
+}

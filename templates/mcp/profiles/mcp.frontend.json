@@ -1,0 +1,9 @@
+{
+  "//": "Profile: frontend. Playwright for browser/UI work. Use during regression checks, visual verification, or end-to-end debugging. Runs via: ./claude-ctx frontend",
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
