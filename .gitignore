@@ -1,3 +1,16 @@
+# local only files -- not in the public repo
+# Anchored with leading slash so they don't shadow template/product files
+# under templates/ (e.g. templates/core/CLAUDE.md, *.local.json.example)
+/context-private/
+/CLAUDE.md
+/CLAUDE.local.md
+/.claude/
+/.claude.local.json
+/settings.local.json
+/.env.local
+*.private.*
+/docs/07-backlog.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

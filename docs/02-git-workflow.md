@@ -74,7 +74,7 @@ cd ../myproject-exp-ui
 claude
 ```
 
-Each worktree has its own `.claude/` if you copy it, but the project settings are usually shared via the main branch's files. Claude Code's desktop/cloud mode automates this — see Eden Marco Ch 10 on Git worktrees.
+Each worktree has its own `.claude/` if you copy it, but the project settings are usually shared via the main branch's files. Claude Code's desktop/cloud mode automates this.
 
 Cleanup:
 

@@ -83,6 +83,22 @@ over pasted code. Put path-scoped detail in .claude/rules/*.md instead.
 - **CLIs available:** {{clis}}
 - **MCP servers enabled:** {{mcps}}
 
+## Working with Claude (collaboration patterns)
+
+These are *how the human should drive*, not rules Claude enforces. Distilled from teams that use Claude Code in production.
+
+- **Task classification.** Decide up-front: is this peripheral/prototyping work (auto-accept edits, let Claude run) or core logic (synchronous review, every edit inspected)? Don't let the mode drift mid-session.
+- **Slot-machine style for long runs.** Commit your state, let Claude run autonomously for ~30 minutes, then either accept the result or `git reset --hard` and start fresh. Wrestling a bad run to success almost always loses to a clean restart.
+- **Commit as you go.** Ask Claude to commit incrementally during work, not at the end. Smaller commits = cheaper rewinds and less context bloat from a giant pending diff.
+- **Self-sufficient loops.** Wire `test`/`lint`/`typecheck` into a `Stop` or `PostToolUse` hook so Claude runs them automatically and catches its own mistakes — no need for you to referee every turn.
+- **Spec-driven restart.** For features that span many files: first run `/plan` to produce a spec, save it to `spec/<feature>.md`, then **start a fresh session** and implement from `@spec/<feature>.md`. The restart matters — a clean context produces sharper code than a planning-polluted one.
+
+### Tool-calling guardrails (fill these in as you observe quirks on this project)
+
+- <!-- e.g. "Run `pytest tests/`, not `pytest` alone — it picks up stale compiled files" -->
+- <!-- e.g. "Don't `cd` into subdirs; all commands run from repo root" -->
+- <!-- add more as model quirks surface -->
+
 ## Claude Code behavior rules
 
 - **Plan before diff.** For any change touching more than one file, enter plan mode (Shift+Tab twice) and show a plan before editing. Plan mode is read-only and the cheapest turn-for-turn.

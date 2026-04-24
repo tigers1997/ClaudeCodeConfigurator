@@ -21,8 +21,8 @@ MODULES = [
     },
     {
         "id": "safety",
-        "title": "Safety hooks",
-        "description": "PreToolUse hooks: block dangerous bash (rm -rf, sudo, curl | sh, force push, hard reset) and scan Write/Edit for secrets.",
+        "title": "Safety hooks + bypass lockout",
+        "description": "PreToolUse hooks (block dangerous bash: rm -rf, sudo, curl | sh, force push, hard reset) + scan Write/Edit for secrets. Also sets permissions.disableBypassPermissionsMode='disable' so --dangerously-skip-permissions cannot be used in this project.",
         "paths": [
             "safety/hooks/block-dangerous-bash.sh",
             "safety/hooks/scan-secrets.sh",
@@ -77,15 +77,17 @@ MODULES = [
     },
     {
         "id": "commands-core",
-        "title": "Slash commands (plan/review/commit/ship/sync-docs)",
-        "description": "Five workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs.",
+        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context)",
+        "description": "Six workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (flags MCP/skill bloat).",
         "paths": [
             "commands/plan/SKILL.md",
             "commands/review/SKILL.md",
             "commands/commit/SKILL.md",
             "commands/ship/SKILL.md",
             "commands/sync-docs/SKILL.md",
+            "commands/check-context/SKILL.md",
         ],
+        "dependsOn": ["agents"],
     },
     {
         "id": "agents",
@@ -96,6 +98,14 @@ MODULES = [
             "agents/test-runner.md",
             "agents/doc-writer.md",
             "agents/security-auditor.md",
+        ],
+    },
+    {
+        "id": "multi-agent",
+        "title": "Multi-agent guardrails",
+        "description": "Path-scoped rule that loads when touching .claude/agents/** — 5-scenario 'when not to parallel' list + pre-flight checklist. Discipline, not mechanics.",
+        "paths": [
+            "multi-agent/dot-claude/rules/multi-agent-guardrails.md",
         ],
     },
     {
@@ -110,9 +120,10 @@ MODULES = [
     {
         "id": "ui",
         "title": "Custom status line + plan output style",
-        "description": "Status line script (project dir | branch | model | context %) and a 'plan' output style.",
+        "description": "Status line script (project dir | branch | model | context %), an alternative 'last-prompt' status line, and a 'plan' output style.",
         "paths": [
             "ui/statusline.sh",
+            "ui/statusline-last-prompt.sh",
             "ui/output-styles/plan.md",
         ],
         "extraSettings": {
@@ -123,6 +134,124 @@ MODULES = [
         },
     },
 ]
+
+
+# ---- stack presets ----
+# When the user picks a stack_preset in the Tech stack section, these
+# values pre-fill the rest of the stack fields AND the Commands cheatsheet.
+# "Custom / keep current" is a no-op so users can opt out.
+# The default for stack_preset is Node+TS — its values are the authoritative
+# source for stack/commands defaults below. Keep the two in sync when editing.
+STACK_PRESETS = {
+    "Node + TypeScript (pnpm)": {
+        "language": "TypeScript 5 on Node 20",
+        "framework": "Next.js 15",
+        "package_manager": "pnpm",
+        "test_runner": "vitest",
+        "formatter": "prettier",
+        "typechecker": "tsc --noEmit",
+        "build_tool": "next build",
+        "cmd_install": "pnpm install",
+        "cmd_dev": "pnpm dev",
+        "cmd_test": "pnpm test",
+        "cmd_lint": "pnpm lint",
+        "cmd_typecheck": "pnpm typecheck",
+        "cmd_build": "pnpm build",
+    },
+    "Node + JavaScript (npm)": {
+        "language": "JavaScript on Node 20",
+        "framework": "Express",
+        "package_manager": "npm",
+        "test_runner": "vitest",
+        "formatter": "prettier",
+        "typechecker": "",
+        "build_tool": "",
+        "cmd_install": "npm install",
+        "cmd_dev": "npm run dev",
+        "cmd_test": "npm test",
+        "cmd_lint": "npm run lint",
+        "cmd_typecheck": "",
+        "cmd_build": "npm run build",
+    },
+    "Python (uv)": {
+        "language": "Python 3.12",
+        "framework": "FastAPI",
+        "package_manager": "uv",
+        "test_runner": "pytest",
+        "formatter": "ruff format",
+        "typechecker": "mypy",
+        "build_tool": "uv build",
+        "cmd_install": "uv sync",
+        "cmd_dev": "uv run python -m app",
+        "cmd_test": "uv run pytest",
+        "cmd_lint": "uv run ruff check",
+        "cmd_typecheck": "uv run mypy .",
+        "cmd_build": "uv build",
+    },
+    "Python (poetry)": {
+        "language": "Python 3.12",
+        "framework": "FastAPI",
+        "package_manager": "poetry",
+        "test_runner": "pytest",
+        "formatter": "black",
+        "typechecker": "mypy",
+        "build_tool": "poetry build",
+        "cmd_install": "poetry install",
+        "cmd_dev": "poetry run python -m app",
+        "cmd_test": "poetry run pytest",
+        "cmd_lint": "poetry run ruff check",
+        "cmd_typecheck": "poetry run mypy .",
+        "cmd_build": "poetry build",
+    },
+    "Python (pip + venv)": {
+        "language": "Python 3.12",
+        "framework": "FastAPI",
+        "package_manager": "pip",
+        "test_runner": "pytest",
+        "formatter": "black",
+        "typechecker": "mypy",
+        "build_tool": "python -m build",
+        "cmd_install": "pip install -e '.[dev]'",
+        "cmd_dev": "python -m app",
+        "cmd_test": "pytest",
+        "cmd_lint": "ruff check",
+        "cmd_typecheck": "mypy .",
+        "cmd_build": "python -m build",
+    },
+    "Go": {
+        "language": "Go 1.22",
+        "framework": "stdlib net/http",
+        "package_manager": "go mod",
+        "test_runner": "go test",
+        "formatter": "gofmt",
+        "typechecker": "go vet",
+        "build_tool": "go build",
+        "cmd_install": "go mod download",
+        "cmd_dev": "go run ./...",
+        "cmd_test": "go test ./...",
+        "cmd_lint": "golangci-lint run",
+        "cmd_typecheck": "go vet ./...",
+        "cmd_build": "go build ./...",
+    },
+    "Rust": {
+        "language": "Rust 1.82",
+        "framework": "axum",
+        "package_manager": "cargo",
+        "test_runner": "cargo test",
+        "formatter": "rustfmt",
+        "typechecker": "cargo check",
+        "build_tool": "cargo build",
+        "cmd_install": "cargo fetch",
+        "cmd_dev": "cargo run",
+        "cmd_test": "cargo test",
+        "cmd_lint": "cargo clippy -- -D warnings",
+        "cmd_typecheck": "cargo check",
+        "cmd_build": "cargo build --release",
+    },
+    "Custom / keep current": None,  # no-op sentinel
+}
+_DEFAULT_STACK = "Node + TypeScript (pnpm)"
+_STACK_DEFAULTS = STACK_PRESETS[_DEFAULT_STACK]
 
 
 # ---- intake form schema ----
@@ -164,16 +293,20 @@ FORM_SCHEMA = [
         "id": "stack",
         "title": "Tech stack",
         "fields": [
-            {"key": "language", "label": "Language / runtime", "type": "text", "default": "TypeScript 5 on Node 20"},
-            {"key": "framework", "label": "Framework", "type": "text", "default": "Next.js 15"},
+            {"key": "stack_preset", "label": "Stack preset", "type": "select",
+             "options": list(STACK_PRESETS.keys()),
+             "default": _DEFAULT_STACK,
+             "help": "Picking a preset prefills downstream defaults (package manager, test runner, formatter, typechecker, build tool, and the Commands cheatsheet). Pick 'Custom / keep current' to leave everything as-is. You can still override any field after."},
+            {"key": "language", "label": "Language / runtime", "type": "text", "default": _STACK_DEFAULTS["language"]},
+            {"key": "framework", "label": "Framework", "type": "text", "default": _STACK_DEFAULTS["framework"]},
             {"key": "package_manager", "label": "Package manager", "type": "select",
              "options": ["npm", "pnpm", "yarn", "bun", "pip", "uv", "poetry", "pipenv",
                          "cargo", "go mod", "gradle", "maven", "mix", "other"],
-             "default": "pnpm"},
-            {"key": "test_runner", "label": "Test runner", "type": "text", "default": "vitest"},
-            {"key": "formatter", "label": "Formatter", "type": "text", "default": "prettier"},
-            {"key": "typechecker", "label": "Typechecker", "type": "text", "default": "tsc --noEmit"},
-            {"key": "build_tool", "label": "Build tool", "type": "text", "default": "next build"},
+             "default": _STACK_DEFAULTS["package_manager"]},
+            {"key": "test_runner", "label": "Test runner", "type": "text", "default": _STACK_DEFAULTS["test_runner"]},
+            {"key": "formatter", "label": "Formatter", "type": "text", "default": _STACK_DEFAULTS["formatter"]},
+            {"key": "typechecker", "label": "Typechecker", "type": "text", "default": _STACK_DEFAULTS["typechecker"]},
+            {"key": "build_tool", "label": "Build tool", "type": "text", "default": _STACK_DEFAULTS["build_tool"]},
             {"key": "database", "label": "Database / data store", "type": "text", "default": "Postgres (via Prisma)"},
             {"key": "deployment", "label": "Deployment target", "type": "text", "default": "Vercel"},
         ],
@@ -182,12 +315,12 @@ FORM_SCHEMA = [
         "id": "commands",
         "title": "Commands cheatsheet",
         "fields": [
-            {"key": "cmd_install", "label": "Install", "type": "text", "default": "pnpm install"},
-            {"key": "cmd_dev", "label": "Dev", "type": "text", "default": "pnpm dev"},
-            {"key": "cmd_test", "label": "Test", "type": "text", "default": "pnpm test"},
-            {"key": "cmd_lint", "label": "Lint", "type": "text", "default": "pnpm lint"},
-            {"key": "cmd_typecheck", "label": "Typecheck", "type": "text", "default": "pnpm typecheck"},
-            {"key": "cmd_build", "label": "Build", "type": "text", "default": "pnpm build"},
+            {"key": "cmd_install", "label": "Install", "type": "text", "default": _STACK_DEFAULTS["cmd_install"]},
+            {"key": "cmd_dev", "label": "Dev", "type": "text", "default": _STACK_DEFAULTS["cmd_dev"]},
+            {"key": "cmd_test", "label": "Test", "type": "text", "default": _STACK_DEFAULTS["cmd_test"]},
+            {"key": "cmd_lint", "label": "Lint", "type": "text", "default": _STACK_DEFAULTS["cmd_lint"]},
+            {"key": "cmd_typecheck", "label": "Typecheck", "type": "text", "default": _STACK_DEFAULTS["cmd_typecheck"]},
+            {"key": "cmd_build", "label": "Build", "type": "text", "default": _STACK_DEFAULTS["cmd_build"]},
         ],
     },
     {
@@ -337,6 +470,8 @@ def target_path_for(template_rel: str):
     if module == "ui":
         if rest_path == "statusline.sh":
             return ".claude/hooks/statusline.sh"
+        if rest_path == "statusline-last-prompt.sh":
+            return ".claude/hooks/statusline-last-prompt.sh"
         if rest_path == "output-styles/plan.md":
             return ".claude/output-styles/plan.md"
     return rest_path

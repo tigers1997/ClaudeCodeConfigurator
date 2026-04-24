@@ -40,7 +40,7 @@ Everything in this kit is a structured choice about which levers to pull and how
 - **Context is infrastructure.** Treat `CLAUDE.md` like a Makefile: short, precise, versioned.
 - **Prefer pointers to pasted content.** `file:line` references beat inline code blocks.
 - **Determinism at the edges.** Use hooks for anything that shouldn't depend on model judgment (formatting, safety blocks, secret scans).
-- **Isolate for parallelism.** Subagents and worktrees let you run work in parallel without context pollution.
+- **Isolate for parallelism.** Subagents and worktrees let you run work in parallel without context bloat.
 - **Measure context cost.** Run `/context` and `/cost`. Kill anything you're paying for and don't use.
 
 ## Versions this kit assumes
@@ -51,7 +51,7 @@ Everything in this kit is a structured choice about which levers to pull and how
 
 ## Sources
 
-- Eden Marco, *Agentic Coding with Claude Code*, Packt 2026 (`uploads/9781806022595.pdf`)
+
 - `https://code.claude.com/docs/en/` — hooks, sub-agents, skills, memory
 - `https://www.humanlayer.dev/blog/writing-a-good-claude-md`
 - `https://01.me/en/2025/12/context-engineering-from-claude/`

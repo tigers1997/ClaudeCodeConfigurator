@@ -1,5 +1,4 @@
 {
-  "$schema": "https://code.claude.com/schema/mcp.json",
   "//": "Project-scoped MCP config. Commit this to share with future-you (or teammates).",
   "//2": "Scopes in order of precedence: local > project > user.",
   "mcpServers": {

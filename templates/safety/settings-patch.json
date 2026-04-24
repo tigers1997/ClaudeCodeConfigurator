@@ -1,5 +1,6 @@
 {
-  "//": "Merge this into .claude/settings.json under the 'hooks' key.",
+  "//": "Merged into .claude/settings.json. PreToolUse hooks guard dangerous Bash and scan Write/Edit for secrets.",
+  "//2": "permissions.disableBypassPermissionsMode='disable' hard-disables --dangerously-skip-permissions for this project, even if the user passes the flag.",
   "hooks": {
     "PreToolUse": [
       {
@@ -23,5 +24,8 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "disableBypassPermissionsMode": "disable"
   }
 }

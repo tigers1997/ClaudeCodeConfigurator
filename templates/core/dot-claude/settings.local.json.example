@@ -1,5 +1,5 @@
 {
-  "$schema": "https://code.claude.com/schema/settings.json",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "//": "Personal settings — gitignored. Override anything from .claude/settings.json here.",
   "permissions": {
     "allow": [

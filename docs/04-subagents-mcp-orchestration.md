@@ -106,9 +106,9 @@ Situationally valuable:
 
 Usually skip: "kitchen sink" servers exposing dozens of tools you won't use. Every tool definition costs tokens on every session start.
 
-### Context pollution is real
+### Context bloat is real
 
-Every MCP tool is a chunk of JSON schema loaded at session start. Eden Marco calls this "context pollution" — a heavy `.mcp.json` can burn thousands of tokens before you type anything. Mitigations:
+Every MCP tool is a chunk of JSON schema loaded at session start. A heavy `.mcp.json` can burn thousands of tokens before you type anything. Mitigations:
 
 1. **Only enable what you'll actually use this week.**
 2. **Scope to subagents** — put MCP servers in a subagent's frontmatter (`mcpServers:`) so they only load for that agent.
@@ -123,7 +123,7 @@ Every MCP tool is a chunk of JSON schema loaded at session start. Eden Marco cal
 ### Plan-then-execute (default)
 Planning subagent builds the plan, main session executes step by step. Good for non-trivial changes.
 
-### Infinite agentic loop (Ch 7 of Eden Marco)
+### Infinite agentic loop
 A skill spawns N subagents that each execute one slice of a plan. Main thread iterates on results. Works well when slices are independent.
 
 ### Review-while-editing

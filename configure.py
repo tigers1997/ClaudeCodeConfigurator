@@ -27,7 +27,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 try:
-    from config_schema import MODULES, FORM_SCHEMA, target_path_for
+    from config_schema import MODULES, FORM_SCHEMA, STACK_PRESETS, target_path_for
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
     sys.exit(2)
@@ -70,9 +70,26 @@ def default_form_values():
 def default_selected():
     # Required modules always, plus a sensible baseline.
     selected = {m["id"] for m in MODULES if m.get("required")}
-    selected.update({"safety", "git-workflow", "commands-core",
+    selected.update({"safety", "git-workflow", "commands-core", "agents",
                      "token-efficiency", "token-efficiency-pro"})
-    return selected
+    return resolve_dependencies(selected)
+
+
+def resolve_dependencies(selected: set) -> set:
+    """Expand `selected` to include every module's transitive `dependsOn`.
+    Keeps users from ending up with e.g. commands-core selected but agents
+    deselected, which would leave /review pointing at a missing subagent."""
+    by_id = {m["id"]: m for m in MODULES}
+    out = set(selected)
+    changed = True
+    while changed:
+        changed = False
+        for mid in list(out):
+            for dep in by_id.get(mid, {}).get("dependsOn", []):
+                if dep not in out:
+                    out.add(dep)
+                    changed = True
+    return out
 
 
 # -----------------------------------------------------------------------------
@@ -209,6 +226,32 @@ def compute_merged_settings(form_values: dict, selected: set) -> dict:
             settings.setdefault("env", {})["CLAUDE_BASH_MAX_LINES"] = str(cap)
 
     return settings
+
+
+HEAVY_INTERPRETERS = {
+    "uv", "python", "python3", "node", "poetry", "npm", "npx", "pnpm",
+    "bun", "deno", "ruby", "java", "go",
+}
+HIGH_FREQ_HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PostToolUseFailure")
+
+
+def check_hook_weight(settings: dict) -> list:
+    """Flag hooks on high-frequency events whose command starts with a heavy
+    interpreter. These add hundreds of ms per tool call and degrade the session.
+    Cheap wrappers (shell scripts, native binaries) are preferred."""
+    warnings = []
+    for event in HIGH_FREQ_HOOK_EVENTS:
+        for group in settings.get("hooks", {}).get(event, []) or []:
+            for hook in group.get("hooks", []) or []:
+                cmd = (hook.get("command") or "").strip()
+                if not cmd:
+                    continue
+                first = cmd.split(None, 1)[0].strip('"\'')
+                base = first.rsplit("/", 1)[-1]
+                if base in HEAVY_INTERPRETERS:
+                    matcher = group.get("matcher", "") or "(any)"
+                    warnings.append(f"{event} [{matcher}]: '{base}' as entrypoint — {cmd}")
+    return warnings
 
 
 def compute_mcp_json(form_values: dict) -> str:
@@ -402,6 +445,17 @@ def prompt_textarea(field, current):
     return "\n".join(lines)
 
 
+def apply_stack_preset(form_values: dict):
+    """If stack_preset is set to a real preset, copy its values into form_values.
+    Called inline right after stack_preset is prompted so downstream stack/commands
+    fields see the preset values as their defaults."""
+    preset = form_values.get("stack_preset")
+    overrides = STACK_PRESETS.get(preset)
+    if not overrides:
+        return  # "Custom / keep current" or unknown -> no-op
+    form_values.update(overrides)
+
+
 def prompt_section(section, form_values):
     print()
     print(bold(blue(f"[ {section['title'].upper()} ]")))
@@ -409,7 +463,8 @@ def prompt_section(section, form_values):
         if f.get("help"):
             print(dim(f"  \u2192 {f['help']}"))
         key = f["key"]
-        cur = form_values.get(key)
+        prev = form_values.get(key)
+        cur = prev
         t = f["type"]
         if t == "text":
             form_values[key] = prompt_text(f, cur)
@@ -419,6 +474,13 @@ def prompt_section(section, form_values):
             form_values[key] = prompt_checkbox(f, cur)
         elif t == "textarea":
             form_values[key] = prompt_textarea(f, cur)
+        # Chained choices: when a trigger field's value changes, recompute
+        # defaults for downstream fields BEFORE they are prompted.
+        if form_values[key] != prev:
+            if key == "stack_preset":
+                apply_stack_preset(form_values)
+            elif key == "efficiency_preset":
+                apply_preset(form_values)
 
 
 def apply_preset(form_values: dict):
@@ -488,14 +550,10 @@ def interactive(target_dir: Path, initial: dict) -> dict:
     form_values = initial["formValues"]
     selected = initial["selected"]
 
-    last_preset = form_values.get("efficiency_preset")
+    # Chained-choice triggers (stack_preset, efficiency_preset) fire inline
+    # inside prompt_section when the field's value changes.
     for section in FORM_SCHEMA:
         prompt_section(section, form_values)
-        # If they just touched the efficiency section, apply preset changes
-        if section["id"] == "efficiency":
-            if form_values.get("efficiency_preset") != last_preset:
-                apply_preset(form_values)
-                last_preset = form_values.get("efficiency_preset")
 
     selected = prompt_modules(selected)
     return {"formValues": form_values, "selected": selected}
@@ -557,6 +615,10 @@ def main():
     else:
         config = interactive(target_dir, initial)
 
+    # Resolve any declared module dependencies (e.g. commands-core -> agents)
+    # before saving or scaffolding, so we never generate an inconsistent set.
+    config["selected"] = resolve_dependencies(config["selected"])
+
     # --- save-config flow ---
     if args.save_config_only:
         save_config(config, Path(args.save_config_only))
@@ -568,6 +630,18 @@ def main():
 
     # --- scaffold ---
     files, gitignore_lines = collect_files(config["formValues"], config["selected"])
+
+    # Surface heavy-interpreter hooks on high-frequency events before writing.
+    hook_warnings = check_hook_weight(
+        compute_merged_settings(config["formValues"], config["selected"]))
+    if hook_warnings:
+        print()
+        print(bold(yellow("[ HOOK WARNINGS ]")))
+        for w in hook_warnings:
+            print(f"  {yellow('!')} {w}")
+        print(dim("  Heavy interpreters on high-frequency events add hundreds of ms per tool call."))
+        print(dim("  Prefer .sh wrappers or native binaries when attaching to PreToolUse/PostToolUse."))
+
     print()
     print(bold(blue("[ SUMMARY ]")))
     print(f"  Target : {green(str(target_dir))}")

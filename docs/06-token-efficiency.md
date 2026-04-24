@@ -49,9 +49,9 @@ Use `context: fork` only when the work generates a lot of tool output you don't 
 ### 6. Scoped reads
 Teach Claude (in CLAUDE.md rules) to prefer `grep` / structured search over `cat entire-file.md`. Read only what's needed.
 
-## Context pollution: the hidden problem
+## Context bloat: the hidden problem
 
-Eden Marco dedicates most of Chapter 4 to this. Common causes:
+Common causes:
 
 - **Over-general MCP config.** A broad server with many tools burns tokens every session whether you use it or not.
 - **Fat CLAUDE.md.** Every subdirectory loads its nested CLAUDE.md too when Claude reads files there. If every subdir has a 300-line CLAUDE.md, you're spending hugely.
