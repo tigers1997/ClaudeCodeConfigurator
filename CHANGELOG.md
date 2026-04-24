@@ -4,6 +4,10 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Changed
+- **Select prompt UX clarified.** The prompt for select-type fields was ambiguous — it read `"Pick 1-N or Enter for default [X]"` where `X` was the option value, leaving users unsure whether the input expected a number or the option text. Now reads `"Pick 1-N or type an option name (prefix match); Enter for default [X]"`. Prefix matching was already supported but undocumented.
+- **Six free-text fields converted to selects with common choices + `allow_custom: True` fallthrough:** `style.naming`, `stack.database`, `stack.deployment`, `design.architecture`, `design.auth`, `design.observability`. Each now offers 5–11 curated common choices; any input that isn't a number, prefix match, or Enter is accepted verbatim as a custom value (with a confirming print of what was captured). Previous free-text behavior is preserved via the custom path; the prompt just doesn't start empty anymore.
+
 ### Added
 - **`## Contributing` section in README.** Describes the branch + PR workflow now that `MainBrnchRuleset` enforces PRs + the `check` CI job on every change to `main`. Lists local-verification command (`python3 configure.py --check`) and the canonical `gh` commands for the round-trip.
 - **Claude Code version-compatibility preflight.** New `CLAUDE_CODE_COMPAT = {"min_version": "2.1.116", "tested_up_to": "2.1.119"}` in `config_schema.py`, plus a `check_claude_code_version()` helper that shells to `claude --version`, parses, and emits a `[ VERSION WARNINGS ]` block before scaffolding if the installed CC is below min, above tested-up-to, or missing entirely. Silent when in range. Matches the shape of `check_schema_url` / `check_hook_weight` / `check_github_remote`. `--check` success output now also surfaces the compat range. README Requirements section documents the range.
