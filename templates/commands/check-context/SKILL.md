@@ -1,7 +1,7 @@
 ---
 name: check-context
 description: Break down what's in the current context window and flag bloat. Use before long sessions or when autocompaction fires earlier than expected.
-allowed-tools: Bash(claude:*)
+{{effort_frontmatter}}allowed-tools: Bash(claude:*)
 ---
 
 # Check the context budget

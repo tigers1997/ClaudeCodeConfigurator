@@ -1,7 +1,7 @@
 ---
 name: session-retro
 description: End-of-session retro. Diff what actually happened in this session against CLAUDE.md / rules and propose updates to capture anything worth remembering. Run before closing a long session.
-allowed-tools: Read Grep Glob
+{{effort_frontmatter}}allowed-tools: Read Grep Glob
 ---
 
 # Session retrospective

@@ -10,6 +10,10 @@ INPUT="$(cat)"
 MODEL="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("model",{}).get("display_name") or d.get("model",{}).get("id") or "?")' 2>/dev/null || echo "?")"
 CWD="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("cwd",""))' 2>/dev/null || echo "")"
 TOKENS="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;d=json.load(sys.stdin);c=d.get("usage",{}).get("context",{});print(c.get("used_pct","?"))' 2>/dev/null || echo "?")"
+# 2.1.119+: effort.level and thinking.enabled may arrive on stdin.
+# Empty string if absent — keeps older Claude Code versions unchanged.
+EFFORT="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("effort",{}).get("level","") or "")' 2>/dev/null || echo "")"
+THINKING="$(printf '%s' "$INPUT" | python3 -c 'import json,sys;print("on" if json.load(sys.stdin).get("thinking",{}).get("enabled") else "")' 2>/dev/null || echo "")"
 
 # Git branch + dirty marker
 BRANCH=""
@@ -31,3 +35,11 @@ C_RESET="\033[0m"
 
 printf "${C_CYAN}%s${C_RESET} ${C_DIM}|${C_RESET} ${C_GREEN}%s${C_RESET} ${C_DIM}|${C_RESET} ${C_YELLOW}%s${C_RESET} ${C_DIM}|${C_RESET} ctx %s%%" \
   "$DIR" "${BRANCH:-no-git}" "$MODEL" "$TOKENS"
+
+# Append effort/thinking indicators only when present.
+if [ -n "$EFFORT" ]; then
+  printf " ${C_DIM}|${C_RESET} effort %s" "$EFFORT"
+fi
+if [ -n "$THINKING" ]; then
+  printf " ${C_DIM}|${C_RESET} ${C_YELLOW}think${C_RESET}"
+fi

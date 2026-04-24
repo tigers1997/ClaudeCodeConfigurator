@@ -1,7 +1,7 @@
 ---
 name: sync-docs
 description: Inspect recent changes and update CLAUDE.md / .claude/rules/ with anything new worth remembering.
-allowed-tools: Read Write Edit Grep Glob Bash(git log:*) Bash(git diff:*)
+{{effort_frontmatter}}allowed-tools: Read Write Edit Grep Glob Bash(git log:*) Bash(git diff:*)
 ---
 
 # Sync docs to recent work

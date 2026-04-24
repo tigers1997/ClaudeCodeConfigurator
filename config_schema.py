@@ -77,8 +77,8 @@ MODULES = [
     },
     {
         "id": "commands-core",
-        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro)",
-        "description": "Seven workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (flags MCP/skill bloat), /session-retro (end-of-session reflection on what to capture).",
+        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup)",
+        "description": "Eight workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (token bloat), /session-retro (end-of-session reflection), /verify-setup (audits the shape of .claude/ itself).",
         "paths": [
             "commands/plan/SKILL.md",
             "commands/review/SKILL.md",
@@ -87,6 +87,7 @@ MODULES = [
             "commands/sync-docs/SKILL.md",
             "commands/check-context/SKILL.md",
             "commands/session-retro/SKILL.md",
+            "commands/verify-setup/SKILL.md",
         ],
         "dependsOn": ["agents"],
     },
@@ -100,6 +101,22 @@ MODULES = [
             "agents/doc-writer.md",
             "agents/security-auditor.md",
         ],
+    },
+    {
+        "id": "experiments-memory",
+        "title": "Experiments log (lazy-loaded memory/experiments/)",
+        "description": "Scaffolds memory/experiments/CLAUDE.md — a nested memory file that injects ONLY when Claude reads files under memory/experiments/. Defines a file format (hypothesis/setup/result/conclusion/follow-ups) and usage discipline for logging past experiments. Ships one worked example so the format is concrete. Costs zero context until you touch the folder. Inspired by the Anthropic Growth Marketing team's pattern.",
+        "paths": [
+            "experiments-memory/memory/experiments/CLAUDE.md",
+            "experiments-memory/memory/experiments/2026-04-24-example-profile-budget.md",
+        ],
+    },
+    {
+        "id": "lockdown",
+        "title": "Lockdown: block all Claude Code updates",
+        "description": "Sets DISABLE_UPDATES=1 in settings env so autoupdates AND manual `claude update` are both blocked. For air-gapped / enterprise environments where Claude Code must flow through a controlled release channel. Stricter than DISABLE_AUTOUPDATER.",
+        "paths": [],
+        "settingsPatch": "lockdown/settings-patch.json",
     },
     {
         "id": "multi-agent",

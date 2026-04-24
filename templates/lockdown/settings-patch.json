@@ -1,0 +1,9 @@
+{
+  "//": "Lockdown preset: block all Claude Code update paths.",
+  "//1": "DISABLE_UPDATES=1 (added in Claude Code 2.1.118) blocks autoupdates AND the manual `claude update` command, even when the user passes --force.",
+  "//2": "Stricter than DISABLE_AUTOUPDATER which only blocks autoupdates.",
+  "//3": "Use in locked-down / air-gapped / enterprise environments where updates must flow through a controlled channel.",
+  "env": {
+    "DISABLE_UPDATES": "1"
+  }
+}

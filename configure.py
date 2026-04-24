@@ -166,6 +166,13 @@ def compute_placeholders(form_values: dict, selected: set) -> dict:
     if v.get("mcp_context7"):   mcps.append("context7")
     v["mcps"] = ", ".join(mcps) if ("mcp" in selected and mcps) else "(none)"
     v["efficiency_rules"] = build_efficiency_rules(form_values)
+    # Lightweight skills (check-context, sync-docs, session-retro) carry an
+    # {{effort_frontmatter}} slot. When the user opts into "effort: minimal
+    # on simple skills", stamp it; otherwise leave the slot empty so the
+    # next line follows directly.
+    v["effort_frontmatter"] = (
+        "effort: minimal\n" if form_values.get("eff_effort_minimal") else ""
+    )
     return v
 
 
@@ -233,6 +240,56 @@ HEAVY_INTERPRETERS = {
     "bun", "deno", "ruby", "java", "go",
 }
 HIGH_FREQ_HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PostToolUseFailure")
+
+
+GOOD_SCHEMA_URL = "https://json.schemastore.org/claude-code-settings.json"
+
+
+def check_schema_url(settings: dict) -> list:
+    """Guard against the regression class that motivated the first $schema fix:
+    Claude Code silently drops the entire settings file if $schema is present
+    but not the expected value. Returns a warning only on drift."""
+    warnings = []
+    schema = settings.get("$schema")
+    if schema is None:
+        warnings.append(
+            "settings.json has no $schema key — the file is valid but editors "
+            f"won't offer autocomplete. Expected: {GOOD_SCHEMA_URL}"
+        )
+    elif schema != GOOD_SCHEMA_URL:
+        warnings.append(
+            f"settings.json $schema = {schema!r} but Claude Code's validator "
+            f"accepts only {GOOD_SCHEMA_URL!r}. Files with this mismatch are "
+            f"rejected silently and all settings are ignored."
+        )
+    return warnings
+
+
+def check_github_remote(target_dir) -> list:
+    """Return warnings if the github-actions module was selected but the target
+    dir isn't a GitHub-tracked git repo. Non-blocking — the workflow file will
+    still be written; it just won't do anything until the remote is set up."""
+    import subprocess
+    warnings = []
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(target_dir), "remote", "-v"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        warnings.append("`git` not found or unresponsive — cannot verify GitHub remote")
+        return warnings
+    if result.returncode != 0:
+        warnings.append(
+            "target dir is not a git repo — the Action will not run until "
+            "you `git init` and push to a GitHub remote"
+        )
+    elif "github" not in result.stdout.lower():
+        existing = result.stdout.strip() or "(no remotes configured)"
+        warnings.append(
+            f"no GitHub remote detected. `git remote -v` shows: {existing}"
+        )
+    return warnings
 
 
 def check_hook_weight(settings: dict) -> list:
@@ -631,9 +688,17 @@ def main():
     # --- scaffold ---
     files, gitignore_lines = collect_files(config["formValues"], config["selected"])
 
-    # Surface heavy-interpreter hooks on high-frequency events before writing.
-    hook_warnings = check_hook_weight(
-        compute_merged_settings(config["formValues"], config["selected"]))
+    # Pre-flight: flag heavy hooks AND drift in the settings $schema URL,
+    # which silently invalidates the whole file.
+    merged = compute_merged_settings(config["formValues"], config["selected"])
+    schema_warnings = check_schema_url(merged)
+    if schema_warnings:
+        print()
+        print(bold(yellow("[ SCHEMA WARNINGS ]")))
+        for w in schema_warnings:
+            print(f"  {yellow('!')} {w}")
+
+    hook_warnings = check_hook_weight(merged)
     if hook_warnings:
         print()
         print(bold(yellow("[ HOOK WARNINGS ]")))
@@ -641,6 +706,17 @@ def main():
             print(f"  {yellow('!')} {w}")
         print(dim("  Heavy interpreters on high-frequency events add hundreds of ms per tool call."))
         print(dim("  Prefer .sh wrappers or native binaries when attaching to PreToolUse/PostToolUse."))
+
+    # Surface module-level prerequisites that can't be fixed by the configurator.
+    module_warnings = []
+    if "github-actions" in config["selected"]:
+        for w in check_github_remote(target_dir):
+            module_warnings.append(("github-actions", w))
+    if module_warnings:
+        print()
+        print(bold(yellow("[ MODULE WARNINGS ]")))
+        for mod, w in module_warnings:
+            print(f"  {yellow('!')} {mod}: {w}")
 
     print()
     print(bold(blue("[ SUMMARY ]")))

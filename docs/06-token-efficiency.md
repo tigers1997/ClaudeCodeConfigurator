@@ -87,6 +87,10 @@ Do a "context budget review" monthly:
 
 Most sessions can run primarily on Sonnet with Haiku subagents for reads. Opus is a scalpel, not a default.
 
+### Effort level (Pro/Max only)
+
+Since Claude Code 2.1.117, Pro/Max subscribers on Opus 4.6 and Sonnet 4.6 default to `effort: high` (was `medium`). The default is already tuned — do **not** manually downgrade to `medium` thinking you're saving tokens. You're not; you're getting a less capable response for the same budget. If you want cheaper, drop to Haiku or use a lighter model. Reserve `effort: minimal` for skills that are mechanical (e.g. `/sync-docs`, `/check-context`, `/session-retro` — the `eff_effort_minimal` toggle stamps this automatically on those skills' frontmatter).
+
 ## When you hit the context wall mid-session
 
 1. `/compact` — don't wait for auto-compaction.
