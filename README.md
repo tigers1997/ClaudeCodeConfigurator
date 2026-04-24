@@ -86,7 +86,7 @@ Picking `Python (uv)` flips `cmd_test` from `pnpm test` to `uv run pytest`, etc.
 | **token-efficiency** | Path-scoped `.claude/rules/` starters + PreCompact snapshot hook. |
 | **token-efficiency-pro** | Bash-output truncation hook + always-loaded discipline rules. |
 | **commands-core** | Eight workflow skills: `/plan`, `/review`, `/commit`, `/ship`, `/sync-docs`, `/check-context`, `/session-retro`, `/verify-setup`. Auto-pulls **agents** via module dependency. |
-| **agents** | Four subagents: `code-reviewer`, `test-runner`, `doc-writer`, `security-auditor`. |
+| **agents** | Four subagents: `code-reviewer`, `test-runner`, `doc-writer`, `security-auditor`. The `security-auditor` frontmatter wires Sonatype's dependency-management MCP (`https://mcp.guide.sonatype.com/mcp`) scoped to that agent — active only when it runs, so ~0 baseline context cost. Set `SONATYPE_TOKEN` env var to enable ([generate a token](https://guide.sonatype.com/settings/tokens)). |
 | **mcp** | `.mcp.json` generated from selected servers, plus **per-task profiles** (`.mcp.research.json`, `.mcp.frontend.json`, `.mcp.minimal.json`) and an executable `./claude-ctx` wrapper that launches Claude with `--mcp-config <profile> --strict-mcp-config` — drops a bloated 4-MCP baseline from ~49% context to under 5%. |
 | **multi-agent** | Path-scoped `multi-agent-guardrails.md` (5-scenario "when not to parallel" list), `/merge-worktrees` skill, `/infinite` skill, `parallel-generator` subagent. |
 | **github-actions** | `.github/workflows/claude.yml` pinned to `anthropics/claude-code-action@v1`. Triggers on `@claude` mentions in issues, PR comments, and PR reviews. |
@@ -159,6 +159,15 @@ The same check runs in CI on every push and PR (`.github/workflows/check.yml`). 
 - `templates/mcp/mcp.json` → `.mcp.json`
 - `templates/mcp/profiles/mcp.<name>.json` → `.mcp.<name>.json` at repo root
 - `templates/mcp/servers-cookbook.md` → `docs/mcp-servers.md`
+
+## Acknowledgments
+
+Portions of this project were informed by the MIT-licensed companion code in [PacktPublishing/Agentic-Coding-with-Claude-Code](https://github.com/PacktPublishing/Agentic-Coding-with-Claude-Code) (© 2026 Packt). In particular:
+
+- `templates/ui/statusline-last-prompt.sh` adapts the transcript-reading pattern demonstrated in that repo's `Chapter08/statusline.py`.
+- The multi-agent guardrails in `templates/multi-agent/dot-claude/rules/multi-agent-guardrails.md` reorganize and extend a taxonomy first presented by Eden Marco in *Agentic Coding with Claude Code* (Packt, 2026).
+
+The configurator, its modules, the preflight-check architecture (`--check` / `check_schema_url` / `check_hook_weight` / `check_github_remote`), the stack-preset system, and all other scaffolding are original work.
 
 ## License
 

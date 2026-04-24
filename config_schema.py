@@ -94,7 +94,7 @@ MODULES = [
     {
         "id": "agents",
         "title": "Subagents (code-reviewer/test-runner/doc-writer/security-auditor)",
-        "description": "Four specialists with isolated context. Read-heavy ones run on haiku, code-reviewer on sonnet, security-auditor on opus.",
+        "description": "Four specialists with isolated context. Read-heavy ones run on haiku, code-reviewer on sonnet, security-auditor on opus. security-auditor ships with a scoped mcpServers: block wiring Sonatype's dependency-management MCP (https://mcp.guide.sonatype.com/mcp) for CVE lookup and license/health checks — active only when that agent is running, so ~0 context cost otherwise. Set SONATYPE_TOKEN env var (generate at https://guide.sonatype.com/settings/tokens) to enable.",
         "paths": [
             "agents/code-reviewer.md",
             "agents/test-runner.md",

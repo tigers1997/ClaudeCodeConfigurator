@@ -32,7 +32,7 @@ If the spec is ambiguous on any of the above, ask **one** clarifying question an
 
 `ls` the output dir. Note existing iteration slugs so new ones don't collide. If the dir has unrelated content, flag it and wait for approval before proceeding.
 
-Build a **directory snapshot** — a short structured note:
+Build a **claimed-slots manifest** — a short structured note:
 ```
 output_dir: <path>
 existing_slugs: [slug-a, slug-b, ...]
@@ -40,7 +40,7 @@ next_slot_numbers: starting from <N>
 unrelated_contents: <list or "none">
 ```
 
-This snapshot goes to every subagent and is the key anti-duplication trick.
+This manifest goes to every subagent and is the key anti-duplication trick.
 
 ## Phase 3 — Iteration strategy
 
@@ -57,12 +57,12 @@ Pick a batching plan based on `count`:
 Dispatch subagents via the Task tool using the `parallel-generator` subagent. Each call's prompt must contain exactly these five sections (keep them labeled):
 
 1. **spec_context** — the full contents of `spec_file` (or a summary if > 2k chars; include the path).
-2. **directory_snapshot** — the snapshot from Phase 2, updated with any slots claimed by earlier waves.
+2. **claimed_slots_manifest** — the snapshot from Phase 2, updated with any slots claimed by earlier waves.
 3. **iteration_assignment** — e.g. `iteration 7 of 20, slug: iter-07`.
-4. **uniqueness_directive** — the axis this iteration should differ on, named explicitly. e.g. "this iteration must use a dark color palette"; "this iteration must favor imperative style over declarative."
+4. **diversification_axis** — the axis this iteration should differ on, named explicitly. e.g. "this iteration must use a dark color palette"; "this iteration must favor imperative style over declarative."
 5. **quality_standards** — the must-be-true bullets from Phase 1, verbatim.
 
-**Do not ask subagents to coordinate with each other.** They cannot spawn their own subagents and their contexts don't share. The directory_snapshot + uniqueness_directive does the coordination for them.
+**Do not ask subagents to coordinate with each other.** They cannot spawn their own subagents and their contexts don't share. The claimed_slots_manifest + diversification_axis does the coordination for them.
 
 ## After each wave
 

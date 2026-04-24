@@ -419,32 +419,42 @@ def check_hook_weight(settings: dict) -> list:
 
 
 def compute_mcp_json(form_values: dict) -> str:
+    # Versions pinned via Sonatype MCP (getRecommendedComponentVersions).
+    # Bump these as upstream moves; --check will catch structural drift but
+    # cannot verify whether a version is current. Run the lookup periodically
+    # and update the dict below.
     servers = {}
     if form_values.get("mcp_filesystem"):
         servers["filesystem"] = {
             "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+            "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.1.14", "."]
         }
     if form_values.get("mcp_git"):
         servers["git"] = {
             "command": "uvx",
-            "args": ["mcp-server-git", "--repository", "."]
+            "args": ["--from", "mcp-server-git==2026.1.14", "mcp-server-git",
+                     "--repository", "."]
         }
     if form_values.get("mcp_github"):
+        # The original @modelcontextprotocol/server-github npm package is
+        # end-of-life per Sonatype; upstream removed it from the
+        # modelcontextprotocol/servers repo. GitHub now ships an official
+        # remote HTTP MCP at api.githubcopilot.com/mcp/. Requires a GitHub
+        # PAT in GITHUB_TOKEN (or use OAuth via `claude mcp add` instead).
         servers["github"] = {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-github"],
-            "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"}
+            "type": "http",
+            "url": "https://api.githubcopilot.com/mcp/",
+            "headers": {"Authorization": "Bearer ${GITHUB_TOKEN}"}
         }
     if form_values.get("mcp_playwright"):
         servers["playwright"] = {
             "command": "npx",
-            "args": ["-y", "@playwright/mcp@latest"]
+            "args": ["-y", "@playwright/mcp@0.0.70"]
         }
     if form_values.get("mcp_context7"):
         servers["context7"] = {
             "command": "npx",
-            "args": ["-y", "@upstash/context7-mcp@latest"]
+            "args": ["-y", "@upstash/context7-mcp@2.1.8"]
         }
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 

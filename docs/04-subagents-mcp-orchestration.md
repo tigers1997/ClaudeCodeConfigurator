@@ -108,11 +108,12 @@ Usually skip: "kitchen sink" servers exposing dozens of tools you won't use. Eve
 
 ### Context bloat is real
 
-Every MCP tool is a chunk of JSON schema loaded at session start. A heavy `.mcp.json` can burn thousands of tokens before you type anything. Mitigations:
+Every MCP tool is a chunk of JSON schema loaded at session start. A heavy `.mcp.json` can burn thousands of tokens before you type anything — a fresh session with 4 MCP servers loaded typically costs ~37k tokens of tool descriptions alone, ~49% of a 100k window. Mitigations:
 
 1. **Only enable what you'll actually use this week.**
-2. **Scope to subagents** — put MCP servers in a subagent's frontmatter (`mcpServers:`) so they only load for that agent.
-3. **Wrap heavy servers in narrow slash commands** — if a server exposes 30 tools and you use 3, write a skill that calls those 3.
+2. **Per-task profiles** — ship `.mcp.<profile>.json` files at repo root and run `claude --mcp-config <path> --strict-mcp-config` (or `./claude-ctx <profile>` using the wrapper the `mcp` module ships). `--strict-mcp-config` ignores the default hierarchy entirely. Real demo: context usage drops from 18.8% to 2.4% when scoped.
+3. **Scope to subagents** — put MCP servers in a subagent's frontmatter (`mcpServers:`) so they only load for that agent.
+4. **Wrap heavy servers in narrow slash commands** — if a server exposes 30 tools and you use 3, write a skill that calls those 3.
 
 ### Checking the cost
 
@@ -123,14 +124,14 @@ Every MCP tool is a chunk of JSON schema loaded at session start. A heavy `.mcp.
 ### Plan-then-execute (default)
 Planning subagent builds the plan, main session executes step by step. Good for non-trivial changes.
 
-### Infinite agentic loop
-A skill spawns N subagents that each execute one slice of a plan. Main thread iterates on results. Works well when slices are independent.
+### Fanout generation (`/infinite`)
+A skill spawns N subagents that each produce one distinct variant of a spec. Main thread coordinates assignments via a directory snapshot + uniqueness directive so siblings don't collide. The `multi-agent` module ships this as `/infinite <spec-file> <output-dir> <count>` plus a `parallel-generator` subagent. Works well when slices are independent — exact opposite of tightly-coupled features (see `multi-agent-guardrails.md`).
 
 ### Review-while-editing
 Main session edits; `code-reviewer` subagent runs in parallel after every commit. Catches drift early.
 
-### Desktop + cloud (Ch 10)
-Local Claude Code for interactive work; Claude Code Web for long-running cloud jobs. Worktrees bridge the two. Useful for "run this large refactor while I go do something else."
+### Desktop + cloud
+Local Claude Code for interactive work; Claude Code Web for long-running cloud jobs. Worktrees bridge the two. Useful for "run this large refactor while I go do something else." After both branches converge, use `/merge-worktrees` (ships in `multi-agent`) to integrate safely via a disposable branch.
 
 ### Limits
 

@@ -11,8 +11,8 @@ Precedence when names collide: **local > project > user**.
 
 ## Add / remove via CLI
 ```bash
-# Project scope, stdio
-claude mcp add my-server --scope project -- npx -y @modelcontextprotocol/server-filesystem /repo
+# Project scope, stdio — note the pinned version
+claude mcp add my-server --scope project -- npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /repo
 
 # List what's wired
 claude mcp list
@@ -20,6 +20,29 @@ claude mcp list
 # Remove
 claude mcp remove my-server
 ```
+
+## Pinning discipline
+
+Every MCP server reference in this project pins a specific version — no `@latest`, no unpinned names. The reason is supply-chain hygiene: `npx -y <pkg>@latest` installs whatever's current at invocation time without prompting. A compromised or malicious upstream lands in your session the next time you start Claude Code.
+
+When bumping versions:
+
+1. Run a Sonatype lookup (via the MCP tool if you have `SONATYPE_TOKEN` set, or via `https://ossindex.sonatype.org/`) to check the target version for known vulnerabilities, license drift, or end-of-life status.
+2. Bump in `templates/mcp/mcp.json`, `templates/mcp/profiles/*.json`, and `configure.py`'s `compute_mcp_json()`.
+3. Run `python3 configure.py --check` — CI will also catch any resulting JSON or schema drift.
+4. Note the bump in `CHANGELOG.md`.
+
+## Currently pinned versions
+
+| Server | Ref |
+| --- | --- |
+| `@modelcontextprotocol/server-filesystem` | `2026.1.14` |
+| `mcp-server-git` (pypi via `uvx`) | `2026.1.14` |
+| `github` (GitHub's official remote MCP) | `https://api.githubcopilot.com/mcp/` (no version — server-side) |
+| `@playwright/mcp` | `0.0.70` |
+| `@upstash/context7-mcp` | `2.1.8` |
+
+**Deprecated / removed:** `@modelcontextprotocol/server-github` is end-of-life (upstream removed it from the modelcontextprotocol/servers repo). Replaced by GitHub's official remote HTTP MCP, which uses a `type: http` config with `Authorization: Bearer ${GITHUB_TOKEN}` rather than `npx`.
 
 ## Practical picks for a single developer
 

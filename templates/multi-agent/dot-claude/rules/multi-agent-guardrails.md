@@ -3,23 +3,41 @@ paths: ".claude/agents/**"
 ---
 # Multi-agent guardrails
 
-Loads when touching any subagent definition. Parallelism is a multiplier, not a feature — before fanning out work across agents, check the scenario against this list.
+Loads when touching any subagent definition. Parallelism is a force multiplier for truly independent work — and a force *divider* for everything else. Before fanning out, check the scenario against the failure modes below.
 
-## When parallel agents are counterproductive
+## Failure modes where parallel is the wrong tool
 
-1. **Tightly coupled features** — the work touches the same files or produces outputs that feed each other. Parallel agents race; run sequential.
-2. **Shared state or ordering constraints** — migrations, config files, shared type declarations. One agent must commit before the next reads. Parallel produces merge hell.
-3. **Small tasks** — if the whole job would take a single agent under ~15 minutes, the agent startup + merge overhead costs more than you save.
-4. **High coordination cost** — if you're writing elaborate specs *just to keep agents from stepping on each other*, the meta-work has already defeated the point. Do it solo.
-5. **Exploratory or uncertain work** — parallel multiplies uncertainty. One focused iteration almost always beats five half-blind explorers.
+Grouped by what actually breaks, not by arbitrary ordering:
 
-## Pre-flight checklist (use before launching parallel subagents)
+### Race on shared writes
 
-- [ ] **Disjoint files.** Each agent's writes land in paths no other agent touches.
-- [ ] **Correct starting branch.** All worktrees spawn from the same base commit.
-- [ ] **Merged-result test.** Plan how you'll test the integrated output — not just each branch alone.
-- [ ] **Cleanup step.** Worktree dirs get removed after merge; dead branches get pruned.
+1. **Overlapping output paths.** Two or more agents target the same file or the same output slot. Even with disjoint *logical* work, literal file collisions corrupt the merge.
+2. **Ordering is load-bearing.** Database migrations, schema changes, protocol-version bumps, shared type declarations — anything where the later step needs to see the earlier step's commit to make sense. Parallel races break the sequence.
+
+### Cost > benefit
+
+3. **The task fits in one head.** If a single solo agent would finish in under ~15 minutes, spawn + merge overhead costs more than you save. Solo-Claude is the default for small work.
+4. **Specs exist only to separate agents.** If you find yourself writing elaborate boundary specs purely so parallel agents don't collide, the meta-work has already defeated the point. Do it solo.
+
+### Uncertainty multiplier
+
+5. **Unknown-unknowns in the problem shape.** Exploratory or investigative work where the *answer* changes the plan. Parallel agents multiply divergent dead ends.
+6. **Active debugging.** Reproducing a bug, tracing a regression, or isolating a flaky test — causality matters, and parallel runs scramble it. One careful session beats three hasty ones.
+
+## Pre-flight — five questions before spawning
+
+Ask all five; a "no" on any of them means stop and rethink.
+
+- [ ] **Disjoint writes?** Each agent's target paths confirmed non-overlapping.
+- [ ] **Common base?** All worktrees branch from the same commit hash.
+- [ ] **Merged-result test exists?** A check that validates the *integrated* output, not just each branch alone.
+- [ ] **Cleanup plan?** Worktrees and merged branches get removed after a successful integration.
+- [ ] **Escape hatch?** A clear path to abort and reset if one agent goes sideways — without losing the work of the others.
 
 ## Rule of thumb
 
-**Solo Claude is the default.** Reach for multi-agent when you have clear, parallelizable work carved into disjoint surfaces — most often: generating N variants of the same component, running independent audits, or processing N isolated files. Everything else, do sequential.
+**Solo Claude is the default.** Reach for multi-agent when the work is truly parallelizable: N variants of the same spec, N independent audits, N isolated files to process. Everything else, do sequential.
+
+---
+
+*Discipline here draws on a taxonomy presented by Eden Marco in *Agentic Coding with Claude Code* (Packt, 2026), reorganized around failure modes with additional items from the maintainers' own experience.*

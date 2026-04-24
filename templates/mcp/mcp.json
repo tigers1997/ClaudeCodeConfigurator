@@ -1,38 +1,39 @@
 {
   "//": "Project-scoped MCP config. Commit this to share with future-you (or teammates).",
   "//2": "Scopes in order of precedence: local > project > user.",
+  "//3": "Versions pinned (checked via Sonatype). Bump deliberately; don't use @latest.",
   "mcpServers": {
     "//filesystem": "Read/write files in a sandboxed path. Uncomment and set ALLOWED_PATH.",
     "// filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/ABSOLUTE/ALLOWED/PATH"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.1.14", "/ABSOLUTE/ALLOWED/PATH"]
     },
 
     "//git": "Local git operations beyond what Bash allows.",
     "// git": {
       "command": "uvx",
-      "args": ["mcp-server-git", "--repository", "."]
+      "args": ["--from", "mcp-server-git==2026.1.14", "mcp-server-git", "--repository", "."]
     },
 
-    "//github": "GitHub issues, PRs, and repos. Requires GITHUB_TOKEN env.",
+    "//github": "GitHub issues, PRs, and repos. Official remote HTTP MCP (github/github-mcp-server). Requires GITHUB_TOKEN PAT, or use `claude mcp add` with OAuth.",
     "// github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
     },
 
     "//playwright": "Browser automation — good for UI regression checks.",
     "// playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": ["-y", "@playwright/mcp@0.0.70"]
     },
 
     "//context7": "Live library docs lookup.",
     "// context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": ["-y", "@upstash/context7-mcp@2.1.8"]
     }
   }
 }
