@@ -620,22 +620,43 @@ def prompt_text(field, current):
 
 
 def prompt_select(field, current):
+    """Select prompt with three input modes:
+      - Numeric (1-N): pick by index.
+      - Text prefix: case-insensitive prefix match of the option text (`REST`,
+        `graph…`, `post…` → first matching option).
+      - Custom free text: only when the field sets `allow_custom: True`. Any
+        input that isn't a number or prefix match is accepted verbatim as the
+        value. Without the flag, unmatched input falls back to the default
+        (guards against typos).
+    """
     label = field["label"]
     options = field["options"]
     default = current if current in options else field["default"]
+    allow_custom = field.get("allow_custom", False)
     print(f"  {label}")
     for i, opt in enumerate(options, 1):
         marker = "*" if opt == default else " "
         print(f"    {marker} {i}) {opt}")
-    raw = _input(f"  Pick 1-{len(options)} or Enter for default [{dim(default)}]: ").strip()
+    if allow_custom:
+        print(dim("       *) or type your own value"))
+        suffix = (f"  Pick 1-{len(options)}, type an option name, type a custom value, "
+                  f"or Enter for default [{dim(default)}]: ")
+    else:
+        suffix = (f"  Pick 1-{len(options)} or type an option name "
+                  f"(prefix match); Enter for default [{dim(default)}]: ")
+    raw = _input(suffix).strip()
     if not raw:
         return default
     if raw.isdigit() and 1 <= int(raw) <= len(options):
         return options[int(raw) - 1]
-    # match by prefix
+    # Case-insensitive prefix match
     for opt in options:
         if opt.lower().startswith(raw.lower()):
             return opt
+    # No match — branch on allow_custom
+    if allow_custom:
+        print(dim(f"    (using custom value: {raw})"))
+        return raw
     print(yellow(f"    (didn't match, keeping {default})"))
     return default
 
