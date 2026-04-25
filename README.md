@@ -58,7 +58,15 @@ cc-configure --dry-run                   # preview what would be written
 cc-configure --help                      # full flags
 ```
 
-Answers persist to `.claude-config.json` in the project; re-runs with `--yes` reuse them. Existing files get backed up to `<name>.bak-<timestamp>` before overwrite.
+Answers persist to `.claude-config.json` in the project; re-runs with `--yes` reuse them.
+
+**Retrofit safety (Tier 1, since v1.2.0).** By default `cc-configure` **refuses to clobber existing project files**. If your target directory already has a `CLAUDE.md`, `.claude/settings.json`, custom skills/agents/hooks, or any other file the configurator would write, the run aborts with a `[ RETROFIT WARNINGS ]` block listing the collisions and exits with status `2`. To proceed:
+
+- `--force` — overwrite existing files (originals back up to `<name>.bak-<timestamp>` unless `--no-backup` is also set)
+- `--dry-run` — see the full would-be-written list without exiting on collision
+- Move/rename your existing files first if you want to merge manually
+
+Future tiers will add deep-merge for `settings.json` + `.mcp.json` and skip-and-stage handling for skill/agent/rule/hook collisions, plus a `/retrofit` skill that walks you through merges interactively. See `docs/07-backlog.md` (local-only) for the roadmap.
 
 ## Stack presets
 
@@ -105,13 +113,15 @@ Individual toggles can be overridden after picking a preset.
 
 ## Preflight checks
 
-Before scaffolding, `cc-configure` runs three non-blocking checks and prints warnings for each that fires:
+Before scaffolding, `cc-configure` runs four non-blocking checks and prints a warning block for each that fires, plus one **blocking** retrofit check:
 
+- **`[ VERSION WARNINGS ]`** — compares `claude --version` against the declared `CLAUDE_CODE_COMPAT` range. Warns below min, informs above tested-up-to.
 - **`[ SCHEMA WARNINGS ]`** — verifies the generated `settings.json`'s `$schema` matches `https://json.schemastore.org/claude-code-settings.json`. Claude Code silently drops the entire settings file on schema drift, so this guards the exact regression class that originally motivated this project.
 - **`[ HOOK WARNINGS ]`** — flags hooks on high-frequency events (`PreToolUse`/`PostToolUse`/`PostToolUseFailure`) whose entrypoint is a heavy interpreter (`uv`, `python`, `node`, `poetry`, `npm`, `npx`, `pnpm`, `bun`, `deno`, `ruby`, `java`, `go`). Each call adds hundreds of ms.
 - **`[ MODULE WARNINGS ]`** — currently: if the `github-actions` module is selected, verifies the target dir is a git repo with a GitHub remote; otherwise the Action will never trigger.
+- **`[ RETROFIT WARNINGS ]` (blocking)** — lists every existing file at the target that would be overwritten. Without `--force`, `cc-configure` aborts with status `2` instead of clobbering. See [Use](#use) above for the resolution paths.
 
-All three are silent on a clean default scaffold.
+All four non-blocking checks are silent on a clean default scaffold; the retrofit check is silent unless the target already contains files the configurator would write.
 
 ## Flags
 
@@ -121,8 +131,11 @@ All three are silent on a clean default scaffold.
 --preset PRESET         balanced | aggressive | relaxed
 --modules M1,M2,...     Comma-separated module IDs
 --yes                   Accept defaults / saved config
---dry-run               Preview without writing
---no-backup             Don't back up overwritten files
+--dry-run               Preview without writing (informational only — bypasses
+                        the retrofit-abort behavior)
+--no-backup             Don't back up overwritten files (only relevant with --force)
+--force                 Overwrite existing files at the target. Default is to
+                        refuse if any would be clobbered (Tier 1 retrofit safety).
 --save-config FILE      Save answers to FILE (plus scaffolding)
 --save-config-only FILE Save answers only, no scaffolding
 --check                 Static validation of templates + MODULES (CI gate);
