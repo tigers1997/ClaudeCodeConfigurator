@@ -456,6 +456,25 @@ def check_github_remote(target_dir) -> list:
     return warnings
 
 
+def check_retrofit_state(files, target_dir):
+    """Detect files in `files` that already exist at `target_dir`.
+    Returns a list of (target_relative_path, absolute_path) tuples.
+    Empty list = greenfield install, safe to proceed.
+
+    Tier 1 of retrofit safety: just detect collisions. Default behavior at
+    the call site is to refuse to proceed unless --force is passed; .bak-<ts>
+    fallback still applies when --force is in effect. Tier 2 will add deep-
+    merge for structured assets (settings.json, .mcp.json) and skip-and-stage
+    for file collisions (skills/agents/rules/hooks). Tier 3 will add the
+    /retrofit skill that walks the staged report interactively."""
+    collisions = []
+    for f in files:
+        dest = target_dir / f["target"]
+        if dest.exists():
+            collisions.append((f["target"], dest))
+    return collisions
+
+
 def check_hook_weight(settings: dict) -> list:
     """Flag hooks on high-frequency events whose command starts with a heavy
     interpreter. These add hundreds of ms per tool call and degrade the session.
@@ -831,6 +850,12 @@ def parse_args():
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
     p.add_argument("--dry-run", action="store_true", help="Show what would be written and exit")
     p.add_argument("--no-backup", action="store_true", help="Don't back up existing files")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite existing files at the target without prompting. "
+                        "Default behavior is to refuse if any would be clobbered "
+                        "(except in --dry-run, where the warning is informational). "
+                        "When --force is set, originals back up to *.bak-<ts> unless "
+                        "--no-backup is also passed.")
     p.add_argument("--check", action="store_true",
                    help="Static validation of templates + MODULES registry (CI-friendly). "
                         "Exits 0 on clean, 1 with a per-issue summary otherwise. "
@@ -934,6 +959,31 @@ def main():
     print(f"  Files  : {len(files)} ({sum(1 for f in files if f['executable'])} executable)")
     if gitignore_lines:
         print(f"  .gitignore: append {sum(1 for l in gitignore_lines if l.strip() and not l.startswith('#'))} rules")
+
+    # Retrofit safety (Tier 1): refuse to clobber existing project files
+    # unless --force is passed. Dry-runs get the warning informationally
+    # without exiting.
+    collisions = check_retrofit_state(files, target_dir)
+    if collisions:
+        print()
+        print(bold(yellow("[ RETROFIT WARNINGS ]")))
+        print(f"  {yellow('!')} {len(collisions)} existing file(s) at target would be overwritten:")
+        for target_rel, _ in collisions[:20]:
+            print(f"    {yellow('!')} {target_rel}")
+        if len(collisions) > 20:
+            print(dim(f"    \u2026 and {len(collisions) - 20} more"))
+        if not args.force and not args.dry_run:
+            print()
+            print(dim("  By default, cc-configure refuses to clobber existing project state."))
+            print(dim("  Choose one:"))
+            print(dim("    1. Re-run with --force to overwrite (originals back up to *.bak-<ts>)"))
+            print(dim("    2. Re-run with --dry-run to see the full file list without writing"))
+            print(dim("    3. Move/rename your existing files first if you want to merge manually"))
+            print(dim("  Future tiers will add deep-merge for settings.json + .mcp.json and"))
+            print(dim("  skip-and-stage for skill/agent/rule/hook collisions."))
+            print()
+            print(red("Aborted \u2014 no files written."))
+            sys.exit(2)
 
     if args.dry_run:
         print()

@@ -4,6 +4,13 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Added
+- **Retrofit safety — Tier 1.** New `check_retrofit_state()` helper detects existing files at the target that would be overwritten. `cc-configure` now refuses to clobber by default — emits a `[ RETROFIT WARNINGS ]` block listing every collision, prints the three resolution paths (`--force` / `--dry-run` / move-files-manually), and exits with status `2`. Real-use trigger: running v1.1 on an existing complex project (370-line CLAUDE.md + custom hooks + custom skills) silently overwrote everything except for per-file `.bak-<ts>` fallbacks the user had to notice manually. New default flips that to "refuse first, ask explicitly."
+- **`--force` flag** — opts into the previous "overwrite + .bak-<ts>" behavior. Pairs with `--no-backup` if you really mean it. `--dry-run` shows the warning block informationally without aborting.
+- **README** documents the new retrofit-safety default in the Use section + adds the blocking `[ RETROFIT WARNINGS ]` to the Preflight checks section + lists `--force` in the Flags reference.
+
+This is the first piece of a three-tier retrofit roadmap (logged in `docs/07-backlog.md`, local-only). Tier 2 will add deep-merge for structured assets (`.claude/settings.json`, `.mcp.json`) and skip-and-stage for file collisions; Tier 3 will add a `/retrofit` skill that walks the staged report interactively + a public retrofit guide doc.
+
 ## [1.1.0] — 2026-04-24
 
 Second tagged release. Four PRs stacked since v1.0.0, all additive / backward-compatible — no saved `.claude-config.json` from v1.0.0 needs to change. Natural minor bump.
