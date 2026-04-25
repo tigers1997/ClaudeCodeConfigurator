@@ -1,25 +1,41 @@
 #!/usr/bin/env bash
-# Stop hook — runs lint + typecheck + fast tests when a turn finishes.
-# Only reports; never blocks. Output shown to Claude on the next turn via additionalContext.
+# Stop hook — runs the typecheck / lint / test commands you configured during
+# cc-configure intake. Reports results to Claude via additionalContext on the
+# next turn; never blocks.
 #
-# Customize CHECKS below for your project.
+# Skipping rules (silent, not reported):
+#   1. Empty command — you blanked the field in the form (e.g., "I don't have
+#      a typecheck setup"). Edit .claude-config.json or rerun cc-configure to
+#      add one later.
+#   2. First binary not on PATH at runtime — e.g., `uv` isn't installed yet
+#      on this machine. Defensive guard so a missing tool doesn't generate
+#      noise; the underlying intent of the check is still configured.
+#
+# Customize the CHECKS block below if you want a different set of commands or
+# labels. The placeholder values are populated from your cc-configure form
+# answers, but the file is yours to edit freely after scaffolding.
 set -uo pipefail
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 cd "$PROJECT_DIR"
 
-# Declare checks as "label|command" pairs. First one present wins.
+# label|command — labels are display-only, commands come from cc-configure.
+# Leave a value empty after the `|` to skip that check entirely.
 CHECKS=(
-  "typecheck|npx --no-install tsc --noEmit"
-  "lint|npx --no-install eslint . --max-warnings=0"
-  "test|npx --no-install vitest run --reporter=dot --changed"
+  "typecheck|{{cmd_typecheck}}"
+  "lint|{{cmd_lint}}"
+  "test|{{cmd_test}}"
 )
 
 REPORT=""
 for entry in "${CHECKS[@]}"; do
   label="${entry%%|*}"
   cmd="${entry#*|}"
-  # Skip if the first binary in the command isn't available.
+
+  # Skip empty (user opted out of this check during intake).
+  [ -z "$cmd" ] && continue
+
+  # Skip if the first binary in the command isn't on PATH.
   first="$(printf '%s' "$cmd" | awk '{print $1}')"
   if ! command -v "$first" >/dev/null 2>&1; then continue; fi
 

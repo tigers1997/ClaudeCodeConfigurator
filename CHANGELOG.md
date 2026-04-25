@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Changed
+- **Stop hook now uses your form-configured commands, not hardcoded JS tooling.** `templates/git-workflow/hooks/stop-run-checks.sh` previously had `npx --no-install tsc`/`eslint`/`vitest` hardcoded, which silently broke for any non-JS project — `command -v npx` succeeds on most dev machines, but the actual tools aren't there, so every Stop fired a FAIL report on every turn. Real-use feedback from a Python+FastAPI project surfaced the gap; the maintainer disabled the entire `git-workflow` module to avoid the noise. The hook now substitutes `{{cmd_typecheck}}` / `{{cmd_lint}}` / `{{cmd_test}}` from the intake form, so a `Python (uv)` preset produces `uv run mypy .` / `uv run ruff check` / `uv run pytest`. Empty-after-substitution commands are skipped silently — blanking a field in the form is now the way to say "I don't have a typecheck/lint/test setup." The existing runtime `command -v <first-token>` defense-in-depth check is preserved.
+
 ### Added
 - **Retrofit safety — Tier 1.** New `check_retrofit_state()` helper detects existing files at the target that would be overwritten. `cc-configure` now refuses to clobber by default — emits a `[ RETROFIT WARNINGS ]` block listing every collision, prints the three resolution paths (`--force` / `--dry-run` / move-files-manually), and exits with status `2`. Real-use trigger: running v1.1 on an existing complex project (370-line CLAUDE.md + custom hooks + custom skills) silently overwrote everything except for per-file `.bak-<ts>` fallbacks the user had to notice manually. New default flips that to "refuse first, ask explicitly."
 - **`--force` flag** — opts into the previous "overwrite + .bak-<ts>" behavior. Pairs with `--no-backup` if you really mean it. `--dry-run` shows the warning block informationally without aborting.
