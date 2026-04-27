@@ -34,6 +34,7 @@ Everything in this kit is a structured choice about which levers to pull and how
 5. **[Safety, permissions & review](05-safety-permissions.md)** — keeping the agent on rails
 6. **[Token efficiency](06-token-efficiency.md)** — making every session cheap and sharp
 7. **[Memory hierarchy](08-memory-hierarchy.md)** — the 5-level ladder (enterprise → user → project → path-scoped rules → local) and where each type of rule belongs
+8. **[Retrofit guide](09-retrofit-guide.md)** — what belongs in CLAUDE.md vs. elsewhere; how to triage an existing complex CLAUDE.md before running `cc-configure`; what the configurator does on a retrofit run; how to resolve staged conflicts (manual or via `/retrofit`)
 
 (`07-backlog.md` is local-only, gitignored — project roadmap notes.)
 
