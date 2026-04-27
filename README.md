@@ -60,13 +60,18 @@ cc-configure --help                      # full flags
 
 Answers persist to `.claude-config.json` in the project; re-runs with `--yes` reuse them.
 
-**Retrofit safety (Tier 1, since v1.2.0).** By default `cc-configure` **refuses to clobber existing project files**. If your target directory already has a `CLAUDE.md`, `.claude/settings.json`, custom skills/agents/hooks, or any other file the configurator would write, the run aborts with a `[ RETROFIT WARNINGS ]` block listing the collisions and exits with status `2`. To proceed:
+**Retrofit safety (Tier 2, since v1.2.0).** When you run `cc-configure` against a project that already has Claude Code state, the default behavior is **non-destructive**:
 
-- `--force` — overwrite existing files (originals back up to `<name>.bak-<timestamp>` unless `--no-backup` is also set)
-- `--dry-run` — see the full would-be-written list without exiting on collision
-- Move/rename your existing files first if you want to merge manually
+- **Structured assets** (`.claude/settings.json`, `.mcp.json`) are **deep-merged**. Your customizations win on collisions; the configurator's additions layer on top. Output: a `[ MERGED ]` block summarizes per-file what was preserved vs added.
+- **File-based assets** (skills, agents, rules, hooks, `CLAUDE.md`) follow `--on-collision` (default `skip`):
+  - `skip` — your version stays untouched; ours is staged at `.claude-retrofit/incoming/<original-path>` for manual review.
+  - `rename` — both coexist: your `review/` stays put, ours installs as `review-cc/`.
+  - `overwrite` — your file is replaced, original backed up to `*.bak-<ts>`.
+- A `[ COLLISIONS ]` block lists what happened, and `.claude-retrofit/REPORT.md` records the full set with diff coordinates so you can resolve manually (or wait for the upcoming `/retrofit` skill, Tier 3).
+- `--force` is a kill-switch: skip the merge AND the collision strategy entirely; just overwrite every existing file with `.bak-<ts>` backups (the pre-Tier-2 behavior).
+- `--dry-run` shows the full would-be-written list (`+` for net-new, `~` for merged) without writing anything.
 
-Future tiers will add deep-merge for `settings.json` + `.mcp.json` and skip-and-stage handling for skill/agent/rule/hook collisions, plus a `/retrofit` skill that walks you through merges interactively. See `docs/07-backlog.md` (local-only) for the roadmap.
+`CLAUDE.md` collisions currently use the `skip` path (yours preserved, ours staged); a future Tier 2c PR will upgrade this to merge-append so the configurator's "Working with Claude" / token-efficiency / behavior-rule sections layer onto your existing CLAUDE.md without the manual diff step.
 
 ## Stack presets
 
@@ -119,9 +124,9 @@ Before scaffolding, `cc-configure` runs four non-blocking checks and prints a wa
 - **`[ SCHEMA WARNINGS ]`** — verifies the generated `settings.json`'s `$schema` matches `https://json.schemastore.org/claude-code-settings.json`. Claude Code silently drops the entire settings file on schema drift, so this guards the exact regression class that originally motivated this project.
 - **`[ HOOK WARNINGS ]`** — flags hooks on high-frequency events (`PreToolUse`/`PostToolUse`/`PostToolUseFailure`) whose entrypoint is a heavy interpreter (`uv`, `python`, `node`, `poetry`, `npm`, `npx`, `pnpm`, `bun`, `deno`, `ruby`, `java`, `go`). Each call adds hundreds of ms.
 - **`[ MODULE WARNINGS ]`** — currently: if the `github-actions` module is selected, verifies the target dir is a git repo with a GitHub remote; otherwise the Action will never trigger.
-- **`[ RETROFIT WARNINGS ]` (blocking)** — lists every existing file at the target that would be overwritten. Without `--force`, `cc-configure` aborts with status `2` instead of clobbering. See [Use](#use) above for the resolution paths.
+- **`[ MERGED ]` and `[ COLLISIONS ]` (informational)** — populated when running on an existing project. The configurator handles structured assets (`.claude/settings.json`, `.mcp.json`) via deep-merge and file-based assets (skills, agents, rules, hooks, CLAUDE.md) via the `--on-collision` strategy. See [Use](#use) above for the full retrofit-safety semantics. `.claude-retrofit/REPORT.md` records what happened.
 
-All four non-blocking checks are silent on a clean default scaffold; the retrofit check is silent unless the target already contains files the configurator would write.
+All four non-blocking checks are silent on a clean default scaffold; the merge / collisions blocks are silent unless the target already contains files the configurator would write.
 
 ## Flags
 
@@ -134,8 +139,18 @@ All four non-blocking checks are silent on a clean default scaffold; the retrofi
 --dry-run               Preview without writing (informational only — bypasses
                         the retrofit-abort behavior)
 --no-backup             Don't back up overwritten files (only relevant with --force)
---force                 Overwrite existing files at the target. Default is to
-                        refuse if any would be clobbered (Tier 1 retrofit safety).
+--on-collision=MODE     How to handle file-based asset collisions when running
+                        on an existing project. MODE is one of:
+                          skip      (default) preserve yours; stage ours to
+                                    .claude-retrofit/incoming/ for review.
+                          rename    install ours alongside as <name>-cc; both
+                                    coexist; nothing of yours is touched.
+                          overwrite replace yours; original backs up to *.bak-<ts>.
+                        Structured assets (.claude/settings.json, .mcp.json) are
+                        always deep-merged regardless of this flag.
+--force                 Kill-switch: skip the deep-merge AND the collision
+                        strategy. Every existing file is overwritten with .bak-<ts>
+                        (the pre-Tier-2 behavior). Implies --on-collision=overwrite.
 --save-config FILE      Save answers to FILE (plus scaffolding)
 --save-config-only FILE Save answers only, no scaffolding
 --check                 Static validation of templates + MODULES (CI gate);
