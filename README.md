@@ -63,7 +63,11 @@ Answers persist to `.claude-config.json` in the project; re-runs with `--yes` re
 **Retrofit safety (Tier 2, since v1.2.0).** When you run `cc-configure` against a project that already has Claude Code state, the default behavior is **non-destructive**:
 
 - **Structured assets** (`.claude/settings.json`, `.mcp.json`) are **deep-merged**. Your customizations win on collisions; the configurator's additions layer on top. Output: a `[ MERGED ]` block summarizes per-file what was preserved vs added.
-- **File-based assets** (skills, agents, rules, hooks, `CLAUDE.md`) follow `--on-collision` (default `skip`):
+- **`CLAUDE.md`** follows `--claude-md` (default `append`):
+  - `append` — merge our value-add sections (`## Working with Claude`, `## Claude Code behavior rules`, `## Token efficiency rules`) into your existing CLAUDE.md, preserving everything else verbatim. Idempotent on re-runs (won't double-append).
+  - `skip` — your version untouched; ours staged at `.claude-retrofit/incoming/CLAUDE.md`.
+  - `overwrite` — your version replaced, original backed up to `*.bak-<ts>`.
+- **Other file-based assets** (skills, agents, rules, hooks) follow `--on-collision` (default `skip`):
   - `skip` — your version stays untouched; ours is staged at `.claude-retrofit/incoming/<original-path>` for manual review.
   - `rename` — both coexist: your `review/` stays put, ours installs as `review-cc/`.
   - `overwrite` — your file is replaced, original backed up to `*.bak-<ts>`.
@@ -71,7 +75,6 @@ Answers persist to `.claude-config.json` in the project; re-runs with `--yes` re
 - `--force` is a kill-switch: skip the merge AND the collision strategy entirely; just overwrite every existing file with `.bak-<ts>` backups (the pre-Tier-2 behavior).
 - `--dry-run` shows the full would-be-written list (`+` for net-new, `~` for merged) without writing anything.
 
-`CLAUDE.md` collisions currently use the `skip` path (yours preserved, ours staged); a future Tier 2c PR will upgrade this to merge-append so the configurator's "Working with Claude" / token-efficiency / behavior-rule sections layer onto your existing CLAUDE.md without the manual diff step.
 
 ## Stack presets
 
@@ -139,15 +142,24 @@ All four non-blocking checks are silent on a clean default scaffold; the merge /
 --dry-run               Preview without writing (informational only — bypasses
                         the retrofit-abort behavior)
 --no-backup             Don't back up overwritten files (only relevant with --force)
---on-collision=MODE     How to handle file-based asset collisions when running
-                        on an existing project. MODE is one of:
+--on-collision=MODE     How to handle file-based asset collisions (skills,
+                        agents, rules, hooks). MODE is one of:
                           skip      (default) preserve yours; stage ours to
                                     .claude-retrofit/incoming/ for review.
                           rename    install ours alongside as <name>-cc; both
                                     coexist; nothing of yours is touched.
                           overwrite replace yours; original backs up to *.bak-<ts>.
                         Structured assets (.claude/settings.json, .mcp.json) are
-                        always deep-merged regardless of this flag.
+                        always deep-merged regardless of this flag. CLAUDE.md
+                        uses --claude-md.
+--claude-md=MODE        How to handle CLAUDE.md collisions. MODE is one of:
+                          append    (default) merge our value-add sections
+                                    (## Working with Claude / ## Claude Code
+                                    behavior rules / ## Token efficiency rules)
+                                    into your existing CLAUDE.md, preserving
+                                    everything else. Idempotent on re-runs.
+                          skip      stage ours to .claude-retrofit/incoming/.
+                          overwrite replace yours; original backs up.
 --force                 Kill-switch: skip the deep-merge AND the collision
                         strategy. Every existing file is overwritten with .bak-<ts>
                         (the pre-Tier-2 behavior). Implies --on-collision=overwrite.
