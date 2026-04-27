@@ -456,6 +456,133 @@ def check_github_remote(target_dir) -> list:
     return warnings
 
 
+def _merge_unique_list(existing_list, new_list):
+    """Concatenate existing + new, preserving order, dropping duplicates by
+    equality. Existing items keep their relative order; new items append in
+    order, skipping any already present in existing."""
+    out = list(existing_list)
+    for item in new_list:
+        if item not in out:
+            out.append(item)
+    return out
+
+
+def deep_merge_settings(existing: dict, new: dict):
+    """Merge a user's existing .claude/settings.json with the configurator's
+    new version. Returns (merged_dict, summary_str).
+
+    Strategy:
+      - $schema: ours always wins (canonical schemastore URL).
+      - permissions.allow / .ask / .deny / .additionalDirectories: union,
+        existing entries first, new entries appended without duplicates.
+      - permissions.disableBypassPermissionsMode: ours wins (security default
+        the user opted into by selecting safety).
+      - hooks: concatenate per-event groups (existing first, then ours). No
+        dedupe — if the user has a hook group with the same matcher, both
+        run; user can manually remove duplicates if undesired.
+      - env: dict merge with existing keys winning on collision (preserves
+        user's deliberate overrides).
+      - statusLine, model: preserve existing if set; otherwise use new.
+      - Unknown top-level keys: pass through verbatim from existing.
+    """
+    out = dict(existing)
+    counts = {"perms_added": 0, "hook_groups_added": 0, "env_added": 0}
+
+    if "$schema" in new:
+        out["$schema"] = new["$schema"]
+
+    if "permissions" in new:
+        out_perms = dict(out.get("permissions", {}))
+        new_perms = new["permissions"]
+        for key in ("allow", "ask", "deny", "additionalDirectories"):
+            if key in new_perms:
+                existing_list = out_perms.get(key, [])
+                merged = _merge_unique_list(existing_list, new_perms[key])
+                counts["perms_added"] += len(merged) - len(existing_list)
+                out_perms[key] = merged
+        if "disableBypassPermissionsMode" in new_perms:
+            out_perms["disableBypassPermissionsMode"] = new_perms["disableBypassPermissionsMode"]
+        out["permissions"] = out_perms
+
+    if "hooks" in new:
+        out_hooks = dict(out.get("hooks", {}))
+        for event, new_groups in new["hooks"].items():
+            existing_groups = out_hooks.get(event, [])
+            out_hooks[event] = list(existing_groups) + list(new_groups)
+            counts["hook_groups_added"] += len(new_groups)
+        out["hooks"] = out_hooks
+
+    if "env" in new:
+        out_env = dict(new["env"])
+        for k, v in out.get("env", {}).items():
+            out_env[k] = v  # existing overlays
+        existing_env_keys = set(out.get("env", {}).keys())
+        counts["env_added"] = sum(1 for k in new["env"] if k not in existing_env_keys)
+        out["env"] = out_env
+
+    for k in ("statusLine", "model"):
+        if k in new and k not in existing:
+            out[k] = new[k]
+
+    handled = {"$schema", "permissions", "hooks", "env", "statusLine", "model"}
+    for k, v in new.items():
+        if k not in out and k not in handled:
+            out[k] = v
+
+    msg = (f"preserved existing config; added {counts['perms_added']} permission rule(s), "
+           f"{counts['hook_groups_added']} hook group(s), {counts['env_added']} env var(s)")
+    return out, msg
+
+
+def deep_merge_mcp(existing: dict, new: dict):
+    """Merge a user's existing .mcp.json with the configurator's. Returns
+    (merged_dict, summary_str). User's server definitions win on key collision
+    — they explicitly customized them; don't clobber."""
+    out = dict(existing)
+    new_servers = new.get("mcpServers", {})
+    out_servers = dict(out.get("mcpServers", {}))
+    preserved = len(out_servers)
+    added = 0
+    for name, config in new_servers.items():
+        if name not in out_servers:
+            out_servers[name] = config
+            added += 1
+    out["mcpServers"] = out_servers
+    msg = f"preserved {preserved} existing server(s), added {added} new"
+    return out, msg
+
+
+def apply_structured_merges(files, target_dir):
+    """Walk `files` and deep-merge any structured assets (.claude/settings.json
+    and .mcp.json) that already exist at the target. Mutates the matching
+    file dict's `content` and adds a `was_merged` flag. Returns a list of
+    (target_relative_path, summary_str) tuples for the [ MERGED ] report.
+
+    Files with unparseable existing JSON are left alone — they'll fall through
+    to the Tier 1 retrofit-collision check and abort unless --force is set."""
+    messages = []
+    for f in files:
+        target = f["target"]
+        if target not in (".claude/settings.json", ".mcp.json"):
+            continue
+        dest = target_dir / target
+        if not dest.exists():
+            continue
+        try:
+            existing_data = json.loads(dest.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue  # leave Tier 1 to handle the abort
+        new_data = json.loads(f["content"])
+        if target == ".claude/settings.json":
+            merged_data, msg = deep_merge_settings(existing_data, new_data)
+        else:
+            merged_data, msg = deep_merge_mcp(existing_data, new_data)
+        f["content"] = json.dumps(merged_data, indent=2) + "\n"
+        f["was_merged"] = True
+        messages.append((target, msg))
+    return messages
+
+
 def check_retrofit_state(files, target_dir):
     """Detect files in `files` that already exist at `target_dir`.
     Returns a list of (target_relative_path, absolute_path) tuples.
@@ -960,10 +1087,22 @@ def main():
     if gitignore_lines:
         print(f"  .gitignore: append {sum(1 for l in gitignore_lines if l.strip() and not l.startswith('#'))} rules")
 
+    # Retrofit Tier 2 (PR 2a): deep-merge structured assets in place.
+    # Existing .claude/settings.json and .mcp.json get merged with the
+    # configurator's planned content (user's customizations win on
+    # collision; canonical $schema gets ours). The merged content
+    # replaces what's in the files list, so apply_files writes the
+    # merged version (with .bak-<ts> via existing backup behavior).
+    # Done in-memory; printed only after we know we're not aborting.
+    merge_messages = apply_structured_merges(files, target_dir)
+
     # Retrofit safety (Tier 1): refuse to clobber existing project files
-    # unless --force is passed. Dry-runs get the warning informationally
-    # without exiting.
-    collisions = check_retrofit_state(files, target_dir)
+    # unless --force is passed. Files already handled by structured merge
+    # above are excluded — they're a resolved collision, not pending.
+    # Dry-runs get the warning informationally without exiting.
+    merged_paths = {f["target"] for f in files if f.get("was_merged")}
+    collisions = [c for c in check_retrofit_state(files, target_dir)
+                  if c[0] not in merged_paths]
     if collisions:
         print()
         print(bold(yellow("[ RETROFIT WARNINGS ]")))
@@ -985,11 +1124,24 @@ def main():
             print(red("Aborted \u2014 no files written."))
             sys.exit(2)
 
+    # Past the abort gate \u2014 surface the structured-merge results before
+    # writes (or in the dry-run output). Suppressed if we aborted above
+    # because the merge wouldn't actually have been written.
+    if merge_messages:
+        # Pull the colored tick out of the f-string \u2014 Python 3.11 forbids
+        # backslashes in f-string expressions (3.12+ relaxed this).
+        tick = green("\u2713")
+        print()
+        print(bold(blue("[ MERGED ]")))
+        for target_rel, msg in merge_messages:
+            print(f"  {tick} {target_rel} \u2014 {msg}")
+
     if args.dry_run:
         print()
         print(bold(yellow("[ DRY RUN \u2014 no files written ]")))
         for f in files:
-            print(f"    {green('+')} {f['target']}")
+            tag = green('+') if not f.get("was_merged") else blue('~')
+            print(f"    {tag} {f['target']}")
         return
 
     print()
