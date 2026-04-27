@@ -71,9 +71,14 @@ Answers persist to `.claude-config.json` in the project; re-runs with `--yes` re
   - `skip` — your version stays untouched; ours is staged at `.claude-retrofit/incoming/<original-path>` for manual review.
   - `rename` — both coexist: your `review/` stays put, ours installs as `review-cc/`.
   - `overwrite` — your file is replaced, original backed up to `*.bak-<ts>`.
-- A `[ COLLISIONS ]` block lists what happened, and `.claude-retrofit/REPORT.md` records the full set with diff coordinates so you can resolve manually (or wait for the upcoming `/retrofit` skill, Tier 3).
+- A `[ COLLISIONS ]` block lists what happened, and `.claude-retrofit/REPORT.md` records the full set with diff coordinates.
 - `--force` is a kill-switch: skip the merge AND the collision strategy entirely; just overwrite every existing file with `.bak-<ts>` backups (the pre-Tier-2 behavior).
 - `--dry-run` shows the full would-be-written list (`+` for net-new, `~` for merged) without writing anything.
+
+**Resolving staged conflicts.** Two paths after a retrofit run:
+
+- **Manual** — diff each pair from `.claude-retrofit/REPORT.md` and decide per file. Section examples + the bigger triage discipline ("what belongs in CLAUDE.md vs. elsewhere") are in [`docs/09-retrofit-guide.md`](docs/09-retrofit-guide.md).
+- **Guided** — run `/retrofit` in a Claude Code session. The skill walks the report one entry at a time, shows the diff, offers five choices per entry (Keep / Replace / Merge / Rename / Skip), and applies your decision with backups. Ships in `commands-core` so it's available right after the scaffold completes.
 
 
 ## Stack presets
@@ -176,7 +181,8 @@ configure.py        # the CLI
 config_schema.py    # modules + form fields + stack presets
 install.sh          # installer
 templates/          # raw source for every file the CLI writes
-docs/               # 9-part knowledge base (overview → memory hierarchy)
+docs/               # 9-part knowledge base (overview → retrofit guide;
+                    #  07-backlog.md is gitignored as local-only roadmap)
 ```
 
 ## Customizing templates

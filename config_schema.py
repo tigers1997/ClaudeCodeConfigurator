@@ -77,8 +77,8 @@ MODULES = [
     },
     {
         "id": "commands-core",
-        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup)",
-        "description": "Eight workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (token bloat), /session-retro (end-of-session reflection), /verify-setup (audits the shape of .claude/ itself).",
+        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit)",
+        "description": "Nine workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (token bloat), /session-retro (end-of-session reflection), /verify-setup (audits the shape of .claude/ itself), /retrofit (walks .claude-retrofit/REPORT.md interactively to resolve staged conflicts from a cc-configure run).",
         "paths": [
             "commands/plan/SKILL.md",
             "commands/review/SKILL.md",
@@ -88,6 +88,7 @@ MODULES = [
             "commands/check-context/SKILL.md",
             "commands/session-retro/SKILL.md",
             "commands/verify-setup/SKILL.md",
+            "commands/retrofit/SKILL.md",
         ],
         "dependsOn": ["agents"],
     },
