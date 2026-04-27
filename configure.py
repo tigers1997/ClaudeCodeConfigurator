@@ -583,6 +583,116 @@ def apply_structured_merges(files, target_dir):
     return messages
 
 
+VALUEADD_HEADINGS = [
+    "## Working with Claude (collaboration patterns)",
+    "## Claude Code behavior rules",
+    "## Token efficiency rules",
+]
+
+
+def _extract_section(text, heading):
+    """Find a markdown section starting at `heading` (matched as a whole-line
+    prefix) and return the heading line + body up to the next ## or ### heading
+    at the same level or higher, or EOF. Returns None if heading not found."""
+    import re
+    # Match the heading line, then capture everything until another top-level
+    # markdown heading (## not preceded by # — i.e., level 2 or higher) or EOF.
+    pattern = re.escape(heading) + r"\n(.*?)(?=\n##(?!#)|\Z)"
+    m = re.search(pattern, text, re.DOTALL)
+    if not m:
+        return None
+    return heading + "\n" + m.group(1).rstrip()
+
+
+def _append_missing_valueadd_sections(existing_text, generated_text):
+    """Find configurator value-add sections in `generated_text` that are
+    missing from `existing_text`, and return the existing text with those
+    sections appended at the bottom. Returns:
+      - {"merged": "...", "count": N, "appended": [heading, ...]} on append
+      - None if all sections already present in existing
+    Detection is by exact heading match — same-text-different-section is
+    treated as "user has it, don't double up.\""""
+    appended_headings = []
+    appended_sections = []
+    for heading in VALUEADD_HEADINGS:
+        if heading in existing_text:
+            continue
+        section = _extract_section(generated_text, heading)
+        if section is None:
+            continue  # not in generated either (e.g., efficiency_rules empty)
+        appended_headings.append(heading)
+        appended_sections.append(section)
+    if not appended_sections:
+        return None
+    sep = "\n\n" if existing_text.endswith("\n") else "\n\n\n"
+    merged = existing_text.rstrip() + sep + "\n\n".join(appended_sections) + "\n"
+    return {"merged": merged, "count": len(appended_sections),
+            "appended": appended_headings}
+
+
+def apply_claudemd_strategy(files, target_dir, strategy):
+    """Handle CLAUDE.md collision according to --claude-md strategy.
+    Returns (merge_msg, collision_entry, files_out):
+      - merge_msg: ("CLAUDE.md", <human msg>) for [ MERGED ] block, or None
+      - collision_entry: dict for collision_report, or None
+      - files_out: input files with CLAUDE.md mutated/dropped as needed
+
+    Strategies:
+      - append (default): merge-append valueadd sections; if all present,
+        leave existing untouched and drop CLAUDE.md from the write list
+        (idempotent on re-runs).
+      - skip: stage our CLAUDE.md to .claude-retrofit/incoming/CLAUDE.md;
+        existing untouched. Same shape as --on-collision=skip.
+      - overwrite: pass through to normal apply_files write; existing gets
+        backed up to .bak-<ts>.
+    """
+    import stat as _stat
+    out = []
+    merge_msg = None
+    collision_entry = None
+    for f in files:
+        if f["target"] != "CLAUDE.md":
+            out.append(f)
+            continue
+        dest = target_dir / "CLAUDE.md"
+        if not dest.exists():
+            # No collision — pass through to normal write.
+            out.append(f)
+            continue
+        if strategy == "append":
+            existing_text = dest.read_text(encoding="utf-8")
+            result = _append_missing_valueadd_sections(existing_text, f["content"])
+            if result is None:
+                # All sections present — drop CLAUDE.md from write list.
+                merge_msg = ("CLAUDE.md", "all value-add sections already present; left untouched")
+                # Don't add f to out.
+            else:
+                f["content"] = result["merged"]
+                f["was_merged"] = True
+                merge_msg = ("CLAUDE.md",
+                             f"appended {result['count']} value-add section(s) "
+                             f"({', '.join(h.lstrip('# ').rstrip() for h in result['appended'])})")
+                out.append(f)
+        elif strategy == "skip":
+            staged = target_dir / ".claude-retrofit" / "incoming" / "CLAUDE.md"
+            staged.parent.mkdir(parents=True, exist_ok=True)
+            staged.write_text(f["content"], encoding="utf-8")
+            collision_entry = {
+                "target": "CLAUDE.md",
+                "action": "skip",
+                "incoming": str(staged.relative_to(target_dir)),
+            }
+            # Drop f from out.
+        else:  # overwrite
+            collision_entry = {
+                "target": "CLAUDE.md",
+                "action": "overwrite",
+                "backup": "CLAUDE.md.bak-<ts>",
+            }
+            out.append(f)
+    return merge_msg, collision_entry, out
+
+
 def collision_renamed_target(target_path):
     """Append a `-cc` suffix to the unique-name component of a target path
     so the configurator's version installs alongside the user's instead of
@@ -626,6 +736,10 @@ def apply_file_collision_strategy(files, target_dir, strategy):
         target = f["target"]
         dest = target_dir / target
         if not dest.exists() or f.get("was_merged"):
+            out.append(f)
+            continue
+        if target == "CLAUDE.md":
+            # CLAUDE.md is handled by apply_claudemd_strategy, not this one.
             out.append(f)
             continue
         # Non-structured collision — apply strategy.
@@ -1112,12 +1226,22 @@ def parse_args():
     p.add_argument("--on-collision", choices=["skip", "overwrite", "rename"],
                    default="skip",
                    help="How to handle collisions on file-based assets (skills, "
-                        "agents, rules, hooks, CLAUDE.md): skip stages our version "
+                        "agents, rules, hooks): skip stages our version "
                         "to .claude-retrofit/incoming/ for manual review (default); "
                         "overwrite replaces yours with .bak-<ts>; rename installs "
                         "ours at a -cc-suffixed sibling so both coexist. Structured "
                         "assets (.claude/settings.json, .mcp.json) are always deep-"
-                        "merged regardless of this flag (unless --force).")
+                        "merged regardless of this flag (unless --force). "
+                        "CLAUDE.md uses --claude-md instead.")
+    p.add_argument("--claude-md", choices=["append", "skip", "overwrite"],
+                   default="append",
+                   help="How to handle a collision on CLAUDE.md specifically. "
+                        "append (default): merge our value-add sections "
+                        "('## Working with Claude', '## Claude Code behavior rules', "
+                        "'## Token efficiency rules') into your existing CLAUDE.md, "
+                        "preserving everything else; idempotent on re-runs. skip: "
+                        "stage ours to .claude-retrofit/incoming/CLAUDE.md, leave "
+                        "yours untouched. overwrite: replace yours with .bak-<ts>.")
     p.add_argument("--check", action="store_true",
                    help="Static validation of templates + MODULES registry (CI-friendly). "
                         "Exits 0 on clean, 1 with a per-issue summary otherwise. "
@@ -1230,8 +1354,16 @@ def main():
         collision_report = []
     else:
         merge_messages = apply_structured_merges(files, target_dir)
+        # CLAUDE.md gets its own strategy — append-valueadd by default.
+        cm_merge, cm_collision, files = apply_claudemd_strategy(
+            files, target_dir, args.claude_md)
+        if cm_merge is not None:
+            merge_messages.append(cm_merge)
+        # Other file-based collisions (skills, agents, rules, hooks).
         files, collision_report = apply_file_collision_strategy(
             files, target_dir, args.on_collision)
+        if cm_collision is not None:
+            collision_report.append(cm_collision)
 
     # Surface what we did to existing files before writes (or in the dry-run
     # output). Both blocks are silent on a clean greenfield install.
