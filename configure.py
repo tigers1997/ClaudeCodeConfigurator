@@ -1128,10 +1128,13 @@ def main():
     # writes (or in the dry-run output). Suppressed if we aborted above
     # because the merge wouldn't actually have been written.
     if merge_messages:
+        # Pull the colored tick out of the f-string \u2014 Python 3.11 forbids
+        # backslashes in f-string expressions (3.12+ relaxed this).
+        tick = green("\u2713")
         print()
         print(bold(blue("[ MERGED ]")))
         for target_rel, msg in merge_messages:
-            print(f"  {green('\u2713')} {target_rel} \u2014 {msg}")
+            print(f"  {tick} {target_rel} \u2014 {msg}")
 
     if args.dry_run:
         print()
