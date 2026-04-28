@@ -569,6 +569,38 @@ def check_github_remote(target_dir) -> list:
     return warnings
 
 
+def check_mcp_env_vars(form_values: dict, selected: set) -> list:
+    """Return warnings for declared MCP/agent surfaces whose required env vars
+    aren't set in the running shell. Catches the common dogfood failure mode
+    where a user enables an MCP server (or selects an agent that scopes one)
+    and discovers the server silently never connects because they forgot to
+    export the auth token.
+
+    Mappings are static because each MCP we ship has a single, known auth env
+    var. If we add MCPs whose auth requirements are dynamic, replace this with
+    a regex scan over the rendered .mcp.json + selected agent frontmatter."""
+    import os
+    warnings = []
+    # MCP servers declared in compute_mcp_json() that need shell-env auth.
+    if form_values.get("mcp_github") and not os.environ.get("GITHUB_TOKEN"):
+        warnings.append(
+            "MCP server 'github' is enabled but GITHUB_TOKEN is not set in "
+            "your shell — the server will fail to connect at session start. "
+            "Generate a PAT (https://github.com/settings/tokens) and "
+            "`export GITHUB_TOKEN=...`, or remove the github MCP."
+        )
+    # Agent-scoped MCPs (only activate when the agent is invoked).
+    if "agents" in selected and not os.environ.get("SONATYPE_TOKEN"):
+        warnings.append(
+            "agent 'security-auditor' scopes the Sonatype MCP for vuln "
+            "lookups; it needs SONATYPE_TOKEN. The agent will still run but "
+            "the MCP won't connect. Generate a token "
+            "(https://guide.sonatype.com/settings/tokens) and "
+            "`export SONATYPE_TOKEN=...` if you want CVE/license data."
+        )
+    return warnings
+
+
 def check_design_docs(target_dir) -> list:
     """Return paths to design/spec/plan docs found at target_dir, relative to
     target_dir. Used to detect "designed but unscaffolded" projects (typically
@@ -1475,6 +1507,16 @@ def main():
         print(bold(yellow("[ MODULE WARNINGS ]")))
         for mod, w in module_warnings:
             print(f"  {yellow('!')} {mod}: {w}")
+
+    # Surface MCP/agent env-var prerequisites that aren't set in the user's
+    # shell. Non-blocking — the templates still write; the auth tokens just
+    # need to be exported before `claude` is launched.
+    env_warnings = check_mcp_env_vars(config["formValues"], config["selected"])
+    if env_warnings:
+        print()
+        print(bold(yellow("[ ENV WARNINGS ]")))
+        for w in env_warnings:
+            print(f"  {yellow('!')} {w}")
 
     # Surface pre-existing design docs (typical output of a prior superpowers
     # brainstorming session). Informational, not a warning — the install is

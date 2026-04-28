@@ -5,6 +5,7 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 ## Unreleased
 
 ### Added
+- **MCP env-var preflight (`[ ENV WARNINGS ]`).** New `check_mcp_env_vars()` in `configure.py` warns when MCP servers (or agents that scope MCPs) are enabled but their required auth tokens aren't set in the running shell. Currently checks `GITHUB_TOKEN` (if `mcp_github` is enabled) and `SONATYPE_TOKEN` (if the `agents` module is selected — `security-auditor` scopes the Sonatype MCP). Non-blocking — files still write — but surfaces the silent-failure mode where the user enables an MCP, never sets the token, and discovers later that the server never connected. Fits the existing four-check preflight pattern alongside version/schema/hook/module checks. Surfaced by dogfood feedback ("`security-auditor`'s Sonatype MCP needs SONATYPE_TOKEN env var to activate" — was a manual catch).
 - **Brainstorm-aware install** — `configure.py` now scans the target dir for prior design output (`docs/design.md`, `docs/spec.md`, `docs/plan.md`, anything under `docs/superpowers/`) and emits a `[ DESIGN DETECTED ]` info block before scaffolding when found. The Next-steps printer then leads with "Fold project-wide invariants from <path> into CLAUDE.md" instead of the brainstorm-bootstrap line — the user already did the brainstorming. Closes the gap surfaced by dogfood feedback where the configurator wrote a generic CLAUDE.md against a project that had been through `superpowers` `/brainstorm` and produced a design doc.
 
 ## [1.4.0] — 2026-04-28
