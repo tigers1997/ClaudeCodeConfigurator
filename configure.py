@@ -1544,10 +1544,32 @@ def main():
     print()
     print(green(bold("Done.")))
     print("Next steps:")
-    print("  1. Review CLAUDE.md \u2014 populated from your answers.")
-    print("  2. Review .claude/settings.json permissions.")
-    print("  3. If .mcp.json was created, confirm enabled servers.")
-    print("  4. Run: claude \u2014 then /memory and /context to check what loaded.")
+    # Context-aware guidance: was this a fresh-project scaffold or a retrofit?
+    # Heuristic: if any structured asset was deep-merged or any file was
+    # staged/renamed/overwritten, it's a retrofit run. Otherwise fresh.
+    is_retrofit = bool(merge_messages) or bool(collision_report)
+    if is_retrofit:
+        print("  1. Review the [ MERGED ] / [ COLLISIONS ] output above.")
+        print("  2. If anything was staged to .claude-retrofit/incoming/, run")
+        print(dim("       claude  # then invoke the /retrofit skill"))
+        print("     to walk the staged conflicts interactively. See")
+        print(dim("     docs/11-getting-started.md and docs/09-retrofit-guide.md."))
+        print("  3. Once .claude-retrofit/ is empty, you can delete it.")
+        print("  4. Run claude /memory and /context to verify what loaded.")
+    else:
+        print("  1. If this is a brand-new project, consider design-first brainstorming")
+        print("     before implementation:")
+        print(dim("       claude /plugin install superpowers"))
+        print(dim("       claude  # then invoke /brainstorm \u2014 superpowers hard-gates"))
+        print(dim("                 implementation until you approve a design"))
+        print("     Capture the resulting design to docs/design.md.")
+        print("  2. Review CLAUDE.md \u2014 populated from your answers.")
+        print("  3. Review .claude/settings.json permissions.")
+        print("  4. If docs/recommended-plugins.md was generated, install the")
+        print("     stack-specific plugins it lists (claude /plugin install <name>).")
+        print("  5. Run: claude \u2014 then /memory and /context to check what loaded.")
+    print()
+    print(dim("See docs/11-getting-started.md for the full new-project / retrofit walkthroughs."))
 
 
 if __name__ == "__main__":

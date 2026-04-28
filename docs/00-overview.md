@@ -36,6 +36,7 @@ Everything in this kit is a structured choice about which levers to pull and how
 7. **[Memory hierarchy](08-memory-hierarchy.md)** — the 5-level ladder (enterprise → user → project → path-scoped rules → local) and where each type of rule belongs
 8. **[Retrofit guide](09-retrofit-guide.md)** — what belongs in CLAUDE.md vs. elsewhere; how to triage an existing complex CLAUDE.md before running `cc-configure`; what the configurator does on a retrofit run; how to resolve staged conflicts (manual or via `/retrofit`)
 9. **[Plugin ecosystem](10-plugin-ecosystem.md)** — the relationship between the configurator and the official Claude Code plugin marketplace; comparison table of overlapping surfaces; recommended dual-stack workflow; how to swap configurator skills for plugin equivalents
+10. **[Getting started](11-getting-started.md)** — two end-to-end walkthroughs: brand-new project (with `superpowers` brainstorming first) and existing-project retrofit (with `/retrofit` for staged-conflict resolution). Read this first.
 
 (`07-backlog.md` is local-only, gitignored — project roadmap notes.)
 
