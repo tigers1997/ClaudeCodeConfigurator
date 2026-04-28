@@ -44,6 +44,26 @@ When bumping versions:
 
 **Deprecated / removed:** `@modelcontextprotocol/server-github` is end-of-life (upstream removed it from the modelcontextprotocol/servers repo). Replaced by GitHub's official remote HTTP MCP, which uses a `type: http` config with `Authorization: Bearer ${GITHUB_TOKEN}` rather than `npx`.
 
+## Tuning knob: `alwaysLoad`
+
+Claude Code 2.1.121 added an `alwaysLoad` boolean to MCP server config. When `true`, every tool from that server bypasses tool-search deferral and is always available in the model's tool list.
+
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "alwaysLoad": true
+    }
+  }
+}
+```
+
+Use sparingly. The default tool-search deferral is what keeps MCP descriptions out of the prompt for tools the model hasn't asked about yet. Setting `alwaysLoad: true` re-burns those tokens unconditionally — only worth it for servers whose tools you call on essentially every turn (e.g., a primary database server in a data-eng project).
+
+For everything else, leave `alwaysLoad` unset and let the model pull tools in as it needs them. If a session needs *guaranteed* loading of one tool group, `claude --mcp-config <profile> --strict-mcp-config` (the `claude-ctx` wrapper this module ships) is usually the cleaner choice.
+
 ## Practical picks for a single developer
 
 ### Always useful

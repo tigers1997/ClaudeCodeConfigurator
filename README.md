@@ -11,7 +11,7 @@ Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.c
 - **git** — used by the installer and (later) by generated hooks / statusline
 - **bash** — the shipped hook scripts and `./claude-ctx` wrapper all use `#!/usr/bin/env bash`
 - **curl** — only for the one-shot install command
-- **Claude Code 2.1.116–2.1.119** — the range the current templates are tested against (see `CLAUDE_CODE_COMPAT` in `config_schema.py`). The configurator runs a preflight check and prints a `[ VERSION WARNINGS ]` block if the installed `claude` is outside this range. Older CC silently drops features (agent-frontmatter `mcpServers: http`; `DISABLE_UPDATES`; `permissions.disableBypassPermissionsMode`). Each release states its compat range in `CHANGELOG.md`.
+- **Claude Code 2.1.116–2.1.121** — the range the current templates are tested against (see `CLAUDE_CODE_COMPAT` in `config_schema.py`). The configurator runs a preflight check and prints a `[ VERSION WARNINGS ]` block if the installed `claude` is outside this range. Older CC silently drops features (agent-frontmatter `mcpServers: http`; `DISABLE_UPDATES`; `permissions.disableBypassPermissionsMode`). Each release states its compat range in `CHANGELOG.md`.
 
 **Generated projects need, depending on which modules you enable:**
 - **`ui`** — `python3` + `git` (used by `statusline.sh` and the last-prompt variant)
