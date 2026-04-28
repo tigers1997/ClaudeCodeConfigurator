@@ -47,6 +47,8 @@ chmod +x ~/.cc-configurator/configure.py
 
 ## Use
 
+> First time? See [`docs/11-getting-started.md`](docs/11-getting-started.md) for the two end-to-end walkthroughs (brand-new project with `superpowers` brainstorming first, or existing-project retrofit with `/retrofit`).
+
 From any project directory:
 
 ```bash
@@ -181,7 +183,7 @@ configure.py        # the CLI
 config_schema.py    # modules + form fields + stack presets
 install.sh          # installer
 templates/          # raw source for every file the CLI writes
-docs/               # 10-part knowledge base (overview → plugin ecosystem;
+docs/               # 11-part knowledge base (overview → getting started;
                     #  07-backlog.md is gitignored as local-only roadmap)
 ```
 
