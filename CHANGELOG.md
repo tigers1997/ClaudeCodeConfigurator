@@ -4,6 +4,18 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+## [1.5.0] — 2026-04-28
+
+Sixth tagged release. Theme: **dogfood-driven hardening.** Two new preflight checks driven by feedback from a real install: a `superpowers` `/brainstorm` → `cc-configure` flow on a fresh project surfaced two silent rough edges that this release closes.
+
+`[ DESIGN DETECTED ]` — when the target dir already has design output (`docs/design.md`, `docs/superpowers/`, etc.), the install acknowledges it and the Next-steps printer leads with "fold your design into CLAUDE.md" instead of the brainstorm-bootstrap line the user already followed.
+
+`[ ENV WARNINGS ]` — when an MCP server (or an agent that scopes one) is enabled but its auth token isn't exported, the preflight surfaces it before scaffolding so the silent never-connected failure mode happens never.
+
+Two PRs since v1.4.0, both additive — saved `.claude-config.json` files from any prior version still load.
+
+**Claude Code compat:** 2.1.116–2.1.121
+
 ### Added
 - **MCP env-var preflight (`[ ENV WARNINGS ]`).** New `check_mcp_env_vars()` in `configure.py` warns when MCP servers (or agents that scope MCPs) are enabled but their required auth tokens aren't set in the running shell. Currently checks `GITHUB_TOKEN` (if `mcp_github` is enabled) and `SONATYPE_TOKEN` (if the `agents` module is selected — `security-auditor` scopes the Sonatype MCP). Non-blocking — files still write — but surfaces the silent-failure mode where the user enables an MCP, never sets the token, and discovers later that the server never connected. Fits the existing four-check preflight pattern alongside version/schema/hook/module checks. Surfaced by dogfood feedback ("`security-auditor`'s Sonatype MCP needs SONATYPE_TOKEN env var to activate" — was a manual catch).
 - **Brainstorm-aware install** — `configure.py` now scans the target dir for prior design output (`docs/design.md`, `docs/spec.md`, `docs/plan.md`, anything under `docs/superpowers/`) and emits a `[ DESIGN DETECTED ]` info block before scaffolding when found. The Next-steps printer then leads with "Fold project-wide invariants from <path> into CLAUDE.md" instead of the brainstorm-bootstrap line — the user already did the brainstorming. Closes the gap surfaced by dogfood feedback where the configurator wrote a generic CLAUDE.md against a project that had been through `superpowers` `/brainstorm` and produced a design doc.
