@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Added
+- **Brainstorm-aware install** — `configure.py` now scans the target dir for prior design output (`docs/design.md`, `docs/spec.md`, `docs/plan.md`, anything under `docs/superpowers/`) and emits a `[ DESIGN DETECTED ]` info block before scaffolding when found. The Next-steps printer then leads with "Fold project-wide invariants from <path> into CLAUDE.md" instead of the brainstorm-bootstrap line — the user already did the brainstorming. Closes the gap surfaced by dogfood feedback where the configurator wrote a generic CLAUDE.md against a project that had been through `superpowers` `/brainstorm` and produced a design doc.
+
 ## [1.4.0] — 2026-04-28
 
 Fifth tagged release. Theme: **schema unblocks.** Two settings keys that the configurator had been holding in `docs/07-backlog.md` because schemastore would reject them are now validated and shipped as opt-ins, plus tracking-up to the current Claude Code release.

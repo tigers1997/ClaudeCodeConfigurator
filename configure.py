@@ -569,6 +569,31 @@ def check_github_remote(target_dir) -> list:
     return warnings
 
 
+def check_design_docs(target_dir) -> list:
+    """Return paths to design/spec/plan docs found at target_dir, relative to
+    target_dir. Used to detect "designed but unscaffolded" projects (typically
+    the output of a prior superpowers brainstorming session) so the configurator
+    can nudge folding the design into CLAUDE.md instead of shipping its generic
+    template untouched.
+
+    Heuristic: anything under docs/ whose basename matches design.md, spec.md,
+    or plan.md, plus everything under docs/superpowers/. Returns a sorted list
+    of relative path strings."""
+    docs_dir = target_dir / "docs"
+    if not docs_dir.is_dir():
+        return []
+    found = []
+    for name in ("design.md", "spec.md", "plan.md"):
+        p = docs_dir / name
+        if p.is_file():
+            found.append(f"docs/{name}")
+    sp_dir = docs_dir / "superpowers"
+    if sp_dir.is_dir():
+        for p in sorted(sp_dir.rglob("*.md")):
+            found.append(str(p.relative_to(target_dir)))
+    return found
+
+
 def _merge_unique_list(existing_list, new_list):
     """Concatenate existing + new, preserving order, dropping duplicates by
     equality. Existing items keep their relative order; new items append in
@@ -1451,6 +1476,22 @@ def main():
         for mod, w in module_warnings:
             print(f"  {yellow('!')} {mod}: {w}")
 
+    # Surface pre-existing design docs (typical output of a prior superpowers
+    # brainstorming session). Informational, not a warning — the install is
+    # fine; we just want to nudge the user to fold their design into CLAUDE.md
+    # instead of letting the generic template stand.
+    design_docs = check_design_docs(target_dir)
+    if design_docs:
+        print()
+        print(bold(blue("[ DESIGN DETECTED ]")))
+        for path in design_docs[:5]:
+            print(f"  {blue('i')} {path}")
+        if len(design_docs) > 5:
+            print(dim(f"      … and {len(design_docs) - 5} more"))
+        print(dim("  CLAUDE.md will be written from your form answers (generic template)."))
+        print(dim("  After scaffolding, fold project-wide invariants from the design"))
+        print(dim("  doc(s) into CLAUDE.md. See Next steps below."))
+
     print()
     print(bold(blue("[ SUMMARY ]")))
     print(f"  Target : {green(str(target_dir))}")
@@ -1556,6 +1597,17 @@ def main():
         print(dim("     docs/11-getting-started.md and docs/09-retrofit-guide.md."))
         print("  3. Once .claude-retrofit/ is empty, you can delete it.")
         print("  4. Run claude /memory and /context to verify what loaded.")
+    elif design_docs:
+        primary = design_docs[0]
+        print(f"  1. Fold project-wide invariants from {primary} into CLAUDE.md.")
+        print(dim("     The configurator's CLAUDE.md is a generic template populated from"))
+        print(dim("     your form answers; it doesn't know about your design. Target ~200"))
+        print(dim("     lines, project-wide only \u2014 push subsystem-specific guidance to"))
+        print(dim("     .claude/rules/<scope>.md with paths: frontmatter."))
+        print("  2. Review CLAUDE.md and .claude/settings.json permissions.")
+        print("  3. If docs/recommended-plugins.md was generated, install the")
+        print("     stack-specific plugins it lists (claude /plugin install <name>).")
+        print("  4. Run: claude \u2014 then /memory and /context to check what loaded.")
     else:
         print("  1. If this is a brand-new project, consider design-first brainstorming")
         print("     before implementation:")
