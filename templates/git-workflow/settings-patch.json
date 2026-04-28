@@ -1,5 +1,13 @@
 {
   "//": "Merge into .claude/settings.json hooks.",
+  "//2": "Optional: prUrlTemplate (Claude Code 2.1.119+, schemastore-validated 2026-04-28).",
+  "//3": "Footer PR badge + tool-result summaries follow this URL template instead of github.com.",
+  "//4": "Placeholders: {host}, {owner}, {repo}, {number}.",
+  "//5": "GitLab:    https://gitlab.com/{owner}/{repo}/-/merge_requests/{number}",
+  "//6": "Bitbucket: https://bitbucket.org/{owner}/{repo}/pull-requests/{number}",
+  "//7": "GHE:       https://gh.example.com/{owner}/{repo}/pull/{number}",
+  "//8": "Uncomment by removing the leading '// ' on the next line, then set the template, then drop these //N keys.",
+  "// prUrlTemplate": "https://gitlab.com/{owner}/{repo}/-/merge_requests/{number}",
   "hooks": {
     "PostToolUse": [
       {
