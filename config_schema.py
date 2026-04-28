@@ -104,6 +104,14 @@ MODULES = [
         ],
     },
     {
+        "id": "recommend-plugins",
+        "title": "Recommended-plugins doc (stack-specific suggestions)",
+        "description": "Generates docs/recommended-plugins.md listing official Claude Code plugins recommended for your stack: always-recommended set (claude-code-setup, claude-md-management, feature-dev, commit-commands, superpowers, etc.) + stack-specific picks computed from your form answers (language → LSP plugin, database → DB plugin, framework → framework-specific plugin, MCP toggles → official replacements). Refreshes on every cc-configure run. See docs/10-plugin-ecosystem.md for the relationship between configurator and the ecosystem.",
+        "paths": [
+            "recommend-plugins/recommended-plugins.md",
+        ],
+    },
+    {
         "id": "experiments-memory",
         "title": "Experiments log (lazy-loaded memory/experiments/)",
         "description": "Scaffolds memory/experiments/CLAUDE.md — a nested memory file that injects ONLY when Claude reads files under memory/experiments/. Defines a file format (hypothesis/setup/result/conclusion/follow-ups) and usage discipline for logging past experiments. Ships one worked example so the format is concrete. Costs zero context until you touch the folder. Inspired by the Anthropic Growth Marketing team's pattern.",
@@ -558,6 +566,8 @@ def target_path_for(template_rel: str):
         return "docs/mcp-servers.md"
     if module == "mcp" and rest_path == "claude-ctx.sh":
         return "claude-ctx"
+    if module == "recommend-plugins" and rest_path == "recommended-plugins.md":
+        return "docs/recommended-plugins.md"
     if module == "mcp" and rest_path.startswith("profiles/"):
         # templates/mcp/profiles/mcp.<name>.json -> .mcp.<name>.json at repo root
         fname = rest_path.rsplit("/", 1)[1]

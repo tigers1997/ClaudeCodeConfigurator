@@ -73,7 +73,8 @@ def default_selected():
     # Required modules always, plus a sensible baseline.
     selected = {m["id"] for m in MODULES if m.get("required")}
     selected.update({"safety", "git-workflow", "commands-core", "agents",
-                     "token-efficiency", "token-efficiency-pro"})
+                     "token-efficiency", "token-efficiency-pro",
+                     "recommend-plugins"})
     return resolve_dependencies(selected)
 
 
@@ -153,6 +154,113 @@ def build_efficiency_rules(v: dict) -> str:
     return "## Token efficiency rules\n\n" + "\n".join(rules)
 
 
+def compute_recommended_plugins(form_values):
+    """Stack-specific plugin recommendations from form answers. Returns a
+    markdown table body (or a no-match note). Always-recommended plugins
+    live in the static template; only stack-specific picks come from here."""
+    rows = []
+
+    lang = (form_values.get("language") or "").lower()
+    if "python" in lang:
+        rows.append(("pyright-lsp", "Python type checking + code intelligence"))
+        rows.append(("pydantic-ai", "Up-to-date Pydantic patterns and decision trees"))
+        rows.append(("microsoft-docs", "Official Microsoft + Azure docs lookup"))
+    if "typescript" in lang or "javascript" in lang or "node" in lang:
+        rows.append(("typescript-lsp", "TypeScript / JavaScript code intelligence"))
+    # Match Go but avoid false positives like "Mongo" or "Mango".
+    if any(tok == "go" for tok in lang.replace(",", " ").split()):
+        rows.append(("gopls-lsp", "Go language server + refactoring"))
+    if "rust" in lang:
+        rows.append(("rust-analyzer-lsp", "Rust code intelligence"))
+    if "ruby" in lang:
+        rows.append(("ruby-lsp", "Ruby language server + analysis"))
+    if "elixir" in lang:
+        rows.append(("elixir-ls-lsp", "Elixir language server (ElixirLS)"))
+    if "swift" in lang:
+        rows.append(("swift-lsp", "Swift language server (SourceKit-LSP)"))
+    if any(tok in lang for tok in ("c#", "csharp", "dotnet", ".net")):
+        rows.append(("csharp-lsp", "C# language server"))
+    if any(tok in lang for tok in ("java ", "kotlin")):
+        rows.append(("jdtls-lsp" if "kotlin" not in lang else "kotlin-lsp",
+                     "JVM language server"))
+    if "php" in lang:
+        rows.append(("php-lsp", "PHP language server (Intelephense)"))
+
+    db = (form_values.get("database") or "").lower()
+    framework_l = (form_values.get("framework") or "").lower()
+    if "postgres" in db:
+        if "prisma" in db or "prisma" in framework_l:
+            rows.append(("prisma", "Prisma migrations + SQL via MCP"))
+        if "neon" in db:
+            rows.append(("neon", "Neon Postgres project + branch management"))
+        rows.append(("cloud-sql-postgresql", "Cloud SQL Postgres CRUD + schema (or planetscale / supabase if you host elsewhere)"))
+    if "mongo" in db:
+        rows.append(("mongodb", "MongoDB MCP + skills"))
+    if "supabase" in db or "supabase" in framework_l:
+        rows.append(("supabase", "Supabase DB + auth + storage + realtime"))
+    if any(tok in db for tok in ("cockroach", "crdb")):
+        rows.append(("cockroachdb", "CockroachDB cluster management"))
+    if "pinecone" in db:
+        rows.append(("pinecone", "Pinecone vector DB"))
+
+    if "next" in framework_l:
+        rows.append(("frontend-design", "Distinctive frontend interfaces (Tailwind, shadcn)"))
+        rows.append(("vercel", "Vercel deployment + build management"))
+    if "expo" in framework_l or "react native" in framework_l:
+        rows.append(("expo", "Expo build / deploy / upgrade for React Native"))
+    if "rails" in framework_l:
+        rows.append(("rails-query", "Read-only DB queries against a Rails app"))
+    if "laravel" in framework_l:
+        rows.append(("laravel-boost", "Laravel development toolkit MCP"))
+    if "shopify" in framework_l:
+        rows.append(("shopify-ai-toolkit", "18 development skills for the Shopify platform"))
+
+    if form_values.get("mcp_github"):
+        rows.append(("github", "Official GitHub MCP (replaces the configurator's wired version)"))
+    if form_values.get("mcp_playwright") and not any(r[0] == "playwright" for r in rows):
+        rows.append(("playwright", "Browser automation + E2E testing MCP"))
+    if form_values.get("mcp_context7"):
+        rows.append(("context7", "Live library docs lookup (Upstash Context7)"))
+
+    deployment = (form_values.get("deployment") or "").lower()
+    if "aws" in deployment or "lambda" in deployment or "fargate" in deployment:
+        rows.append(("aws-serverless", "AWS Serverless: design, build, deploy, debug"))
+    if "azure" in deployment:
+        rows.append(("azure", "Azure expert mode (Azure MCP server)"))
+    if "fly.io" in deployment or "flyctl" in deployment:
+        rows.append(("railway", "Adjacent platform (no Fly plugin yet); Railway covers similar ground"))
+
+    obs = (form_values.get("observability") or "").lower()
+    if "sentry" in obs:
+        rows.append(("sentry", "Sentry error monitoring integration"))
+    if "datadog" in obs:
+        rows.append(("datadog", "Datadog APM + logs + metrics"))
+    if "logfire" in obs:
+        rows.append(("logfire", "Logfire observability for Python (FastAPI/Django/Flask)"))
+    if "newrelic" in obs.replace(" ", "") or "honeycomb" in obs:
+        rows.append(("posthog", "Adjacent observability (PostHog) — not a direct match for what you wrote, but worth a look"))
+
+    # De-dup while preserving order.
+    seen = set()
+    deduped = []
+    for name, why in rows:
+        if name in seen:
+            continue
+        seen.add(name)
+        deduped.append((name, why))
+
+    if not deduped:
+        return ("_No stack-specific recommendations matched. The always-recommended "
+                "set above is a strong universal baseline; install `claude-code-setup` "
+                "and ask Claude \"recommend automations for this project\" for "
+                "codebase-aware additions._")
+
+    lines = ["| Plugin | Why | Install |", "|---|---|---|"]
+    for name, why in deduped:
+        lines.append(f"| `{name}` | {why} | `claude /plugin install {name}` |")
+    return "\n".join(lines)
+
+
 def compute_placeholders(form_values: dict, selected: set) -> dict:
     v = dict(form_values)
     v["goals"] = lines_to_bullets(v.get("goals", ""))
@@ -175,6 +283,11 @@ def compute_placeholders(form_values: dict, selected: set) -> dict:
     v["effort_frontmatter"] = (
         "effort: minimal\n" if form_values.get("eff_effort_minimal") else ""
     )
+    # Stack-specific plugin recommendations for the recommend-plugins module.
+    # The template ships a static always-recommended block; this fills the
+    # "stack-specific" table from the user's form answers.
+    v["recommended_plugins"] = compute_recommended_plugins(form_values)
+    v["generation_date"] = time.strftime("%Y-%m-%d")
     return v
 
 
