@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Added
+- **`docs/10-plugin-ecosystem.md`** — strategic positioning doc for the configurator's relationship with the official Claude Code plugin marketplace. Compares overlapping surfaces (`commands-core` skills ↔ `feature-dev` + `commit-commands`; `code-reviewer` agent ↔ `feature-dev`'s version; `safety` hooks ↔ `security-guidance` + `hookify`; `/sync-docs`/`/session-retro` ↔ `claude-md-management`). Explains where each side stays unique (configurator: form-driven intake, retrofit safety, preflight architecture; ecosystem: vendor integrations, recency, the `claude-automation-recommender`). Documents the recommended dual-stack workflow (configurator for deterministic baseline + plugins for commodity capabilities), the swap path for users who want plugin equivalents of the configurator's skills, and the v2.x future direction. Linked from `00-overview.md` (now 9 numbered docs) and `README.md`.
+
 ## [1.2.0] — 2026-04-27
 
 Third tagged release. The retrofit-safety theme: a sophisticated existing project (your 370-line CLAUDE.md, custom hooks, custom skills, custom MCP servers) is now first-class. Six PRs stacked since v1.1.0, all additive / backward-compatible — saved `.claude-config.json` files from v1.1.0 still load unchanged. Natural minor bump.
