@@ -26,7 +26,7 @@ Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.c
 | --- | --- |
 | **Linux** (Debian/Ubuntu/Arch/Fedora/…) | Primary target. Everything works out of the box. |
 | **macOS** (12+) | Works. Bash 3.2 from the system is sufficient; scripts use POSIX-safe flags. |
-| **Windows** | **WSL recommended.** Native cmd/PowerShell cannot execute the `.sh` hooks this project ships. For Windows-native hooks you'd need to translate each script to PowerShell and set `"shell": "powershell"` on each hook entry (per the Claude Code docs). The template directory uses `dot-claude/` (rewritten to `.claude/` at install) specifically as a OneDrive-safe workaround — but Windows-native hook execution is not supported out of the box. |
+| **Windows** | Claude Code 2.1.120+ runs natively on Windows — when Git Bash is absent, Claude Code falls back to PowerShell as its shell tool. However, the `.sh` hook scripts this project ships still need a bash interpreter to execute. Three options: install Git Bash (via Git for Windows), use WSL, or translate each hook to PowerShell and set `"shell": "powershell"` on the hook entry (per the Claude Code docs). The template directory uses `dot-claude/` (rewritten to `.claude/` at install) so the templates browse and sync cleanly on filesystems and tools that special-case dotfiles. |
 
 ## Install
 
