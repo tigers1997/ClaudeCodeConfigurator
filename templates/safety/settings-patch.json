@@ -1,6 +1,26 @@
 {
   "//": "Merged into .claude/settings.json. PreToolUse hooks guard dangerous Bash and scan Write/Edit for secrets.",
   "//2": "permissions.disableBypassPermissionsMode='disable' hard-disables --dangerously-skip-permissions for this project, even if the user passes the flag.",
+  "//3": "Optional opt-in: sandbox.network.deniedDomains (CC 2.1.113+, schemastore-validated 2026-04-28).",
+  "//4": "Only takes effect when the sandbox is otherwise active for the command (see sandboxing docs).",
+  "//5": "Supports wildcards (*.example.com). Below is a small data-exfiltration-resistant baseline; tune for your threat model.",
+  "//6": "Uncomment by removing the leading '// ' on the next key, then drop these //N keys.",
+  "// sandbox": {
+    "network": {
+      "deniedDomains": [
+        "pastebin.com",
+        "paste.ee",
+        "hastebin.com",
+        "ix.io",
+        "0x0.st",
+        "bashupload.com",
+        "transfer.sh",
+        "file.io",
+        "anonfiles.com",
+        "uguu.se"
+      ]
+    }
+  },
   "hooks": {
     "PreToolUse": [
       {
