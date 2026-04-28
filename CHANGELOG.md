@@ -4,15 +4,23 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
-### Changed
-- **Bumped `CLAUDE_CODE_COMPAT.tested_up_to` from `2.1.119` → `2.1.121`.** Two CC releases came out (2.1.120, 2.1.121); the configurator's templates now verify clean on the current Claude Code. Users on 2.1.120/121 no longer see the "newer than tested range" `[ VERSION WARNINGS ]` block. README Requirements section updated to match.
+## [1.4.0] — 2026-04-28
+
+Fifth tagged release. Theme: **schema unblocks.** Two settings keys that the configurator had been holding in `docs/07-backlog.md` because schemastore would reject them are now validated and shipped as opt-ins, plus tracking-up to the current Claude Code release.
+
+`prUrlTemplate` (CC 2.1.119) — non-GitHub hosts now get correct PR badges in the footer and tool-result summaries. `sandbox.network.deniedDomains` (CC 2.1.113) — defense-in-depth for users with sandboxing enabled, with a paste/file-drop denylist baseline. Both are commented-out by default per the configurator's comment-key discipline; uncomment to opt in.
+
+Three PRs since v1.3.0, all additive — saved `.claude-config.json` files from any prior version still load.
+
+**Claude Code compat:** 2.1.116–2.1.121
 
 ### Added
+- **`prUrlTemplate` opt-in in `git-workflow` module.** Schemastore-validated as of 2026-04-28 (CC 2.1.119+); previously held due to schema-rejection risk. Adds a commented-out `prUrlTemplate` template to `templates/git-workflow/settings-patch.json` with example URL templates for GitLab, Bitbucket, and GitHub Enterprise. User uncomments + substitutes their host. Footer PR badges and tool-result summaries render against the template instead of always pointing at github.com. Comment-keyed (`"// prUrlTemplate"`) so the value is stripped at scaffold time per the existing comment-key discipline; setting takes effect only when the user explicitly opts in.
+- **`sandbox.network.deniedDomains` opt-in in `safety` module.** Schemastore-validated as of 2026-04-28 (CC 2.1.113+); previously held due to schema-rejection risk. Adds a commented-out `// sandbox` block to `templates/safety/settings-patch.json` with a 10-entry data-exfiltration-resistant baseline (paste services + file-drop services: pastebin, paste.ee, hastebin, ix.io, 0x0.st, bashupload, transfer.sh, file.io, anonfiles, uguu.se). Supports wildcards (`*.example.com`). User uncomments + tunes for their threat model. Only takes effect when the sandbox is otherwise active for the command — pure belt-and-suspenders for users with sandboxing enabled.
 - **`alwaysLoad` MCP tuning knob documented in `templates/mcp/servers-cookbook.md`.** Claude Code 2.1.121 added an `alwaysLoad: true` boolean to MCP server config that bypasses tool-search deferral. Cookbook documents the trade-off (re-burns tokens that deferral was suppressing; only worth it for servers whose tools you call every turn) and recommends `claude --mcp-config <profile> --strict-mcp-config` (the existing `claude-ctx` wrapper) as the cleaner choice for guaranteed loading of one tool group.
 
-### Added
-- **`sandbox.network.deniedDomains` opt-in in `safety` module.** Schemastore-validated as of 2026-04-28 (CC 2.1.113+); previously held due to schema-rejection risk. Adds a commented-out `// sandbox` block to `templates/safety/settings-patch.json` with a 10-entry data-exfiltration-resistant baseline (paste services + file-drop services: pastebin, paste.ee, hastebin, ix.io, 0x0.st, bashupload, transfer.sh, file.io, anonfiles, uguu.se). Supports wildcards (`*.example.com`). User uncomments + tunes for their threat model. Only takes effect when the sandbox is otherwise active for the command — pure belt-and-suspenders for users with sandboxing enabled.
-- **`prUrlTemplate` opt-in in `git-workflow` module.** Schemastore-validated as of 2026-04-28 (CC 2.1.119+); previously held due to schema-rejection risk. Adds a commented-out `prUrlTemplate` template to `templates/git-workflow/settings-patch.json` with example URL templates for GitLab, Bitbucket, and GitHub Enterprise. User uncomments + substitutes their host. Footer PR badges and tool-result summaries render against the template instead of always pointing at github.com. Comment-keyed (`"// prUrlTemplate"`) so the value is stripped at scaffold time per the existing comment-key discipline; setting takes effect only when the user explicitly opts in.
+### Changed
+- **Bumped `CLAUDE_CODE_COMPAT.tested_up_to` from `2.1.119` → `2.1.121`.** Two CC releases came out (2.1.120, 2.1.121); the configurator's templates now verify clean on the current Claude Code. Users on 2.1.120/121 no longer see the "newer than tested range" `[ VERSION WARNINGS ]` block. README Requirements section updated to match.
 
 ## [1.3.0] — 2026-04-27
 
