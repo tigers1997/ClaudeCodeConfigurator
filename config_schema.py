@@ -554,8 +554,9 @@ FORM_SCHEMA = [
 
 
 # ---- path rewriting ----
-# Template paths use dot-claude/ (workaround for OneDrive dotfolder blocking);
-# they become .claude/ in the target. A few special cases for mcp/ and ui/.
+# Template paths use dot-claude/ (so the source tree browses and syncs cleanly
+# on filesystems and tools that special-case dotfiles); they become .claude/ in
+# the target. A few special cases for mcp/ and ui/.
 def target_path_for(template_rel: str):
     parts = template_rel.split("/")
     module, *rest = parts
