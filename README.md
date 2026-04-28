@@ -181,7 +181,7 @@ configure.py        # the CLI
 config_schema.py    # modules + form fields + stack presets
 install.sh          # installer
 templates/          # raw source for every file the CLI writes
-docs/               # 9-part knowledge base (overview → retrofit guide;
+docs/               # 10-part knowledge base (overview → plugin ecosystem;
                     #  07-backlog.md is gitignored as local-only roadmap)
 ```
 
