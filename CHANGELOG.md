@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Changed
+- **Bumped `CLAUDE_CODE_COMPAT.tested_up_to` from `2.1.121` → `2.1.123`.** Two CC releases came out (2.1.122, 2.1.123); changelog review found no new `settings.json` keys, hook events, or MCP/agent/skill frontmatter fields — bug fixes only (notably 2.1.122's defensive parse: malformed `hooks` entries no longer invalidate the whole settings file, same theme as 2.1.121's enum-validation fix). No template changes required. Users on 2.1.122/123 no longer see the "newer than tested range" `[ VERSION WARNINGS ]` block. README Requirements line updated to match.
+
 ## [1.5.0] — 2026-04-28
 
 Sixth tagged release. Theme: **dogfood-driven hardening.** Two new preflight checks driven by feedback from a real install: a `superpowers` `/brainstorm` → `cc-configure` flow on a fresh project surfaced two silent rough edges that this release closes.
