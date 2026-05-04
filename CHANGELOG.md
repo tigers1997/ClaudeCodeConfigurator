@@ -5,7 +5,7 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 ## Unreleased
 
 ### Changed
-- **Bumped `CLAUDE_CODE_COMPAT.tested_up_to` from `2.1.121` → `2.1.123`.** Two CC releases came out (2.1.122, 2.1.123); changelog review found no new `settings.json` keys, hook events, or MCP/agent/skill frontmatter fields — bug fixes only (notably 2.1.122's defensive parse: malformed `hooks` entries no longer invalidate the whole settings file, same theme as 2.1.121's enum-validation fix). No template changes required. Users on 2.1.122/123 no longer see the "newer than tested range" `[ VERSION WARNINGS ]` block. README Requirements line updated to match.
+- **Bumped `CLAUDE_CODE_COMPAT.tested_up_to` from `2.1.121` → `2.1.128`.** Five CC releases came out (2.1.122, 2.1.123, 2.1.126, 2.1.128 — 2.1.124/125/127 were not published). Changelog review found no new `settings.json` keys, hook events, or MCP/agent/skill frontmatter fields in configurator territory. Notable items: 2.1.122 defensive parse (malformed `hooks` entries no longer invalidate the whole settings file, same theme as 2.1.121's enum-validation fix); 2.1.128 reserved the MCP server name `workspace` (verified clean — no configurator template uses that name); 2.1.128 added `channelsEnabled` for managed/enterprise settings (out of scope); 2.1.126 expanded `--dangerously-skip-permissions` scope to cover writes under `.claude/`, `.git/`, `.vscode/`, and shell config files (catastrophic-removal commands still prompt). No template changes required. Users on 2.1.122–128 no longer see the "newer than tested range" `[ VERSION WARNINGS ]` block. README Requirements line updated to match.
 
 ## [1.5.0] — 2026-04-28
 
