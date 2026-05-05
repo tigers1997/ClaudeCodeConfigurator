@@ -1546,6 +1546,10 @@ def parse_args():
     p.add_argument("--save-config-only", help="Write the config and exit without scaffolding")
     p.add_argument("--preset", choices=["balanced", "aggressive", "relaxed"],
                    help="Non-interactive: apply an efficiency preset")
+    p.add_argument("--persona", choices=list(PERSONAS.keys()),
+                   help="Pre-pick modules + flags + form defaults for a persona. "
+                        "Combine with --yes for fully non-interactive scaffolding. "
+                        "Use 'custom' for the v1 explicit-field flow.")
     p.add_argument("--modules", help="Non-interactive: comma-separated module IDs to enable")
     p.add_argument("--yes", action="store_true",
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
@@ -1602,6 +1606,15 @@ def main():
         initial = {"formValues": default_form_values(), "selected": default_selected()}
 
     # --- apply CLI flags ---
+    # --persona runs first so explicit --modules / --preset / form fields can override.
+    if args.persona:
+        pmods, pflags = pick_persona_modules(args.persona)
+        initial["selected"] = pmods
+        initial.setdefault("module_flags", {})
+        for mid, fkv in pflags.items():
+            initial["module_flags"].setdefault(mid, {}).update(fkv)
+        initial["persona"] = args.persona
+        apply_persona_defaults(args.persona, initial["formValues"])
     if args.preset:
         pmap = {"balanced": "Balanced (recommended)",
                 "aggressive": "Aggressive (haiku-first, strict caps)",
@@ -1624,7 +1637,7 @@ def main():
         initial.setdefault("_deprecations", []).extend(deprecations)
 
     # --- interactive if needed ---
-    if args.yes or args.config or args.preset or args.modules or args.save_config_only:
+    if args.yes or args.config or args.preset or args.modules or args.persona or args.save_config_only:
         config = initial
     else:
         config = interactive(target_dir, initial)
