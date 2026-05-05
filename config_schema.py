@@ -100,12 +100,17 @@ MODULES = [
             "commands/agents/test-runner.md",
             "commands/agents/doc-writer.md",
             "commands/agents/security-auditor.md",
+            "commands/freeze/SKILL.md",
+            "commands/unfreeze/SKILL.md",
+            "commands/guard/SKILL.md",
+            "commands/careful/SKILL.md",
+            "commands/microbit-enforcer/microbit-enforcer.sh",
         ],
         "flags": {
             "subset": {
                 "default": "full",
                 "options": ["curated", "full", "rigorous"],
-                "description": "curated = 3 essential commands (plan/commit/verify-setup) + reviewer agent. full = all 9 commands + 4 agents. rigorous = full + /investigate + /plan-eng-review.",
+                "description": "curated = 3 essential commands (plan/commit/verify-setup) + reviewer agent. full = 9 commands + 4 agents + 4 microbits + enforcer hook. rigorous = full + /investigate + /plan-eng-review.",
                 "filterPaths": {
                     "curated": [
                         "commands/plan/SKILL.md",
@@ -119,6 +124,12 @@ MODULES = [
                         "commands/investigate/SKILL.md",
                         "commands/plan-eng-review/SKILL.md",
                     ],
+                },
+                # Enforcer hook registers its PreToolUse + SessionStart settings
+                # only when microbits are installed (full or rigorous).
+                "extraSettingsPatch": {
+                    "full": "commands/microbit-enforcer/settings-patch.json",
+                    "rigorous": "commands/microbit-enforcer/settings-patch.json",
                 },
             },
         },
@@ -703,6 +714,12 @@ def target_path_for(template_rel: str):
         if rest_path.startswith("agents/"):
             agent_name = rest_path[len("agents/"):]
             return f".claude/agents/{agent_name}"
+        # microbit-enforcer.sh routes to .claude/hooks/, not .claude/skills/.
+        # The directory's settings-patch.json is consumed via extraSettingsPatch
+        # and never copied as a file (so no special-case skip needed).
+        if rest_path.startswith("microbit-enforcer/") and rest_path.endswith(".sh"):
+            fname = rest_path[len("microbit-enforcer/"):]
+            return f".claude/hooks/{fname}"
         return f".claude/skills/{rest_path}"
     if module == "ui":
         if rest_path == "statusline.sh":

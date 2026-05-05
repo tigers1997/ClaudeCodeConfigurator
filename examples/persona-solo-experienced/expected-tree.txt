@@ -5,6 +5,7 @@
 ./.claude/agents/test-runner.md
 ./.claude/hooks/block-dangerous-bash.sh
 ./.claude/hooks/format-on-write.sh
+./.claude/hooks/microbit-enforcer.sh
 ./.claude/hooks/pre-compact-snapshot.sh
 ./.claude/hooks/scan-secrets.sh
 ./.claude/hooks/statusline-last-prompt.sh
@@ -19,8 +20,11 @@
 ./.claude/rules/tests.md
 ./.claude/settings.json
 ./.claude/settings.local.json.example
+./.claude/skills/careful/SKILL.md
 ./.claude/skills/check-context/SKILL.md
 ./.claude/skills/commit/SKILL.md
+./.claude/skills/freeze/SKILL.md
+./.claude/skills/guard/SKILL.md
 ./.claude/skills/investigate/SKILL.md
 ./.claude/skills/plan-eng-review/SKILL.md
 ./.claude/skills/plan/SKILL.md
@@ -29,6 +33,7 @@
 ./.claude/skills/session-retro/SKILL.md
 ./.claude/skills/ship/SKILL.md
 ./.claude/skills/sync-docs/SKILL.md
+./.claude/skills/unfreeze/SKILL.md
 ./.claude/skills/verify-setup/SKILL.md
 ./.gitignore
 ./.mcp.frontend.json
