@@ -48,8 +48,8 @@ MODULES = [
     },
     {
         "id": "token-efficiency",
-        "title": "Path-scoped rules + compact snapshots",
-        "description": "Path-scoped .claude/rules/ starters (frontend/backend/tests). PreCompact hook snapshots session state.",
+        "title": "Token efficiency rules + hooks",
+        "description": "Path-scoped .claude/rules/ starters + PreCompact snapshot. Pro tier adds bash-output truncation hook + always-loaded discipline rules.",
         "paths": [
             "token-efficiency/dot-claude/rules/_scoping-guide.md",
             "token-efficiency/dot-claude/rules/frontend.md",
@@ -71,16 +71,16 @@ MODULES = [
                 }
             ]
         },
-    },
-    {
-        "id": "token-efficiency-pro",
-        "title": "Token efficiency PRO",
-        "description": "PostToolUse bash-output truncation (cap via CLAUDE_BASH_MAX_LINES) + always-loaded discipline rules (scoped reads, grep-over-cat, inline-bash narrowing, /compact vs /clear vs fresh-session).",
-        "paths": [
-            "token-efficiency-pro/hooks/truncate-bash-output.sh",
-            "token-efficiency-pro/dot-claude/rules/_efficiency-core.md",
-        ],
-        "settingsPatch": "token-efficiency-pro/settings-patch.json",
+        "flags": {
+            "tier": {
+                "default": "basic",
+                "options": ["basic", "pro"],
+                "description": "basic = path-scoped rules + PreCompact only. pro = adds bash-output truncation + always-loaded discipline rules.",
+                "extraPaths": {"pro": ["token-efficiency/pro/truncate-bash-output.sh",
+                                       "token-efficiency/pro/_efficiency-core.md"]},
+                "extraSettingsPatch": {"pro": "token-efficiency/settings-patch.tier-pro.json"},
+            },
+        },
     },
     {
         "id": "commands-core",
@@ -588,8 +588,16 @@ def target_path_for(template_rel: str):
         return f".claude/{rest_path}"
     if rest_path.startswith(".claude/"):
         return rest_path
-    if rest_path == "settings-patch.json":
+    if rest_path == "settings-patch.json" or rest_path.startswith("settings-patch."):
         return None
+    # Tier sub-dirs: pro/<name>.sh -> .claude/hooks/<name>.sh;
+    # pro/<name>.md -> .claude/rules/<name>.md
+    if rest_path.startswith("pro/"):
+        fname = rest_path[len("pro/"):]
+        if fname.endswith(".sh"):
+            return f".claude/hooks/{fname}"
+        if fname.endswith(".md"):
+            return f".claude/rules/{fname}"
     if module == "commands":
         return f".claude/skills/{rest_path}"
     if module == "agents":

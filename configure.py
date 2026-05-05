@@ -73,7 +73,7 @@ def default_selected():
     # Required modules always, plus a sensible baseline.
     selected = {m["id"] for m in MODULES if m.get("required")}
     selected.update({"safety", "git-workflow", "commands-core", "agents",
-                     "token-efficiency", "token-efficiency-pro",
+                     "token-efficiency",
                      "recommend-plugins"})
     return resolve_dependencies(selected)
 
@@ -338,8 +338,11 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
             settings = deep_merge(settings, m["extraSettings"])
         # Apply per-module flag-gated extra patches.
         for flag_name, flag_def in m.get("flags", {}).items():
-            if module_flags.get(m["id"], {}).get(flag_name, flag_def["default"]):
+            selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
+            if selected_value:
                 extra = flag_def.get("extraSettingsPatch")
+                if isinstance(extra, dict):
+                    extra = extra.get(selected_value)
                 if extra:
                     extra_patch = json.loads((TEMPLATE_DIR / extra).read_text(encoding="utf-8"))
                     extra_patch = {k: v for k, v in extra_patch.items() if not k.startswith("//")}
@@ -348,7 +351,8 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
     if form_values.get("default_model"):
         settings["model"] = form_values["default_model"]
 
-    if "token-efficiency-pro" in selected and form_values.get("eff_bash_max_lines"):
+    te_tier = module_flags.get("token-efficiency", {}).get("tier", "basic")
+    if "token-efficiency" in selected and te_tier == "pro" and form_values.get("eff_bash_max_lines"):
         cap = form_values["eff_bash_max_lines"]
         if cap == "disabled":
             post = settings.get("hooks", {}).get("PostToolUse", [])
@@ -1088,6 +1092,8 @@ def compute_mcp_json(form_values: dict) -> str:
 
 
 def collect_files(form_values: dict, selected: set, module_flags: dict = None) -> tuple:
+    if module_flags is None:
+        module_flags = {}
     files = []
     gitignore_lines = []
     placeholders = compute_placeholders(form_values, selected)
@@ -1112,6 +1118,26 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
                 "content": content,
                 "executable": rel.endswith(".sh"),
             })
+        # Apply per-flag extraPaths.
+        for flag_name, flag_def in m.get("flags", {}).items():
+            selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
+            for rel in flag_def.get("extraPaths", {}).get(selected_value, []):
+                tgt = target_path_for(rel)
+                if not tgt:
+                    continue
+                if tgt == ".claude/settings.json":
+                    continue
+                if tgt == ".mcp.json":
+                    continue
+                src = TEMPLATE_DIR / rel
+                content = src.read_text(encoding="utf-8")
+                if "{{" in content:
+                    content = substitute_placeholders(content, placeholders)
+                files.append({
+                    "target": tgt,
+                    "content": content,
+                    "executable": rel.endswith(".sh"),
+                })
         if m.get("gitignoreSource"):
             gi = (TEMPLATE_DIR / m["gitignoreSource"]).read_text(encoding="utf-8").splitlines()
             gitignore_lines.extend(gi)
@@ -1387,6 +1413,7 @@ def interactive(target_dir: Path, initial: dict) -> dict:
 # -----------------------------------------------------------------------------
 LEGACY_MODULE_MAP = {
     "lockdown": ("safety", {"lockdown": True}),
+    "token-efficiency-pro": ("token-efficiency", {"tier": "pro"}),
 }
 
 
