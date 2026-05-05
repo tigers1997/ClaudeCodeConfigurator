@@ -72,16 +72,16 @@ def default_form_values():
 def default_selected():
     # Required modules always, plus a sensible baseline.
     selected = {m["id"] for m in MODULES if m.get("required")}
-    selected.update({"safety", "git-workflow", "commands-core", "agents",
-                     "token-efficiency", "token-efficiency-pro",
+    selected.update({"safety", "git-workflow", "commands",
+                     "token-efficiency",
                      "recommend-plugins"})
     return resolve_dependencies(selected)
 
 
 def resolve_dependencies(selected: set) -> set:
     """Expand `selected` to include every module's transitive `dependsOn`.
-    Keeps users from ending up with e.g. commands-core selected but agents
-    deselected, which would leave /review pointing at a missing subagent."""
+    Keeps users from ending up with a module selected but one of its declared
+    dependencies deselected."""
     by_id = {m["id"]: m for m in MODULES}
     out = set(selected)
     changed = True
@@ -99,20 +99,24 @@ def resolve_dependencies(selected: set) -> set:
 # Config persistence
 # -----------------------------------------------------------------------------
 def load_config(path: Path) -> dict:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    values = default_form_values()
-    values.update(data.get("formValues", {}))
-    selected = set(data.get("selected", default_selected()))
-    return {"formValues": values, "selected": selected}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        "formValues": {**default_form_values(), **raw.get("formValues", {})},
+        "selected": set(raw.get("selected", default_selected())),
+        "module_flags": raw.get("module_flags", {}),
+        "persona": raw.get("persona", "custom"),
+        "schema_version": raw.get("schema_version", 1),
+    }
 
 
 def save_config(config: dict, path: Path):
-    out = {
+    path.write_text(json.dumps({
+        "schema_version": 2,
+        "persona": config.get("persona", "custom"),
+        "module_flags": config.get("module_flags", {}),
         "formValues": config["formValues"],
         "selected": sorted(config["selected"]),
-        "_version": 1,
-    }
-    path.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+    }, indent=2) + "\n", encoding="utf-8")
 
 
 # -----------------------------------------------------------------------------
@@ -312,7 +316,9 @@ def deep_merge(a, b):
     return b
 
 
-def compute_merged_settings(form_values: dict, selected: set) -> dict:
+def compute_merged_settings(form_values: dict, selected: set, module_flags: dict = None) -> dict:
+    if module_flags is None:
+        module_flags = {}
     base = json.loads(BASE_SETTINGS_PATH.read_text(encoding="utf-8"))
     settings = json.loads(json.dumps(base))
     settings.setdefault("hooks", {})
@@ -330,11 +336,23 @@ def compute_merged_settings(form_values: dict, selected: set) -> dict:
             settings["hooks"] = deep_merge(settings.get("hooks", {}), m["extraSettingsHook"])
         if m.get("extraSettings"):
             settings = deep_merge(settings, m["extraSettings"])
+        # Apply per-module flag-gated extra patches.
+        for flag_name, flag_def in m.get("flags", {}).items():
+            selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
+            if selected_value:
+                extra = flag_def.get("extraSettingsPatch")
+                if isinstance(extra, dict):
+                    extra = extra.get(selected_value)
+                if extra:
+                    extra_patch = json.loads((TEMPLATE_DIR / extra).read_text(encoding="utf-8"))
+                    extra_patch = {k: v for k, v in extra_patch.items() if not k.startswith("//")}
+                    settings = deep_merge(settings, extra_patch)
 
     if form_values.get("default_model"):
         settings["model"] = form_values["default_model"]
 
-    if "token-efficiency-pro" in selected and form_values.get("eff_bash_max_lines"):
+    te_tier = module_flags.get("token-efficiency", {}).get("tier", "basic")
+    if "token-efficiency" in selected and te_tier == "pro" and form_values.get("eff_bash_max_lines"):
         cap = form_values["eff_bash_max_lines"]
         if cap == "disabled":
             post = settings.get("hooks", {}).get("PostToolUse", [])
@@ -465,6 +483,35 @@ def run_check() -> int:
         for dep in m.get("dependsOn", []) or []:
             if dep not in module_ids:
                 err(f"MODULES[{mid}]", f"dependsOn references unknown module: {dep}")
+        # flags schema: required keys + dangling-path detection.
+        for flag_name, flag_def in (m.get("flags", {}) or {}).items():
+            if "default" not in flag_def:
+                err(f"MODULES[{mid}].flags[{flag_name}]", "missing required 'default'")
+            if "description" not in flag_def:
+                err(f"MODULES[{mid}].flags[{flag_name}]", "missing required 'description'")
+            # extraSettingsPatch can be a string or a dict keyed by selected value.
+            extra_patch = flag_def.get("extraSettingsPatch")
+            patch_candidates = []
+            if isinstance(extra_patch, str):
+                patch_candidates.append(extra_patch)
+            elif isinstance(extra_patch, dict):
+                patch_candidates.extend(v for v in extra_patch.values() if v)
+            for p in patch_candidates:
+                if not (TEMPLATE_DIR / p).exists():
+                    err(f"MODULES[{mid}].flags[{flag_name}]",
+                        f"extraSettingsPatch missing: templates/{p}")
+            # extraPaths is keyed by selected value → list of relative paths.
+            for value, path_list in (flag_def.get("extraPaths") or {}).items():
+                for p in path_list:
+                    if not (TEMPLATE_DIR / p).exists():
+                        err(f"MODULES[{mid}].flags[{flag_name}]",
+                            f"extraPaths[{value}] missing: templates/{p}")
+            # filterPaths values must exist in m["paths"] (allowlist must be a subset).
+            for value, path_list in (flag_def.get("filterPaths") or {}).items():
+                for p in path_list:
+                    if p not in (m.get("paths") or []):
+                        err(f"MODULES[{mid}].flags[{flag_name}]",
+                            f"filterPaths[{value}] references path not in m[paths]: {p}")
 
     # --- 2. Static file checks: walk templates/ once ---
     for f in sorted(TEMPLATE_DIR.rglob("*")):
@@ -490,7 +537,11 @@ def run_check() -> int:
                 err(src, f"could not run bash -n: {e}")
 
         elif f.name == "SKILL.md" or (
-            rel.parts and rel.parts[0] in ("agents",) and f.suffix == ".md"
+            # subagents under commands/agents/
+            len(rel.parts) >= 3
+            and rel.parts[0] == "commands"
+            and rel.parts[1] == "agents"
+            and f.suffix == ".md"
         ) or (
             # subagents under multi-agent/dot-claude/agents/
             len(rel.parts) >= 3
@@ -590,7 +641,7 @@ def check_mcp_env_vars(form_values: dict, selected: set) -> list:
             "`export GITHUB_TOKEN=...`, or remove the github MCP."
         )
     # Agent-scoped MCPs (only activate when the agent is invoked).
-    if "agents" in selected and not os.environ.get("SONATYPE_TOKEN"):
+    if "commands" in selected and not os.environ.get("SONATYPE_TOKEN"):
         warnings.append(
             "agent 'security-auditor' scopes the Sonatype MCP for vuln "
             "lookups; it needs SONATYPE_TOKEN. The agent will still run but "
@@ -599,6 +650,13 @@ def check_mcp_env_vars(form_values: dict, selected: set) -> list:
             "`export SONATYPE_TOKEN=...` if you want CVE/license data."
         )
     return warnings
+
+
+def check_deprecations(deprecations: list) -> list:
+    """Echo legacy-flag/module-name translations as user-facing warnings.
+    Mirrors the check_X() pattern: returns a list of strings to render in
+    a [ DEPRECATED ] block. Empty when nothing legacy was used."""
+    return list(deprecations or [])
 
 
 def check_design_docs(target_dir) -> list:
@@ -1073,7 +1131,9 @@ def compute_mcp_json(form_values: dict) -> str:
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
-def collect_files(form_values: dict, selected: set):
+def collect_files(form_values: dict, selected: set, module_flags: dict = None) -> tuple:
+    if module_flags is None:
+        module_flags = {}
     files = []
     gitignore_lines = []
     placeholders = compute_placeholders(form_values, selected)
@@ -1081,7 +1141,17 @@ def collect_files(form_values: dict, selected: set):
     for m in MODULES:
         if m["id"] not in selected:
             continue
+        # Compute filterPaths allowlist for this module (if any flag selects one).
+        flag_values = (module_flags or {}).get(m["id"], {})
+        filter_for_module = None
+        for flag_name, flag_def in m.get("flags", {}).items():
+            selected_value = flag_values.get(flag_name, flag_def["default"])
+            fp = flag_def.get("filterPaths", {}).get(selected_value)
+            if fp is not None:
+                filter_for_module = set(fp)
         for rel in m["paths"]:
+            if filter_for_module is not None and rel not in filter_for_module:
+                continue
             tgt = target_path_for(rel)
             if not tgt:
                 continue
@@ -1098,13 +1168,33 @@ def collect_files(form_values: dict, selected: set):
                 "content": content,
                 "executable": rel.endswith(".sh"),
             })
+        # Apply per-flag extraPaths.
+        for flag_name, flag_def in m.get("flags", {}).items():
+            selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
+            for rel in flag_def.get("extraPaths", {}).get(selected_value, []):
+                tgt = target_path_for(rel)
+                if not tgt:
+                    continue
+                if tgt == ".claude/settings.json":
+                    continue
+                if tgt == ".mcp.json":
+                    continue
+                src = TEMPLATE_DIR / rel
+                content = src.read_text(encoding="utf-8")
+                if "{{" in content:
+                    content = substitute_placeholders(content, placeholders)
+                files.append({
+                    "target": tgt,
+                    "content": content,
+                    "executable": rel.endswith(".sh"),
+                })
         if m.get("gitignoreSource"):
             gi = (TEMPLATE_DIR / m["gitignoreSource"]).read_text(encoding="utf-8").splitlines()
             gitignore_lines.extend(gi)
 
     files.append({
         "target": ".claude/settings.json",
-        "content": json.dumps(compute_merged_settings(form_values, selected), indent=2) + "\n",
+        "content": json.dumps(compute_merged_settings(form_values, selected, module_flags), indent=2) + "\n",
         "executable": False,
     })
     if "mcp" in selected:
@@ -1369,6 +1459,43 @@ def interactive(target_dir: Path, initial: dict) -> dict:
 
 
 # -----------------------------------------------------------------------------
+# Legacy module translator
+# -----------------------------------------------------------------------------
+LEGACY_MODULE_MAP = {
+    "lockdown": ("safety", {"lockdown": True}),
+    "token-efficiency-pro": ("token-efficiency", {"tier": "pro"}),
+    "commands-core": ("commands", {"subset": "full"}),
+    "agents": ("commands", {}),  # agents alone is a no-op flag; adds commands module
+}
+
+
+def translate_legacy_modules(wanted: set, current_flags: dict) -> tuple:
+    """Returns (new_module_set, updated_flags, deprecation_messages).
+
+    Translates legacy module IDs into their modern equivalents, updating
+    module_flags as needed. Used by --modules arg handling. The deprecation
+    messages are stored on initial["_deprecations"] and rendered in the
+    [ DEPRECATED ] block (added by Task 6).
+    """
+    out_modules = set()
+    out_flags = dict(current_flags)
+    deprecations = []
+    for mid in wanted:
+        if mid in LEGACY_MODULE_MAP:
+            new_id, flag_kv = LEGACY_MODULE_MAP[mid]
+            out_modules.add(new_id)
+            out_flags.setdefault(new_id, {}).update(flag_kv)
+            deprecations.append(
+                "--modules {}  →  --modules {} ({})".format(
+                    mid, new_id, ", ".join("{}={}".format(k, v) for k, v in flag_kv.items())
+                )
+            )
+        else:
+            out_modules.add(mid)
+    return out_modules, out_flags, deprecations
+
+
+# -----------------------------------------------------------------------------
 # CLI entry
 # -----------------------------------------------------------------------------
 def parse_args():
@@ -1445,9 +1572,20 @@ def main():
                 "relaxed": "Relaxed (correctness over cost)"}
         initial["formValues"]["efficiency_preset"] = pmap[args.preset]
         apply_preset(initial["formValues"])
+        # --preset is being phased out; surface the migration in [ DEPRECATED ].
+        new_tier = "pro" if args.preset == "aggressive" else "basic"
+        initial.setdefault("_deprecations", []).append(
+            "--preset {}  →  --token-efficiency-tier={} "
+            "(--preset will be removed in v3.0)".format(args.preset, new_tier)
+        )
     if args.modules:
         wanted = {m.strip() for m in args.modules.split(",") if m.strip()}
+        wanted, initial["module_flags"], deprecations = translate_legacy_modules(
+            wanted, initial.get("module_flags", {})
+        )
         initial["selected"] = wanted | {m["id"] for m in MODULES if m.get("required")}
+        # Stored here; rendered as [ DEPRECATED ] block in Task 6.
+        initial.setdefault("_deprecations", []).extend(deprecations)
 
     # --- interactive if needed ---
     if args.yes or args.config or args.preset or args.modules or args.save_config_only:
@@ -1469,7 +1607,7 @@ def main():
         print(dim(f"(also saved config to {args.save_config})"))
 
     # --- scaffold ---
-    files, gitignore_lines = collect_files(config["formValues"], config["selected"])
+    files, gitignore_lines = collect_files(config["formValues"], config["selected"], config.get("module_flags", {}))
 
     # Pre-flight: surface version mismatches, schema drift, heavy hooks,
     # and module prerequisites before writing any files.
@@ -1480,7 +1618,7 @@ def main():
         for w in version_warnings:
             print(f"  {yellow('!')} {w}")
 
-    merged = compute_merged_settings(config["formValues"], config["selected"])
+    merged = compute_merged_settings(config["formValues"], config["selected"], config.get("module_flags", {}))
     schema_warnings = check_schema_url(merged)
     if schema_warnings:
         print()
@@ -1522,6 +1660,13 @@ def main():
     # brainstorming session). Informational, not a warning — the install is
     # fine; we just want to nudge the user to fold their design into CLAUDE.md
     # instead of letting the generic template stand.
+    deprecations = check_deprecations(initial.get("_deprecations", []))
+    if deprecations:
+        print()
+        print(bold(yellow("[ DEPRECATED ]")))
+        for d in deprecations:
+            print(f"  {yellow('!')} {d}")
+
     design_docs = check_design_docs(target_dir)
     if design_docs:
         print()

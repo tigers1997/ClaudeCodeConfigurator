@@ -65,5 +65,7 @@
     "token-efficiency",
     "token-efficiency-pro"
   ],
-  "_version": 1
+  "schema_version": 2,
+  "persona": "custom",
+  "module_flags": {}
 }

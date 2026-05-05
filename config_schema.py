@@ -28,6 +28,13 @@ MODULES = [
             "safety/hooks/scan-secrets.sh",
         ],
         "settingsPatch": "safety/settings-patch.json",
+        "flags": {
+            "lockdown": {
+                "default": False,
+                "description": "Block all CC updates (autoupdate + manual). Sets DISABLE_UPDATES=1.",
+                "extraSettingsPatch": "safety/settings-patch.lockdown.json",
+            },
+        },
     },
     {
         "id": "git-workflow",
@@ -41,8 +48,8 @@ MODULES = [
     },
     {
         "id": "token-efficiency",
-        "title": "Path-scoped rules + compact snapshots",
-        "description": "Path-scoped .claude/rules/ starters (frontend/backend/tests). PreCompact hook snapshots session state.",
+        "title": "Token efficiency rules + hooks",
+        "description": "Path-scoped .claude/rules/ starters + PreCompact snapshot. Pro tier adds bash-output truncation hook + always-loaded discipline rules.",
         "paths": [
             "token-efficiency/dot-claude/rules/_scoping-guide.md",
             "token-efficiency/dot-claude/rules/frontend.md",
@@ -64,21 +71,21 @@ MODULES = [
                 }
             ]
         },
+        "flags": {
+            "tier": {
+                "default": "basic",
+                "options": ["basic", "pro"],
+                "description": "basic = path-scoped rules + PreCompact only. pro = adds bash-output truncation + always-loaded discipline rules.",
+                "extraPaths": {"pro": ["token-efficiency/pro/truncate-bash-output.sh",
+                                       "token-efficiency/pro/_efficiency-core.md"]},
+                "extraSettingsPatch": {"pro": "token-efficiency/settings-patch.tier-pro.json"},
+            },
+        },
     },
     {
-        "id": "token-efficiency-pro",
-        "title": "Token efficiency PRO",
-        "description": "PostToolUse bash-output truncation (cap via CLAUDE_BASH_MAX_LINES) + always-loaded discipline rules (scoped reads, grep-over-cat, inline-bash narrowing, /compact vs /clear vs fresh-session).",
-        "paths": [
-            "token-efficiency-pro/hooks/truncate-bash-output.sh",
-            "token-efficiency-pro/dot-claude/rules/_efficiency-core.md",
-        ],
-        "settingsPatch": "token-efficiency-pro/settings-patch.json",
-    },
-    {
-        "id": "commands-core",
-        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit)",
-        "description": "Nine workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (token bloat), /session-retro (end-of-session reflection), /verify-setup (audits the shape of .claude/ itself), /retrofit (walks .claude-retrofit/REPORT.md interactively to resolve staged conflicts from a cc-configure run).",
+        "id": "commands",
+        "title": "Slash commands + subagents",
+        "description": "Bundled commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit) + 4 subagents (code-reviewer/test-runner/doc-writer/security-auditor).",
         "paths": [
             "commands/plan/SKILL.md",
             "commands/review/SKILL.md",
@@ -89,19 +96,26 @@ MODULES = [
             "commands/session-retro/SKILL.md",
             "commands/verify-setup/SKILL.md",
             "commands/retrofit/SKILL.md",
+            "commands/agents/code-reviewer.md",
+            "commands/agents/test-runner.md",
+            "commands/agents/doc-writer.md",
+            "commands/agents/security-auditor.md",
         ],
-        "dependsOn": ["agents"],
-    },
-    {
-        "id": "agents",
-        "title": "Subagents (code-reviewer/test-runner/doc-writer/security-auditor)",
-        "description": "Four specialists with isolated context. Read-heavy ones run on haiku, code-reviewer on sonnet, security-auditor on opus. security-auditor ships with a scoped mcpServers: block wiring Sonatype's dependency-management MCP (https://mcp.guide.sonatype.com/mcp) for CVE lookup and license/health checks — active only when that agent is running, so ~0 context cost otherwise. Set SONATYPE_TOKEN env var (generate at https://guide.sonatype.com/settings/tokens) to enable.",
-        "paths": [
-            "agents/code-reviewer.md",
-            "agents/test-runner.md",
-            "agents/doc-writer.md",
-            "agents/security-auditor.md",
-        ],
+        "flags": {
+            "subset": {
+                "default": "full",
+                "options": ["curated", "full"],
+                "description": "curated = 3 essential commands only (plan/commit/verify-setup) + reviewer agent. full = all 9 commands + 4 agents.",
+                "filterPaths": {
+                    "curated": [
+                        "commands/plan/SKILL.md",
+                        "commands/commit/SKILL.md",
+                        "commands/verify-setup/SKILL.md",
+                        "commands/agents/code-reviewer.md",
+                    ],
+                },
+            },
+        },
     },
     {
         "id": "recommend-plugins",
@@ -119,13 +133,6 @@ MODULES = [
             "experiments-memory/memory/experiments/CLAUDE.md",
             "experiments-memory/memory/experiments/2026-04-24-example-profile-budget.md",
         ],
-    },
-    {
-        "id": "lockdown",
-        "title": "Lockdown: block all Claude Code updates",
-        "description": "Sets DISABLE_UPDATES=1 in settings env so autoupdates AND manual `claude update` are both blocked. For air-gapped / enterprise environments where Claude Code must flow through a controlled release channel. Stricter than DISABLE_AUTOUPDATER.",
-        "paths": [],
-        "settingsPatch": "lockdown/settings-patch.json",
     },
     {
         "id": "multi-agent",
@@ -588,12 +595,22 @@ def target_path_for(template_rel: str):
         return f".claude/{rest_path}"
     if rest_path.startswith(".claude/"):
         return rest_path
-    if rest_path == "settings-patch.json":
+    if rest_path == "settings-patch.json" or rest_path.startswith("settings-patch."):
         return None
+    # Tier sub-dirs: pro/<name>.sh -> .claude/hooks/<name>.sh;
+    # pro/<name>.md -> .claude/rules/<name>.md
+    if rest_path.startswith("pro/"):
+        fname = rest_path[len("pro/"):]
+        if fname.endswith(".sh"):
+            return f".claude/hooks/{fname}"
+        if fname.endswith(".md"):
+            return f".claude/rules/{fname}"
     if module == "commands":
+        # agents bundled under commands/agents/ route to .claude/agents/<name>.md
+        if rest_path.startswith("agents/"):
+            agent_name = rest_path[len("agents/"):]
+            return f".claude/agents/{agent_name}"
         return f".claude/skills/{rest_path}"
-    if module == "agents":
-        return f".claude/agents/{rest_path}"
     if module == "ui":
         if rest_path == "statusline.sh":
             return ".claude/hooks/statusline.sh"
