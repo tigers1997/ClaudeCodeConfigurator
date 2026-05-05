@@ -623,6 +623,13 @@ def check_mcp_env_vars(form_values: dict, selected: set) -> list:
     return warnings
 
 
+def check_deprecations(deprecations: list) -> list:
+    """Echo legacy-flag/module-name translations as user-facing warnings.
+    Mirrors the check_X() pattern: returns a list of strings to render in
+    a [ DEPRECATED ] block. Empty when nothing legacy was used."""
+    return list(deprecations or [])
+
+
 def check_design_docs(target_dir) -> list:
     """Return paths to design/spec/plan docs found at target_dir, relative to
     target_dir. Used to detect "designed but unscaffolded" projects (typically
@@ -1624,6 +1631,13 @@ def main():
     # brainstorming session). Informational, not a warning — the install is
     # fine; we just want to nudge the user to fold their design into CLAUDE.md
     # instead of letting the generic template stand.
+    deprecations = check_deprecations(initial.get("_deprecations", []))
+    if deprecations:
+        print()
+        print(bold(yellow("[ DEPRECATED ]")))
+        for d in deprecations:
+            print(f"  {yellow('!')} {d}")
+
     design_docs = check_design_docs(target_dir)
     if design_docs:
         print()
