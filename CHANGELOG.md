@@ -4,6 +4,27 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### v1.6.0 (unreleased) — module consolidation
+
+**Modules consolidated (back-compat preserved):**
+- `lockdown` → `safety` module + `safety.lockdown` sub-flag.
+- `token-efficiency-pro` → `token-efficiency` module + `tier=pro` flag.
+- `commands-core` + `agents` → `commands` module + `subset` flag (`curated` | `full`, default `full`).
+
+**Legacy `--modules` names** (`lockdown`, `token-efficiency-pro`, `commands-core`, `agents`) and `--preset balanced|aggressive|relaxed` continue to work; each emits a line in a new `[ DEPRECATED ]` block. Slated for removal in v3.0.
+
+**Schema:** `.claude-config.json` gains optional `persona`, `module_flags`, `schema_version` fields (all back-compat; absent ≡ v1 behavior). Lays groundwork for the persona engine landing in v2.0.0.
+
+**New mechanisms (used by the consolidated modules):**
+- `flags` schema on a MODULES entry: per-flag `default`, `description`, `extraSettingsPatch` (string OR dict keyed by selected value), `extraPaths` (dict keyed by selected value), `filterPaths` (allowlist that subsets `m["paths"]`).
+- `LEGACY_MODULE_MAP` + `translate_legacy_modules` helper for legacy-name back-compat.
+- `[ DEPRECATED ]` report block following the existing preflight `check_X()` pattern.
+- `run_check` now validates the flags schema (missing `default`/`description`, dangling `extraSettingsPatch`/`extraPaths`/`filterPaths` references).
+
+User-facing module count drops from 13 → 11. Visible `--modules` vocabulary still accepts old names.
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
 ### Changed
 - **Bumped `CLAUDE_CODE_COMPAT.tested_up_to` from `2.1.121` → `2.1.128`.** Five CC releases came out (2.1.122, 2.1.123, 2.1.126, 2.1.128 — 2.1.124/125/127 were not published). Changelog review found no new `settings.json` keys, hook events, or MCP/agent/skill frontmatter fields in configurator territory. Notable items: 2.1.122 defensive parse (malformed `hooks` entries no longer invalidate the whole settings file, same theme as 2.1.121's enum-validation fix); 2.1.128 reserved the MCP server name `workspace` (verified clean — no configurator template uses that name); 2.1.128 added `channelsEnabled` for managed/enterprise settings (out of scope); 2.1.126 expanded `--dangerously-skip-permissions` scope to cover writes under `.claude/`, `.git/`, `.vscode/`, and shell config files (catastrophic-removal commands still prompt). No template changes required. Users on 2.1.122–128 no longer see the "newer than tested range" `[ VERSION WARNINGS ]` block. README Requirements line updated to match.
 
