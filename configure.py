@@ -104,6 +104,32 @@ def apply_persona_defaults(persona: str, form_values: dict) -> dict:
     return form_values
 
 
+PLACEHOLDER_TEMPLATES = {
+    "goals": ('[TODO: replace with your project goals, one per line.\n'
+              ' e.g., "Ship the core feature reliably."\n'
+              ' e.g., "Keep CI green on every push."]'),
+    "non_goals": ('[TODO: replace with your non-goals, one per line.\n'
+                  ' e.g., "No multi-tenancy."\n'
+                  ' e.g., "No custom UI framework."]'),
+    "common_instructions": ('[TODO: replace with project-specific instructions.\n'
+                            ' e.g., "Prefer editing existing files over creating new ones."]'),
+    "known_gotchas": ('[TODO: replace with gotchas Claude should know about.\n'
+                      ' e.g., "Run migrations before tests on a fresh clone."]'),
+    "pointers": ('[TODO: replace with @-imports.\n'
+                 ' e.g., "@docs/architecture.md — system diagram and boundaries"]'),
+}
+
+
+def inject_placeholders(form_values: dict, persona: str):
+    """Replace selected documentation fields with [TODO:] placeholders for the
+    persona's `use_placeholders_for` list. Greppable + idempotent: re-running
+    against an already-placeholdered field is a no-op (same string)."""
+    p = PERSONAS.get(persona, PERSONAS["custom"])
+    for key in p.get("use_placeholders_for", []):
+        if key in PLACEHOLDER_TEMPLATES:
+            form_values[key] = PLACEHOLDER_TEMPLATES[key]
+
+
 def resolve_dependencies(selected: set) -> set:
     """Expand `selected` to include every module's transitive `dependsOn`.
     Keeps users from ending up with a module selected but one of its declared
@@ -693,6 +719,18 @@ def check_deprecations(deprecations: list) -> list:
     Mirrors the check_X() pattern: returns a list of strings to render in
     a [ DEPRECATED ] block. Empty when nothing legacy was used."""
     return list(deprecations or [])
+
+
+def check_placeholders(form_values: dict) -> list:
+    """Returns list of (field, line_excerpt) for any [TODO:] placeholder
+    present in the rendered values. Caller renders these as a [ PLACEHOLDERS ]
+    block."""
+    out = []
+    for k, v in form_values.items():
+        if isinstance(v, str) and v.startswith("[TODO:"):
+            first_line = v.splitlines()[0][:80]
+            out.append((k, first_line))
+    return out
 
 
 def render_applied_block(persona: str, selected: set, module_flags: dict) -> list:
@@ -1510,6 +1548,7 @@ def quick_interactive(target_dir: Path, initial: dict) -> dict:
     for mid, fkv in pflags.items():
         initial["module_flags"].setdefault(mid, {}).update(fkv)
     apply_persona_defaults(persona, initial["formValues"])
+    inject_placeholders(initial["formValues"], persona)
 
     # Q2: project name
     fv = initial["formValues"]
@@ -1693,6 +1732,7 @@ def main():
             initial["module_flags"].setdefault(mid, {}).update(fkv)
         initial["persona"] = args.persona
         apply_persona_defaults(args.persona, initial["formValues"])
+        inject_placeholders(initial["formValues"], args.persona)
     if args.preset:
         pmap = {"balanced": "Balanced (recommended)",
                 "aggressive": "Aggressive (haiku-first, strict caps)",
@@ -1809,6 +1849,13 @@ def main():
     print(bold(blue("[ APPLIED ]")))
     for line in applied:
         print(f"  {line}")
+
+    placeholders = check_placeholders(config["formValues"])
+    if placeholders:
+        print()
+        print(bold(yellow("[ PLACEHOLDERS ]")))
+        for field, excerpt in placeholders:
+            print(f"  {yellow('!')} CLAUDE.md (field={field}) — {dim(excerpt)}")
 
     design_docs = check_design_docs(target_dir)
     if design_docs:
