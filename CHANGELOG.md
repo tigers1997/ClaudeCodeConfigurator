@@ -4,7 +4,24 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
-### v2.2.0 (unreleased) — extensions to /review, /session-retro, security-auditor
+### v2.2.1 (unreleased) — cosmetic carries cleanup
+
+Closes 3 small items flagged during the v2.0.0 PR 4 code review:
+
+- **`configure.py` docstring example** updated from the legacy `--modules core,safety,git-workflow,token-efficiency-pro,commands-core` to the v2 vocabulary (`token-efficiency`, `commands`); leads with quick mode + `--persona` examples.
+- **Inline comment** near `resolve_dependencies` no longer references the removed `commands-core -> agents` mapping (those modules were folded in v1.6.0).
+- **`--modules agents` deprecation message** no longer renders trailing empty parens. Was: `--modules agents → --modules commands ()`. Now: `--modules agents → --modules commands`. Other legacy translations with non-empty flags (`lockdown`, `token-efficiency-pro`, `commands-core`) keep their `(k=v)` suffix unchanged.
+
+No behavior change beyond the cosmetic deprecation-message fix.
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
+
+## [2.2.0] — 2026-05-05
+
+Bundle release: skill extensions (PR 7) + slop-scan hook (PR 8).
+
+### v2.2.0 — extensions to /review, /session-retro, security-auditor
 
 **Skill grafts (this PR):**
 - **`/review`** — embeds confidence gate (≥7), independent verification, and AI-slop detection. New output sections: `[ AUTO-FIXED ]` (apply obvious low-risk fixes inline), `[ ASK ]` (ambiguous calls requiring user input), `[ SLOP ]` (AI-slop checklist over the diff), `[ COMPLETENESS ]` (verify each PR/commit requirement is implemented). Defers bug fixes to `/investigate` per the Iron Law.

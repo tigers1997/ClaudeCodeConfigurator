@@ -4,12 +4,14 @@ cc-configure — CLI for the Claude Code project configurator.
 Runs on headless Debian (or anywhere with Python 3.8+). Pure stdlib.
 
 Usage:
-  configure.py                              # interactive TUI against current dir
+  configure.py                              # 5-question quick mode (default)
+  configure.py --detailed                   # full 50-field intake (v1 behavior)
+  configure.py --persona solo-newer --yes   # non-interactive, persona-driven
   configure.py --dir /path/to/project       # target a different directory
   configure.py --config .claude-config.json # non-interactive from a saved file
-  configure.py --preset balanced \
-               --modules core,safety,git-workflow,token-efficiency-pro,commands-core \
-               --yes                        # non-interactive with CLI flags
+  configure.py --yes \
+               --modules core,safety,git-workflow,token-efficiency,commands \
+               --yes                        # non-interactive with explicit modules
   configure.py --save-config path.json      # save answers without scaffolding
   configure.py --dry-run                    # show what would be written
 """
@@ -1681,10 +1683,17 @@ def translate_legacy_modules(wanted: set, current_flags: dict) -> tuple:
             new_id, flag_kv = LEGACY_MODULE_MAP[mid]
             out_modules.add(new_id)
             out_flags.setdefault(new_id, {}).update(flag_kv)
-            deprecations.append(
-                "--modules {}  →  --modules {} ({})".format(
-                    mid, new_id, ", ".join("{}={}".format(k, v) for k, v in flag_kv.items())
+            # Suppress trailing parens when no flags are set (e.g. legacy
+            # `agents` maps to `commands` with empty flag_kv — the bare
+            # rename has no flag suffix to show).
+            if flag_kv:
+                kv_suffix = " ({})".format(
+                    ", ".join("{}={}".format(k, v) for k, v in flag_kv.items())
                 )
+            else:
+                kv_suffix = ""
+            deprecations.append(
+                "--modules {}  →  --modules {}{}".format(mid, new_id, kv_suffix)
             )
         else:
             out_modules.add(mid)
@@ -1841,8 +1850,8 @@ def main():
     else:
         config = quick_interactive(target_dir, initial)
 
-    # Resolve any declared module dependencies (e.g. commands-core -> agents)
-    # before saving or scaffolding, so we never generate an inconsistent set.
+    # Resolve any declared module dependencies before saving or scaffolding,
+    # so we never generate an inconsistent set.
     config["selected"] = resolve_dependencies(config["selected"])
 
     # --- save-config flow ---
