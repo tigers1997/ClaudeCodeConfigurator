@@ -72,7 +72,7 @@ def default_form_values():
 def default_selected():
     # Required modules always, plus a sensible baseline.
     selected = {m["id"] for m in MODULES if m.get("required")}
-    selected.update({"safety", "git-workflow", "commands-core", "agents",
+    selected.update({"safety", "git-workflow", "commands",
                      "token-efficiency",
                      "recommend-plugins"})
     return resolve_dependencies(selected)
@@ -80,8 +80,8 @@ def default_selected():
 
 def resolve_dependencies(selected: set) -> set:
     """Expand `selected` to include every module's transitive `dependsOn`.
-    Keeps users from ending up with e.g. commands-core selected but agents
-    deselected, which would leave /review pointing at a missing subagent."""
+    Keeps users from ending up with a module selected but one of its declared
+    dependencies deselected."""
     by_id = {m["id"]: m for m in MODULES}
     out = set(selected)
     changed = True
@@ -508,7 +508,11 @@ def run_check() -> int:
                 err(src, f"could not run bash -n: {e}")
 
         elif f.name == "SKILL.md" or (
-            rel.parts and rel.parts[0] in ("agents",) and f.suffix == ".md"
+            # subagents under commands/agents/
+            len(rel.parts) >= 3
+            and rel.parts[0] == "commands"
+            and rel.parts[1] == "agents"
+            and f.suffix == ".md"
         ) or (
             # subagents under multi-agent/dot-claude/agents/
             len(rel.parts) >= 3
@@ -608,7 +612,7 @@ def check_mcp_env_vars(form_values: dict, selected: set) -> list:
             "`export GITHUB_TOKEN=...`, or remove the github MCP."
         )
     # Agent-scoped MCPs (only activate when the agent is invoked).
-    if "agents" in selected and not os.environ.get("SONATYPE_TOKEN"):
+    if "commands" in selected and not os.environ.get("SONATYPE_TOKEN"):
         warnings.append(
             "agent 'security-auditor' scopes the Sonatype MCP for vuln "
             "lookups; it needs SONATYPE_TOKEN. The agent will still run but "
@@ -1101,7 +1105,17 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
     for m in MODULES:
         if m["id"] not in selected:
             continue
+        # Compute filterPaths allowlist for this module (if any flag selects one).
+        flag_values = (module_flags or {}).get(m["id"], {})
+        filter_for_module = None
+        for flag_name, flag_def in m.get("flags", {}).items():
+            selected_value = flag_values.get(flag_name, flag_def["default"])
+            fp = flag_def.get("filterPaths", {}).get(selected_value)
+            if fp is not None:
+                filter_for_module = set(fp)
         for rel in m["paths"]:
+            if filter_for_module is not None and rel not in filter_for_module:
+                continue
             tgt = target_path_for(rel)
             if not tgt:
                 continue
@@ -1414,6 +1428,8 @@ def interactive(target_dir: Path, initial: dict) -> dict:
 LEGACY_MODULE_MAP = {
     "lockdown": ("safety", {"lockdown": True}),
     "token-efficiency-pro": ("token-efficiency", {"tier": "pro"}),
+    "commands-core": ("commands", {"subset": "full"}),
+    "agents": ("commands", {}),  # agents alone is a no-op flag; adds commands module
 }
 
 

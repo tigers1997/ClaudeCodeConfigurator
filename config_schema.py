@@ -83,9 +83,9 @@ MODULES = [
         },
     },
     {
-        "id": "commands-core",
-        "title": "Slash commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit)",
-        "description": "Nine workflow skills: /plan, /review vs main, /commit with Conventional Commits, /ship pre-push gauntlet, /sync-docs, /check-context (token bloat), /session-retro (end-of-session reflection), /verify-setup (audits the shape of .claude/ itself), /retrofit (walks .claude-retrofit/REPORT.md interactively to resolve staged conflicts from a cc-configure run).",
+        "id": "commands",
+        "title": "Slash commands + subagents",
+        "description": "Bundled commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit) + 4 subagents (code-reviewer/test-runner/doc-writer/security-auditor).",
         "paths": [
             "commands/plan/SKILL.md",
             "commands/review/SKILL.md",
@@ -96,19 +96,26 @@ MODULES = [
             "commands/session-retro/SKILL.md",
             "commands/verify-setup/SKILL.md",
             "commands/retrofit/SKILL.md",
+            "commands/agents/code-reviewer.md",
+            "commands/agents/test-runner.md",
+            "commands/agents/doc-writer.md",
+            "commands/agents/security-auditor.md",
         ],
-        "dependsOn": ["agents"],
-    },
-    {
-        "id": "agents",
-        "title": "Subagents (code-reviewer/test-runner/doc-writer/security-auditor)",
-        "description": "Four specialists with isolated context. Read-heavy ones run on haiku, code-reviewer on sonnet, security-auditor on opus. security-auditor ships with a scoped mcpServers: block wiring Sonatype's dependency-management MCP (https://mcp.guide.sonatype.com/mcp) for CVE lookup and license/health checks — active only when that agent is running, so ~0 context cost otherwise. Set SONATYPE_TOKEN env var (generate at https://guide.sonatype.com/settings/tokens) to enable.",
-        "paths": [
-            "agents/code-reviewer.md",
-            "agents/test-runner.md",
-            "agents/doc-writer.md",
-            "agents/security-auditor.md",
-        ],
+        "flags": {
+            "subset": {
+                "default": "full",
+                "options": ["curated", "full"],
+                "description": "curated = 3 essential commands only (plan/commit/verify-setup) + reviewer agent. full = all 9 commands + 4 agents.",
+                "filterPaths": {
+                    "curated": [
+                        "commands/plan/SKILL.md",
+                        "commands/commit/SKILL.md",
+                        "commands/verify-setup/SKILL.md",
+                        "commands/agents/code-reviewer.md",
+                    ],
+                },
+            },
+        },
     },
     {
         "id": "recommend-plugins",
@@ -599,9 +606,11 @@ def target_path_for(template_rel: str):
         if fname.endswith(".md"):
             return f".claude/rules/{fname}"
     if module == "commands":
+        # agents bundled under commands/agents/ route to .claude/agents/<name>.md
+        if rest_path.startswith("agents/"):
+            agent_name = rest_path[len("agents/"):]
+            return f".claude/agents/{agent_name}"
         return f".claude/skills/{rest_path}"
-    if module == "agents":
-        return f".claude/agents/{rest_path}"
     if module == "ui":
         if rest_path == "statusline.sh":
             return ".claude/hooks/statusline.sh"
