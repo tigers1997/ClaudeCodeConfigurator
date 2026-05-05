@@ -50,7 +50,7 @@
     "observability": "Structured JSON logs; OpenTelemetry traces; Sentry for errors.",
     "common_instructions": "[TODO: replace with project-specific instructions.\n e.g., \"Prefer editing existing files over creating new ones.\"]",
     "known_gotchas": "[TODO: replace with gotchas Claude should know about.\n e.g., \"Run migrations before tests on a fresh clone.\"]",
-    "pointers": "[TODO: replace with @-imports.\n e.g., \"@docs/architecture.md \u2014 system diagram and boundaries\"]",
+    "pointers": "@docs/architecture.md \u2014 system diagram and boundaries\n@docs/workflow.md \u2014 contribution workflow",
     "clis": "git, gh, docker, kubectl, pnpm, psql",
     "mcp_filesystem": false,
     "mcp_git": false,
