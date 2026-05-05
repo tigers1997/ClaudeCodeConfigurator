@@ -208,7 +208,11 @@ PERSONAS = {
             "license": "MIT",
         },
         "use_placeholders_for": ["goals", "non_goals", "common_instructions",
-                                  "known_gotchas", "pointers"],
+                                  "known_gotchas"],
+        # NOTE: `pointers` was in the original spec list but the current core
+        # CLAUDE.md template does not interpolate that field, so a placeholder
+        # there would be invisible to the user. Add it back if the template
+        # grows a `## Where to look` / `## Pointers` section that consumes it.
     },
     "solo-experienced": {
         "title": "Solo, experienced",

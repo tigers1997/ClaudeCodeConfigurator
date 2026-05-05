@@ -4,6 +4,30 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### v2.0.0 (unreleased) — quick-flow intake + placeholders
+
+**Breaking UX change (config files unchanged):**
+- `cc-configure` (no flags) now opens **5-question quick mode** instead of the full 50-field intake. Asks: persona, project name, stack preset, repo URL, license. Persona drives module/flag/form-value defaults.
+- Use `--detailed` to reach the v1 50-field interactive intake.
+
+**New:**
+- `quick_interactive` + `_ask_persona` helpers in `configure.py`.
+- `inject_placeholders` + `PLACEHOLDER_TEMPLATES` for `[TODO: ...]` defaults in newer-coder documentation fields (goals, non-goals, common-instructions, known-gotchas).
+- `[ PLACEHOLDERS ]` report block lists every `[TODO:]` field by name (greppable + idempotent).
+- `[ NEXT STEPS ]` report block surfaces tailored tips: edit placeholders, upgrade persona kit, migrate off legacy flags. Empty (block suppressed) when no tips apply.
+- One-time `[ NOTICE ]` persona prompt for v1 configs (`schema_version<2`). Bypassed by every non-interactive path (`--yes`, `--persona`, `--detailed`, `--config`, `--modules`, `--save-config-only`). Picking `custom` preserves v1 behavior indefinitely.
+- `examples/v1-legacy-config/.claude-config.json` fixture for back-compat regression coverage.
+
+**Back-compat preserved:**
+- v1 `.claude-config.json` files load and round-trip without edits.
+- `--yes` against any v1 config is identical to v1.x behavior (treated as `persona: custom`).
+- `--preset balanced|aggressive|relaxed` continues to work (now emits a `[ DEPRECATED ]` line — slated for removal in v3.0).
+- `--modules <legacy-name>` still works for `lockdown`, `token-efficiency-pro`, `commands-core`, `agents` (each emits a `[ DEPRECATED ]` translation line).
+
+**Known follow-up:** the `pointers` form field is in `FORM_SCHEMA` but not interpolated by the current core `CLAUDE.md` template. Removed from `solo-newer.use_placeholders_for` to avoid invisible-placeholder UX. Re-add if the template grows a `## Where to look` / `## Pointers` section that consumes it.
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
 ### v1.7.0 (unreleased) — persona engine
 
 **New:**
