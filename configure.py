@@ -483,6 +483,35 @@ def run_check() -> int:
         for dep in m.get("dependsOn", []) or []:
             if dep not in module_ids:
                 err(f"MODULES[{mid}]", f"dependsOn references unknown module: {dep}")
+        # flags schema: required keys + dangling-path detection.
+        for flag_name, flag_def in (m.get("flags", {}) or {}).items():
+            if "default" not in flag_def:
+                err(f"MODULES[{mid}].flags[{flag_name}]", "missing required 'default'")
+            if "description" not in flag_def:
+                err(f"MODULES[{mid}].flags[{flag_name}]", "missing required 'description'")
+            # extraSettingsPatch can be a string or a dict keyed by selected value.
+            extra_patch = flag_def.get("extraSettingsPatch")
+            patch_candidates = []
+            if isinstance(extra_patch, str):
+                patch_candidates.append(extra_patch)
+            elif isinstance(extra_patch, dict):
+                patch_candidates.extend(v for v in extra_patch.values() if v)
+            for p in patch_candidates:
+                if not (TEMPLATE_DIR / p).exists():
+                    err(f"MODULES[{mid}].flags[{flag_name}]",
+                        f"extraSettingsPatch missing: templates/{p}")
+            # extraPaths is keyed by selected value → list of relative paths.
+            for value, path_list in (flag_def.get("extraPaths") or {}).items():
+                for p in path_list:
+                    if not (TEMPLATE_DIR / p).exists():
+                        err(f"MODULES[{mid}].flags[{flag_name}]",
+                            f"extraPaths[{value}] missing: templates/{p}")
+            # filterPaths values must exist in m["paths"] (allowlist must be a subset).
+            for value, path_list in (flag_def.get("filterPaths") or {}).items():
+                for p in path_list:
+                    if p not in (m.get("paths") or []):
+                        err(f"MODULES[{mid}].flags[{flag_name}]",
+                            f"filterPaths[{value}] references path not in m[paths]: {p}")
 
     # --- 2. Static file checks: walk templates/ once ---
     for f in sorted(TEMPLATE_DIR.rglob("*")):
