@@ -4,6 +4,26 @@ Two flows, depending on whether you're starting from scratch or retrofitting an 
 
 ---
 
+## Two-minute quickstart (newer coders)
+
+```bash
+cd ~/projects/my-new-app
+cc-configure
+# → Persona: pick "solo-newer"
+# → Project name: my-new-app
+# → Stack preset: e.g. "Python (uv)"
+# → Repo URL: (Enter to skip)
+# → License: MIT
+```
+
+That's the entire intake. The configurator picks a sensible kit (modules, hooks, settings) for a newer-coder persona; documentation fields like "goals" / "non-goals" / "instructions" / "gotchas" default to bracketed `[TODO: ...]` placeholders.
+
+After scaffolding finishes, open `CLAUDE.md` and replace each `[TODO: ...]` block with content specific to your project — they're greppable (`grep TODO: CLAUDE.md`) and idempotent on re-runs of `cc-configure`.
+
+If `solo-newer` feels too constrained later, re-run with `--persona solo-experienced` (more modules, pro tier of token-efficiency) or `--detailed` (full 50-field intake).
+
+---
+
 ## Brand-new project (greenfield)
 
 The configurator is good at producing a deterministic baseline, but a baseline is only as useful as the design it serves. For new projects, **brainstorm the design before scaffolding** so the form answers reflect a thought-through plan rather than guesses.
