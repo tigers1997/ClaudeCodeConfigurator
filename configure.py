@@ -639,6 +639,10 @@ def run_check() -> int:
             "_patterns/independent-verification.md",
             "_patterns/ai-slop-detection.md",
         ],
+        "commands/agents/security-auditor.md": [
+            "_patterns/confidence-gate.md",
+            "_patterns/independent-verification.md",
+        ],
     }
     for skill_rel, required in pattern_requirements.items():
         abs_path = TEMPLATE_DIR / skill_rel
