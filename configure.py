@@ -99,20 +99,24 @@ def resolve_dependencies(selected: set) -> set:
 # Config persistence
 # -----------------------------------------------------------------------------
 def load_config(path: Path) -> dict:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    values = default_form_values()
-    values.update(data.get("formValues", {}))
-    selected = set(data.get("selected", default_selected()))
-    return {"formValues": values, "selected": selected}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        "formValues": {**default_form_values(), **raw.get("formValues", {})},
+        "selected": set(raw.get("selected", default_selected())),
+        "module_flags": raw.get("module_flags", {}),
+        "persona": raw.get("persona", "custom"),
+        "schema_version": raw.get("schema_version", 1),
+    }
 
 
 def save_config(config: dict, path: Path):
-    out = {
+    path.write_text(json.dumps({
+        "schema_version": 2,
+        "persona": config.get("persona", "custom"),
+        "module_flags": config.get("module_flags", {}),
         "formValues": config["formValues"],
         "selected": sorted(config["selected"]),
-        "_version": 1,
-    }
-    path.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+    }, indent=2) + "\n", encoding="utf-8")
 
 
 # -----------------------------------------------------------------------------
