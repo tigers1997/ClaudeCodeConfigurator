@@ -29,6 +29,7 @@ sys.path.insert(0, str(REPO_ROOT))
 try:
     from config_schema import (
         CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, target_path_for,
+        PERSONAS,
     )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
@@ -76,6 +77,31 @@ def default_selected():
                      "token-efficiency",
                      "recommend-plugins"})
     return resolve_dependencies(selected)
+
+
+def pick_persona_modules(persona: str) -> tuple:
+    """Resolve a persona name to (module set, module_flags dict).
+    Unknown persona falls back to ('custom', defaults). Required modules
+    are always included."""
+    p = PERSONAS.get(persona, PERSONAS["custom"])
+    required = {m["id"] for m in MODULES if m.get("required")}
+    return set(p["modules"]) | required, dict(p["module_flags"])
+
+
+def apply_persona_defaults(persona: str, form_values: dict) -> dict:
+    """Apply a persona's form_overrides to form_values, OVERRIDING any existing
+    values. Caller is responsible for ordering: apply persona defaults BEFORE
+    collecting user-explicit input so that explicit user choices take precedence.
+
+    Design note: spec said setdefault() ("only setting keys not already explicitly
+    set"), but default_form_values() pre-fills ALL keys with schema defaults —
+    so setdefault() would never override anything in practice.  Direct assignment
+    is the correct implementation: persona overrides WIN over schema defaults,
+    but user-explicit values set AFTER this call will override persona picks."""
+    p = PERSONAS.get(persona, PERSONAS["custom"])
+    for k, v in p["form_overrides"].items():
+        form_values[k] = v
+    return form_values
 
 
 def resolve_dependencies(selected: set) -> set:
@@ -513,7 +539,17 @@ def run_check() -> int:
                         err(f"MODULES[{mid}].flags[{flag_name}]",
                             f"filterPaths[{value}] references path not in m[paths]: {p}")
 
-    # --- 2. Static file checks: walk templates/ once ---
+    # --- 2. PERSONAS registry integrity ---
+    mod_ids = {m["id"] for m in MODULES}
+    for pname, pdef in PERSONAS.items():
+        for ref in pdef.get("modules", []):
+            if ref not in mod_ids:
+                err(f"PERSONAS[{pname}]", f"references unknown module: {ref}")
+        for flag_module in pdef.get("module_flags", {}).keys():
+            if flag_module not in mod_ids:
+                err(f"PERSONAS[{pname}]", f"module_flags references unknown module: {flag_module}")
+
+    # --- 3. Static file checks: walk templates/ once ---
     for f in sorted(TEMPLATE_DIR.rglob("*")):
         if not f.is_file():
             continue
