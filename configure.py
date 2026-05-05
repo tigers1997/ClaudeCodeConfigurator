@@ -1536,6 +1536,12 @@ def main():
                 "relaxed": "Relaxed (correctness over cost)"}
         initial["formValues"]["efficiency_preset"] = pmap[args.preset]
         apply_preset(initial["formValues"])
+        # --preset is being phased out; surface the migration in [ DEPRECATED ].
+        new_tier = "pro" if args.preset == "aggressive" else "basic"
+        initial.setdefault("_deprecations", []).append(
+            "--preset {}  →  --token-efficiency-tier={} "
+            "(--preset will be removed in v3.0)".format(args.preset, new_tier)
+        )
     if args.modules:
         wanted = {m.strip() for m in args.modules.split(",") if m.strip()}
         wanted, initial["module_flags"], deprecations = translate_legacy_modules(
