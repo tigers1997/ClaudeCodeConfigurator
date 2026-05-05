@@ -28,8 +28,8 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 try:
     from config_schema import (
-        CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, target_path_for,
-        PERSONAS,
+        CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, _DEFAULT_STACK,
+        target_path_for, PERSONAS,
     )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
@@ -1491,6 +1491,62 @@ def prompt_modules(selected: set):
     return selected
 
 
+def quick_interactive(target_dir: Path, initial: dict) -> dict:
+    """5-question happy-path intake. Persona drives module/flag/form defaults."""
+    print(bold("=" * 60))
+    print(bold("  Claude Code project configurator \u2014 quick mode"))
+    print(bold("=" * 60))
+    print(f"  Target: {green(str(target_dir.resolve()))}")
+    print(dim("  5 questions; documentation fields use [TODO:] placeholders."))
+    print(dim("  Use --detailed for the full intake. Ctrl+C to abort."))
+    print()
+
+    # Q1: persona
+    persona = _ask_persona(initial.get("persona", "solo-newer"))
+    pmods, pflags = pick_persona_modules(persona)
+    initial["persona"] = persona
+    initial["selected"] = pmods
+    initial.setdefault("module_flags", {})
+    for mid, fkv in pflags.items():
+        initial["module_flags"].setdefault(mid, {}).update(fkv)
+    apply_persona_defaults(persona, initial["formValues"])
+
+    # Q2: project name
+    fv = initial["formValues"]
+    fv["project_name"] = _input(f"  Project name [{fv.get('project_name', target_dir.name)}]: ").strip() or fv.get("project_name", target_dir.name)
+
+    # Q3: stack preset
+    stack_keys = list(STACK_PRESETS.keys())
+    print("  Stack preset:")
+    for i, sk in enumerate(stack_keys, 1):
+        print(f"    {i}) {sk}")
+    raw = _input(f"  pick [1-{len(stack_keys)}, default={stack_keys.index(fv.get('stack_preset', _DEFAULT_STACK)) + 1}]: ").strip()
+    if raw.isdigit() and 1 <= int(raw) <= len(stack_keys):
+        fv["stack_preset"] = stack_keys[int(raw) - 1]
+    apply_stack_preset(fv)
+
+    # Q4: repo url (optional)
+    fv["repo_url"] = _input(f"  Repo URL (optional) [{fv.get('repo_url', '')}]: ").strip() or fv.get("repo_url", "")
+
+    # Q5: license
+    fv["license"] = _input(f"  License [{fv.get('license', 'MIT')}]: ").strip() or fv.get("license", "MIT")
+
+    return initial
+
+
+def _ask_persona(default: str) -> str:
+    print("  Persona \u2014 pick a sensible kit, then we ask 4 follow-ups:")
+    keys = list(PERSONAS.keys())
+    for i, k in enumerate(keys, 1):
+        p = PERSONAS[k]
+        marker = green("→") if k == default else " "
+        print(f"   {marker} {i}) {bold(k):20} {dim(p['title'])}")
+    raw = _input(f"  pick [1-{len(keys)}, default={keys.index(default) + 1}]: ").strip()
+    if raw.isdigit() and 1 <= int(raw) <= len(keys):
+        return keys[int(raw) - 1]
+    return default
+
+
 def interactive(target_dir: Path, initial: dict) -> dict:
     print(bold("=" * 60))
     print(bold("  Claude Code project configurator \u2014 CLI"))
@@ -1570,6 +1626,8 @@ def parse_args():
                    help="Pre-pick modules + flags + form defaults for a persona. "
                         "Combine with --yes for fully non-interactive scaffolding. "
                         "Use 'custom' for the v1 explicit-field flow.")
+    p.add_argument("--detailed", action="store_true",
+                   help="Use the full 50-field intake (v1 behavior). Default flow asks 5 questions.")
     p.add_argument("--modules", help="Non-interactive: comma-separated module IDs to enable")
     p.add_argument("--yes", action="store_true",
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
@@ -1657,10 +1715,16 @@ def main():
         initial.setdefault("_deprecations", []).extend(deprecations)
 
     # --- interactive if needed ---
+    # --yes / --config / --modules / --persona / --preset / --save-config-only:
+    # skip interactive entirely (preserves v1 non-interactive paths).
+    # --detailed: opt back into the full v1 50-field interactive() flow.
+    # default (no flags): quick 5-question mode via quick_interactive().
     if args.yes or args.config or args.preset or args.modules or args.persona or args.save_config_only:
         config = initial
-    else:
+    elif args.detailed:
         config = interactive(target_dir, initial)
+    else:
+        config = quick_interactive(target_dir, initial)
 
     # Resolve any declared module dependencies (e.g. commands-core -> agents)
     # before saving or scaffolding, so we never generate an inconsistent set.
