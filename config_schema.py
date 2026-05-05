@@ -185,6 +185,89 @@ MODULES = [
 ]
 
 
+# ---- persona definitions ----
+# Each persona pre-picks modules + module_flags + form-value defaults.
+# Consumed by pick_persona_modules() and apply_persona_defaults() in configure.py.
+PERSONAS = {
+    "solo-newer": {
+        "title": "Solo, newer to coding",
+        "description": "Sensible kit for a single developer learning the ropes. Documentation fields default to bracketed [TODO:] placeholders.",
+        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp"],
+        "module_flags": {
+            "safety": {"lockdown": False},
+            "token-efficiency": {"tier": "basic"},
+            "commands": {"subset": "curated"},
+        },
+        "form_overrides": {
+            "branch_strategy": "Solo on main (squash-merge)",
+            "mcp_context7": True,
+            "mcp_filesystem": False,
+            "mcp_git": False,
+            "mcp_github": False,
+            "mcp_playwright": False,
+            "license": "MIT",
+        },
+        "use_placeholders_for": ["goals", "non_goals", "common_instructions",
+                                  "known_gotchas", "pointers"],
+    },
+    "solo-experienced": {
+        "title": "Solo, experienced",
+        "description": "Today's de-facto default. Full kit minus team-only modules.",
+        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui"],
+        "module_flags": {
+            "safety": {"lockdown": False},
+            "token-efficiency": {"tier": "pro"},
+            "commands": {"subset": "full"},
+        },
+        "form_overrides": {
+            "mcp_context7": True,
+            "mcp_git": True,
+        },
+        "use_placeholders_for": [],
+    },
+    "small-team": {
+        "title": "Small team (2-5 devs)",
+        "description": "Solo-experienced + multi-agent + github-actions. Trunk-based default.",
+        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui",
+                    "multi-agent", "github-actions"],
+        "module_flags": {
+            "safety": {"lockdown": False},
+            "token-efficiency": {"tier": "pro"},
+            "commands": {"subset": "full"},
+        },
+        "form_overrides": {
+            "branch_strategy": "Trunk-based (short feature branches merged fast)",
+            "mcp_context7": True,
+            "mcp_git": True,
+        },
+        "use_placeholders_for": [],
+    },
+    "library-author": {
+        "title": "Open-source library / CLI",
+        "description": "No app-specific modules. Defaults to MIT license.",
+        "modules": ["core", "safety", "git-workflow", "commands", "github-actions"],
+        "module_flags": {
+            "safety": {"lockdown": False},
+            "commands": {"subset": "curated"},
+        },
+        "form_overrides": {
+            "license": "MIT",
+            "deployment": "None (library / CLI)",
+            "database": "None / in-memory only",
+        },
+        "use_placeholders_for": ["goals", "non_goals"],
+    },
+    "custom": {
+        "title": "Custom — show me everything",
+        "description": "No pre-picks. Lands in --detailed.",
+        "modules": [],
+        "module_flags": {},
+        "form_overrides": {},
+        "use_placeholders_for": [],
+    },
+}
+
+
 # ---- Claude Code compatibility range ----
 # Declared templates-vs-CC version envelope. Bump deliberately; each configurator
 # release should state the range it's been tested against in the CHANGELOG.

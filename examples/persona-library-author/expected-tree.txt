@@ -1,0 +1,14 @@
+./.claude-config.json
+./.claude/agents/code-reviewer.md
+./.claude/hooks/block-dangerous-bash.sh
+./.claude/hooks/format-on-write.sh
+./.claude/hooks/scan-secrets.sh
+./.claude/hooks/stop-run-checks.sh
+./.claude/settings.json
+./.claude/settings.local.json.example
+./.claude/skills/commit/SKILL.md
+./.claude/skills/plan/SKILL.md
+./.claude/skills/verify-setup/SKILL.md
+./.github/workflows/claude.yml
+./.gitignore
+./CLAUDE.md

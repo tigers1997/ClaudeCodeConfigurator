@@ -4,6 +4,23 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### v1.7.0 (unreleased) — persona engine
+
+**New:**
+- `PERSONAS` constant in `config_schema.py` with 5 entries: `solo-newer`, `solo-experienced`, `small-team`, `library-author`, `custom`. Each entry pre-picks modules + module_flags + form-value defaults.
+- `pick_persona_modules(persona)` and `apply_persona_defaults(persona, form_values)` helpers in `configure.py`.
+- `--persona <name>` CLI flag (combine with `--yes` for fully non-interactive scaffolding). Persona pre-picks run first so explicit `--modules` / `--preset` can override.
+- `[ APPLIED ]` report block shows persona + final module list with active flag values inline (e.g. `commands (subset=full)`).
+- `run_check` now validates that PERSONAS reference real module IDs.
+- 5 persona snapshot fixtures under `examples/persona-*/` with CI diff step. Each captures the file-tree manifest a fresh `--persona <name> --yes` produces. CI fails on drift; regenerate intentionally by re-running the loop.
+
+**v1 behavior preserved:**
+- `--yes` against any v1 `.claude-config.json` (no `persona` field) still works identically — treated as `persona: custom` ≡ explicit-field flow.
+
+Quick-flow intake (5 questions as default no-flag invocation, `[TODO:]` placeholders, one-time persona prompt for v1 configs) lands in v2.0.0.
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
 ### v1.6.0 (unreleased) — module consolidation
 
 **Modules consolidated (back-compat preserved):**

@@ -29,6 +29,7 @@ sys.path.insert(0, str(REPO_ROOT))
 try:
     from config_schema import (
         CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, target_path_for,
+        PERSONAS,
     )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
@@ -76,6 +77,31 @@ def default_selected():
                      "token-efficiency",
                      "recommend-plugins"})
     return resolve_dependencies(selected)
+
+
+def pick_persona_modules(persona: str) -> tuple:
+    """Resolve a persona name to (module set, module_flags dict).
+    Unknown persona falls back to ('custom', defaults). Required modules
+    are always included."""
+    p = PERSONAS.get(persona, PERSONAS["custom"])
+    required = {m["id"] for m in MODULES if m.get("required")}
+    return set(p["modules"]) | required, dict(p["module_flags"])
+
+
+def apply_persona_defaults(persona: str, form_values: dict) -> dict:
+    """Apply a persona's form_overrides to form_values, OVERRIDING any existing
+    values. Caller is responsible for ordering: apply persona defaults BEFORE
+    collecting user-explicit input so that explicit user choices take precedence.
+
+    Design note: spec said setdefault() ("only setting keys not already explicitly
+    set"), but default_form_values() pre-fills ALL keys with schema defaults —
+    so setdefault() would never override anything in practice.  Direct assignment
+    is the correct implementation: persona overrides WIN over schema defaults,
+    but user-explicit values set AFTER this call will override persona picks."""
+    p = PERSONAS.get(persona, PERSONAS["custom"])
+    for k, v in p["form_overrides"].items():
+        form_values[k] = v
+    return form_values
 
 
 def resolve_dependencies(selected: set) -> set:
@@ -513,7 +539,17 @@ def run_check() -> int:
                         err(f"MODULES[{mid}].flags[{flag_name}]",
                             f"filterPaths[{value}] references path not in m[paths]: {p}")
 
-    # --- 2. Static file checks: walk templates/ once ---
+    # --- 2. PERSONAS registry integrity ---
+    mod_ids = {m["id"] for m in MODULES}
+    for pname, pdef in PERSONAS.items():
+        for ref in pdef.get("modules", []):
+            if ref not in mod_ids:
+                err(f"PERSONAS[{pname}]", f"references unknown module: {ref}")
+        for flag_module in pdef.get("module_flags", {}).keys():
+            if flag_module not in mod_ids:
+                err(f"PERSONAS[{pname}]", f"module_flags references unknown module: {flag_module}")
+
+    # --- 3. Static file checks: walk templates/ once ---
     for f in sorted(TEMPLATE_DIR.rglob("*")):
         if not f.is_file():
             continue
@@ -657,6 +693,26 @@ def check_deprecations(deprecations: list) -> list:
     Mirrors the check_X() pattern: returns a list of strings to render in
     a [ DEPRECATED ] block. Empty when nothing legacy was used."""
     return list(deprecations or [])
+
+
+def render_applied_block(persona: str, selected: set, module_flags: dict) -> list:
+    """Returns a list of strings to render under [ APPLIED ].
+
+    Lists the persona name + the final module set with active flag values
+    inline (e.g. `commands (subset=full)`). Modules ordered per the canonical
+    MODULES list for stable output."""
+    out = ["Persona  {}".format(persona or "custom")]
+    canonical = [m["id"] for m in MODULES if m["id"] in selected]
+    flag_strs = []
+    for mid in canonical:
+        fkv = (module_flags or {}).get(mid, {})
+        if fkv:
+            kv = ", ".join("{}={}".format(k, v) for k, v in sorted(fkv.items()))
+            flag_strs.append("{} ({})".format(mid, kv))
+        else:
+            flag_strs.append(mid)
+    out.append("Modules  " + ", ".join(flag_strs))
+    return out
 
 
 def check_design_docs(target_dir) -> list:
@@ -1510,6 +1566,10 @@ def parse_args():
     p.add_argument("--save-config-only", help="Write the config and exit without scaffolding")
     p.add_argument("--preset", choices=["balanced", "aggressive", "relaxed"],
                    help="Non-interactive: apply an efficiency preset")
+    p.add_argument("--persona", choices=list(PERSONAS.keys()),
+                   help="Pre-pick modules + flags + form defaults for a persona. "
+                        "Combine with --yes for fully non-interactive scaffolding. "
+                        "Use 'custom' for the v1 explicit-field flow.")
     p.add_argument("--modules", help="Non-interactive: comma-separated module IDs to enable")
     p.add_argument("--yes", action="store_true",
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
@@ -1566,6 +1626,15 @@ def main():
         initial = {"formValues": default_form_values(), "selected": default_selected()}
 
     # --- apply CLI flags ---
+    # --persona runs first so explicit --modules / --preset / form fields can override.
+    if args.persona:
+        pmods, pflags = pick_persona_modules(args.persona)
+        initial["selected"] = pmods
+        initial.setdefault("module_flags", {})
+        for mid, fkv in pflags.items():
+            initial["module_flags"].setdefault(mid, {}).update(fkv)
+        initial["persona"] = args.persona
+        apply_persona_defaults(args.persona, initial["formValues"])
     if args.preset:
         pmap = {"balanced": "Balanced (recommended)",
                 "aggressive": "Aggressive (haiku-first, strict caps)",
@@ -1588,7 +1657,7 @@ def main():
         initial.setdefault("_deprecations", []).extend(deprecations)
 
     # --- interactive if needed ---
-    if args.yes or args.config or args.preset or args.modules or args.save_config_only:
+    if args.yes or args.config or args.preset or args.modules or args.persona or args.save_config_only:
         config = initial
     else:
         config = interactive(target_dir, initial)
@@ -1666,6 +1735,16 @@ def main():
         print(bold(yellow("[ DEPRECATED ]")))
         for d in deprecations:
             print(f"  {yellow('!')} {d}")
+
+    applied = render_applied_block(
+        initial.get("persona", "custom"),
+        config["selected"],
+        config.get("module_flags", {}),
+    )
+    print()
+    print(bold(blue("[ APPLIED ]")))
+    for line in applied:
+        print(f"  {line}")
 
     design_docs = check_design_docs(target_dir)
     if design_docs:

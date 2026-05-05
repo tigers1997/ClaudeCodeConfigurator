@@ -36,3 +36,15 @@ jobs:
             echo "--- scaffolding core + $mod into $target"
             python3 configure.py --yes --modules "core,$mod" --dry-run --dir "$target"
           done
+
+      - name: Persona snapshot tests
+        run: |
+          set -e
+          for p in solo-newer solo-experienced small-team library-author custom; do
+            target=$(mktemp -d)
+            python3 configure.py --persona "$p" --yes --dir "$target" >/dev/null
+            actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
+            diff <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
+              || { echo "snapshot drift for persona=$p"; exit 1; }
+          done
+          echo "all 5 persona snapshots match"

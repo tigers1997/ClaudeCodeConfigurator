@@ -1,0 +1,5 @@
+./.claude-config.json
+./.claude/settings.json
+./.claude/settings.local.json.example
+./.gitignore
+./CLAUDE.md
