@@ -40,3 +40,35 @@ You have just finished a real working session. Don't ask me what happened — re
 ## Finish by
 
 Proposing one **process retrospective** bullet: one thing that would have made this session smoother. A missing tool, a confusing default, a redundant step. This is meta-feedback for the human, not a file edit.
+
+## Structured retro doc (5-section format)
+
+In addition to the doc-update flow above, write a structured retrospective to `.claude/retros/<date>.md` using the same 5-section schema as the `experiments-memory` module (so the project has one consistent shape across both retros and experiments):
+
+```
+# Retro — <date>
+
+## Hypothesis
+What did you think was going to happen at session start? (Even one sentence is fine — the value is in writing it down so you can compare against the result.)
+
+## Setup
+What did you actually do? Tools used, skills invoked, approach taken. Bullet list, not prose.
+
+## Result
+What happened? Concrete: what shipped, what didn't, where you got stuck. Cite commits, file paths, line counts where useful.
+
+## Conclusion
+What did you learn? Be specific — not "I learned debugging is hard" but "I learned that tracing data flow before reading the failing test prevents at least 2 wrong-direction iterations."
+
+## Follow-ups
+- [ ] Action items for next session
+- [ ] Patterns to repeat
+- [ ] Patterns to avoid
+```
+
+## AI-slop reflection
+
+End the retro by asking yourself: "Did I drift toward filler today?
+Em-dashes, marketing voice, hedging, comments that pad rather than
+explain?" If yes, note specific instances under Follow-ups so future
+sessions can self-correct.
