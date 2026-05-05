@@ -1722,6 +1722,36 @@ def main():
     else:
         initial = {"formValues": default_form_values(), "selected": default_selected()}
 
+    # v1-config upgrade: a one-time interactive prompt offers a persona pick
+    # when an existing .claude-config.json predates schema_version=2. Bypassed
+    # by every non-interactive path so script callers' behavior is unchanged.
+    is_v1_config = (
+        saved_config_path.exists()
+        and initial.get("schema_version", 1) < 2
+        and not args.yes
+        and not args.persona
+        and not args.detailed
+        and not args.config
+        and not args.modules
+        and not args.save_config_only
+    )
+    if is_v1_config:
+        print()
+        print(bold(yellow("[ NOTICE ]")), "Persona-based defaults are new in v2.0.")
+        print("           Pick one to simplify future re-runs, or 'custom' to keep")
+        print("           your current granular config.")
+        chosen = _ask_persona("custom")
+        initial["persona"] = chosen
+        initial["schema_version"] = 2
+        if chosen != "custom":
+            pmods, pflags = pick_persona_modules(chosen)
+            initial["selected"] = set(initial.get("selected", set())) | pmods
+            initial.setdefault("module_flags", {})
+            for mid, fkv in pflags.items():
+                initial["module_flags"].setdefault(mid, {}).update(fkv)
+            apply_persona_defaults(chosen, initial["formValues"])
+            inject_placeholders(initial["formValues"], chosen)
+
     # --- apply CLI flags ---
     # --persona runs first so explicit --modules / --preset / form fields can override.
     if args.persona:

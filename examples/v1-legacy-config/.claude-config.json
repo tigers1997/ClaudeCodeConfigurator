@@ -1,0 +1,7 @@
+{
+  "formValues": {
+    "project_name": "v1-legacy",
+    "stack_preset": "Python (uv)"
+  },
+  "selected": ["core", "safety", "git-workflow", "commands-core", "agents"]
+}
