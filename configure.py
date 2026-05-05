@@ -1857,6 +1857,24 @@ def main():
         for field, excerpt in placeholders:
             print(f"  {yellow('!')} CLAUDE.md (field={field}) — {dim(excerpt)}")
 
+    next_steps = []
+    if placeholders:
+        next_steps.append("Edit CLAUDE.md to fill in the [TODO:] placeholders above.")
+    persona = initial.get("persona", "custom")
+    if persona == "solo-newer":
+        next_steps.append(
+            "Want a fuller kit? Re-run with `--persona solo-experienced` or `--detailed`."
+        )
+    if initial.get("_deprecations"):
+        next_steps.append(
+            "Legacy flags used — see [ DEPRECATED ] above for the v3.0 migration."
+        )
+    if next_steps:
+        print()
+        print(bold(blue("[ NEXT STEPS ]")))
+        for s in next_steps:
+            print(f"  {blue('→')} {s}")
+
     design_docs = check_design_docs(target_dir)
     if design_docs:
         print()
