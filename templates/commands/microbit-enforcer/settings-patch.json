@@ -1,0 +1,28 @@
+{
+  "// microbit-enforcer.json": "Auto-installed alongside the freeze/unfreeze/guard/careful microbits when commands.subset is 'full' or 'rigorous'. PreToolUse rejects Write/Edit/NotebookEdit when a marker is present; SessionStart clears markers (session-scoped lifecycle).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/microbit-enforcer.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -f \"$CLAUDE_PROJECT_DIR\"/.claude/.frozen \"$CLAUDE_PROJECT_DIR\"/.claude/.guarded \"$CLAUDE_PROJECT_DIR\"/.claude/.careful || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
