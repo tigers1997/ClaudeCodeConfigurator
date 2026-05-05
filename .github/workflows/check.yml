@@ -48,3 +48,10 @@ jobs:
               || { echo "snapshot drift for persona=$p"; exit 1; }
           done
           echo "all 5 persona snapshots match"
+
+      - name: Microbit enforcer fixture tests
+        run: |
+          set -e
+          for t in test/microbit-enforcer/test-*.sh; do
+            bash "$t"
+          done
