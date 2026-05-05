@@ -52,15 +52,32 @@ chmod +x ~/.cc-configurator/configure.py
 From any project directory:
 
 ```bash
-cc-configure                             # interactive
-cc-configure --yes --preset balanced     # one-shot with defaults
-cc-configure --yes --preset aggressive \
-  --modules core,safety,git-workflow,token-efficiency-pro,commands-core,agents
-cc-configure --dry-run                   # preview what would be written
-cc-configure --help                      # full flags
+cc-configure                               # quick mode (5 questions)
+cc-configure --detailed                    # full 50-field intake (v1 behavior)
+cc-configure --persona solo-newer --yes    # one-shot for newer coders
+cc-configure --persona small-team --yes    # one-shot, team kit
+cc-configure --yes                         # reuse existing .claude-config.json
+cc-configure --dry-run                     # preview without writing
+cc-configure --help                        # full flags
 ```
 
-Answers persist to `.claude-config.json` in the project; re-runs with `--yes` reuse them.
+Quick mode asks **five questions**: persona, project name, stack preset, repo URL, license. The persona pre-picks modules + flags + sensible defaults; documentation fields default to bracketed `[TODO: ...]` placeholders the user fills in later.
+
+### Personas
+
+| Persona | Pre-picks |
+|---|---|
+| `solo-newer` | `core / safety / git-workflow / token-efficiency (basic) / commands (curated) / mcp (context7)`; documentation fields default to `[TODO:]` placeholders; "Solo on main, squash-merge" branch strategy |
+| `solo-experienced` | + `token-efficiency (pro) / commands (full) / ui` (today's de-facto default) |
+| `small-team` | `solo-experienced` + `multi-agent / github-actions`; trunk-based default |
+| `library-author` | `core / safety / git-workflow / commands (curated) / github-actions`; MIT default |
+| `custom` | nothing pre-picked; lands in `--detailed` |
+
+Answers persist to `.claude-config.json` in the project; re-runs with `--yes` reuse them. Existing v1 `.claude-config.json` files (no `persona` field) load unchanged and behave as `persona: custom`.
+
+### Legacy flag compatibility
+
+`--preset balanced|aggressive|relaxed` and the legacy module names (`commands-core`, `agents`, `lockdown`, `token-efficiency-pro`) continue to work. Each emits a line in a new `[ DEPRECATED ]` block showing the v3.0 migration. Slated for removal in v3.0.
 
 **Retrofit safety (Tier 2, since v1.2.0).** When you run `cc-configure` against a project that already has Claude Code state, the default behavior is **non-destructive**:
 
