@@ -1087,7 +1087,7 @@ def compute_mcp_json(form_values: dict) -> str:
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
-def collect_files(form_values: dict, selected: set, module_flags: dict = None):
+def collect_files(form_values: dict, selected: set, module_flags: dict = None) -> tuple:
     files = []
     gitignore_lines = []
     placeholders = compute_placeholders(form_values, selected)
@@ -1387,15 +1387,16 @@ def interactive(target_dir: Path, initial: dict) -> dict:
 # -----------------------------------------------------------------------------
 LEGACY_MODULE_MAP = {
     "lockdown": ("safety", {"lockdown": True}),
-    # Filled in by tasks 3, 4 below.
 }
 
 
-def translate_legacy_modules(wanted, current_flags):
+def translate_legacy_modules(wanted: set, current_flags: dict) -> tuple:
     """Returns (new_module_set, updated_flags, deprecation_messages).
 
     Translates legacy module IDs into their modern equivalents, updating
-    module_flags as needed. Used by --modules arg handling.
+    module_flags as needed. Used by --modules arg handling. The deprecation
+    messages are stored on initial["_deprecations"] and rendered in the
+    [ DEPRECATED ] block (added by Task 6).
     """
     out_modules = set()
     out_flags = dict(current_flags)
@@ -1407,7 +1408,7 @@ def translate_legacy_modules(wanted, current_flags):
             out_flags.setdefault(new_id, {}).update(flag_kv)
             deprecations.append(
                 "--modules {}  →  --modules {} ({})".format(
-                    mid, new_id, ", ".join("{}=true".format(k) for k in flag_kv)
+                    mid, new_id, ", ".join("{}={}".format(k, v) for k, v in flag_kv.items())
                 )
             )
         else:
@@ -1498,6 +1499,7 @@ def main():
             wanted, initial.get("module_flags", {})
         )
         initial["selected"] = wanted | {m["id"] for m in MODULES if m.get("required")}
+        # Stored here; rendered as [ DEPRECATED ] block in Task 6.
         initial.setdefault("_deprecations", []).extend(deprecations)
 
     # --- interactive if needed ---
