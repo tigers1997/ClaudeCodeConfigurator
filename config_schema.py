@@ -34,6 +34,28 @@ MODULES = [
                 "description": "Block all CC updates (autoupdate + manual). Sets DISABLE_UPDATES=1.",
                 "extraSettingsPatch": "safety/settings-patch.lockdown.json",
             },
+            "slop_scan": {
+                "default": False,
+                "description": "Enable slop-scan PostToolUse hook (warn-mode by default). Personas opt in: 4 non-custom personas pre-set this to true; custom (and bare --modules) leaves it false.",
+                "extraPaths": {True: ["safety/hooks/slop-scan.sh"]},
+                "extraSettingsPatch": {True: "safety/settings-patch.slop-scan.json"},
+            },
+            "slop_scan_action": {
+                "default": "warn",
+                "options": ["warn", "block"],
+                "description": "warn = stderr [ SLOP ] block, write proceeds. block = same + non-zero exit.",
+                "extraSettingsEnv": {"SLOP_SCAN_ACTION": "$VALUE"},
+            },
+            "slop_scan_density": {
+                "default": False,
+                "description": "Opt-in: flag functions with >40% comment density (FP-prone).",
+                "extraSettingsEnv": {"SLOP_SCAN_DENSITY": "1"},
+            },
+            "slop_scan_imports": {
+                "default": False,
+                "description": "Opt-in: flag imports not appearing elsewhere (FP-prone on first-use).",
+                "extraSettingsEnv": {"SLOP_SCAN_IMPORTS": "1"},
+            },
         },
     },
     {
@@ -211,7 +233,7 @@ PERSONAS = {
         "description": "Sensible kit for a single developer learning the ropes. Documentation fields default to bracketed [TODO:] placeholders.",
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp"],
         "module_flags": {
-            "safety": {"lockdown": False},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "token-efficiency": {"tier": "basic"},
             "commands": {"subset": "curated"},
         },
@@ -236,7 +258,7 @@ PERSONAS = {
         "description": "Today's de-facto default. Full kit minus team-only modules.",
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui"],
         "module_flags": {
-            "safety": {"lockdown": False},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "token-efficiency": {"tier": "pro"},
             "commands": {"subset": "rigorous"},
         },
@@ -252,7 +274,7 @@ PERSONAS = {
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui",
                     "multi-agent", "github-actions"],
         "module_flags": {
-            "safety": {"lockdown": False},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "token-efficiency": {"tier": "pro"},
             "commands": {"subset": "rigorous"},
         },
@@ -268,7 +290,7 @@ PERSONAS = {
         "description": "No app-specific modules. Defaults to MIT license.",
         "modules": ["core", "safety", "git-workflow", "commands", "github-actions"],
         "module_flags": {
-            "safety": {"lockdown": False},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "commands": {"subset": "full"},
         },
         "form_overrides": {

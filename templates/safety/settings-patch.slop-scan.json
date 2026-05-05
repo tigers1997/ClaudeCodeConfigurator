@@ -1,0 +1,17 @@
+{
+  "// settings-patch.slop-scan.json": "Registers the slop-scan PostToolUse hook. Applied via safety.flags.slop_scan when set to true. Only the hook registration lives here; the action mode + opt-in flags are exported via extraSettingsEnv (see config_schema.py).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/slop-scan.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

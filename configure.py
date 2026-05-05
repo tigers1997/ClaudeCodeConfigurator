@@ -399,6 +399,18 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
                     extra_patch = json.loads((TEMPLATE_DIR / extra).read_text(encoding="utf-8"))
                     extra_patch = {k: v for k, v in extra_patch.items() if not k.startswith("//")}
                     settings = deep_merge(settings, extra_patch)
+            # extraSettingsEnv: merge env vars driven by the flag's value.
+            # Boolean false ⇒ skip. Otherwise emit each {key: value} pair into
+            # settings.env, with the sentinel "$VALUE" replaced by the flag
+            # value (used for slop_scan_action where the value IS the env val).
+            env_kv = flag_def.get("extraSettingsEnv")
+            if env_kv:
+                if isinstance(selected_value, bool) and not selected_value:
+                    pass
+                else:
+                    for env_key, env_val in env_kv.items():
+                        actual = str(selected_value) if env_val == "$VALUE" else env_val
+                        settings.setdefault("env", {})[env_key] = actual
 
     if form_values.get("default_model"):
         settings["model"] = form_values["default_model"]

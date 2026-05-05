@@ -3,7 +3,9 @@
   "persona": "solo-experienced",
   "module_flags": {
     "safety": {
-      "lockdown": false
+      "lockdown": false,
+      "slop_scan": true,
+      "slop_scan_action": "warn"
     },
     "token-efficiency": {
       "tier": "pro"
