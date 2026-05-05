@@ -55,3 +55,10 @@ jobs:
           for t in test/microbit-enforcer/test-*.sh; do
             bash "$t"
           done
+
+      - name: Slop-scan fixture tests
+        run: |
+          set -e
+          for t in test/slop-scan/test-*.sh; do
+            bash "$t"
+          done
