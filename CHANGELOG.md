@@ -4,7 +4,24 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
-### v2.1.0 (unreleased) — rigor skills (cross-cutting patterns + /investigate + /plan-eng-review)
+### v2.2.0 (unreleased) — extensions to /review, /session-retro, security-auditor
+
+**Skill grafts (this PR):**
+- **`/review`** — embeds confidence gate (≥7), independent verification, and AI-slop detection. New output sections: `[ AUTO-FIXED ]` (apply obvious low-risk fixes inline), `[ ASK ]` (ambiguous calls requiring user input), `[ SLOP ]` (AI-slop checklist over the diff), `[ COMPLETENESS ]` (verify each PR/commit requirement is implemented). Defers bug fixes to `/investigate` per the Iron Law.
+- **`/session-retro`** — keeps existing doc-update flow; adds a structured `Hypothesis / Setup / Result / Conclusion / Follow-ups` doc written to `.claude/retros/<date>.md`. Format matches the existing `experiments-memory` module's schema. Slop-reflection prompt at end surfaces drift patterns over time.
+- **`security-auditor` agent** — embeds confidence gate (≥8, stricter than rigor default), independent verification, 17 false-positive exclusions distilled from gstack `/cso`, a concrete-exploit requirement (every finding must include a one-paragraph exploit scenario), and a lightweight STRIDE checklist. Sonatype MCP wiring preserved.
+- **`run_check`** validates pattern-include lines in `/review` and the `security-auditor` agent (in addition to `/investigate` and `/plan-eng-review` from v2.1.0).
+
+**To come in this release line:**
+- `safety/hooks/slop-scan.sh` PostToolUse hook + `safety.slop_scan*` flags (PR 8)
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
+## [2.1.0] — 2026-05-05
+
+Bundle release: rigor skills (PR 5) + microbits (PR 6).
+
+### v2.1.0 — rigor skills (cross-cutting patterns + /investigate + /plan-eng-review)
 
 **New:**
 - `templates/commands/_patterns/` directory with 4 reusable cross-cutting blocks:
