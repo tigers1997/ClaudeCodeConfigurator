@@ -4,7 +4,35 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
-### v2.0.0 (unreleased) — quick-flow intake + placeholders
+### v2.1.0 (unreleased) — rigor skills (cross-cutting patterns + /investigate + /plan-eng-review)
+
+**New:**
+- `templates/commands/_patterns/` directory with 4 reusable cross-cutting blocks:
+  - `confidence-gate.md` — internal 1-10 rating; surface only ≥7 (rigor) / ≥8 (security)
+  - `independent-verification.md` — re-check from a different angle before reporting
+  - `no-fix-without-investigation.md` — Iron Law: hypothesis → trace → findings before any code change
+  - `ai-slop-detection.md` — filler / marketing / hedging / em-dash patterns to flag
+- `/investigate` skill — systematic root-cause debugging; embeds Iron Law + confidence gate + independent verification. Writes findings doc to `.claude/investigations/<topic>-<date>.md` before any proposed fix.
+- `/plan-eng-review` skill — engineering review of plans before implementation. Surfaces hidden assumptions, requires data-flow diagram + state machines + test matrix + failure modes + edge cases.
+- New `rigorous` value for `commands.subset` flag (linear ordering: `curated ⊂ full ⊂ rigorous`). Rigorous = full + /investigate + /plan-eng-review.
+- `run_check` now validates that rigor skills embed their required `_patterns/*.md` includes. Catches drift.
+
+**Persona pre-pick changes (Spec #2 Amendment B):**
+- `solo-experienced`: `full` → `rigorous` (gets /investigate + /plan-eng-review)
+- `small-team`: `full` → `rigorous`
+- `library-author`: `curated` → `full` (gets all 9 commands + 4 agents; no rigor)
+- `solo-newer` + `custom`: unchanged
+
+**To come in this release line:**
+- 4 microbit commands (/freeze, /unfreeze, /guard, /careful) + enforcer hook (PR 6)
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
+## [2.0.0] — 2026-05-05
+
+Bundle release: v1.6.0 module consolidation + v1.7.0 persona engine + v2.0.0 quick-flow intake. Four PRs (#27, #28, #29, #30).
+
+### v2.0.0 — quick-flow intake + placeholders
 
 **Breaking UX change (config files unchanged):**
 - `cc-configure` (no flags) now opens **5-question quick mode** instead of the full 50-field intake. Asks: persona, project name, stack preset, repo URL, license. Persona drives module/flag/form-value defaults.
@@ -28,7 +56,7 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 **Claude Code compat:** unchanged (2.1.116–2.1.128).
 
-### v1.7.0 (unreleased) — persona engine
+### v1.7.0 — persona engine
 
 **New:**
 - `PERSONAS` constant in `config_schema.py` with 5 entries: `solo-newer`, `solo-experienced`, `small-team`, `library-author`, `custom`. Each entry pre-picks modules + module_flags + form-value defaults.
@@ -45,7 +73,7 @@ Quick-flow intake (5 questions as default no-flag invocation, `[TODO:]` placehol
 
 **Claude Code compat:** unchanged (2.1.116–2.1.128).
 
-### v1.6.0 (unreleased) — module consolidation
+### v1.6.0 — module consolidation
 
 **Modules consolidated (back-compat preserved):**
 - `lockdown` → `safety` module + `safety.lockdown` sub-flag.

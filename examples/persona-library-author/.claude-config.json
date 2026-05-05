@@ -6,7 +6,7 @@
       "lockdown": false
     },
     "commands": {
-      "subset": "curated"
+      "subset": "full"
     }
   },
   "formValues": {

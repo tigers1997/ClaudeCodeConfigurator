@@ -620,6 +620,30 @@ def run_check() -> int:
             if not re.search(r"^description:\s*\S+", fm, flags=re.MULTILINE):
                 err(src, "frontmatter missing required `description:` field")
 
+    # --- 4. Cross-cutting pattern integration (rigor skills) ---
+    # Each rigor skill must embed its named pattern blocks via `include
+    # _patterns/<name>.md` references. Catches drift where a future edit
+    # accidentally drops the discipline rule from a skill.
+    pattern_requirements = {
+        "commands/investigate/SKILL.md": [
+            "_patterns/no-fix-without-investigation.md",
+            "_patterns/confidence-gate.md",
+            "_patterns/independent-verification.md",
+        ],
+        "commands/plan-eng-review/SKILL.md": [
+            "_patterns/confidence-gate.md",
+            "_patterns/independent-verification.md",
+        ],
+    }
+    for skill_rel, required in pattern_requirements.items():
+        abs_path = TEMPLATE_DIR / skill_rel
+        if not abs_path.exists():
+            continue  # skill not yet present (early PR — soft-fail)
+        text = abs_path.read_text(encoding="utf-8")
+        for pat in required:
+            if f"include {pat}" not in text:
+                err(f"templates/{skill_rel}", f"missing required pattern include: {pat}")
+
     # --- Report ---
     if not issues:
         print(green("✓ all checks passed"))

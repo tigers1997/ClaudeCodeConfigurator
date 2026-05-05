@@ -104,14 +104,20 @@ MODULES = [
         "flags": {
             "subset": {
                 "default": "full",
-                "options": ["curated", "full"],
-                "description": "curated = 3 essential commands only (plan/commit/verify-setup) + reviewer agent. full = all 9 commands + 4 agents.",
+                "options": ["curated", "full", "rigorous"],
+                "description": "curated = 3 essential commands (plan/commit/verify-setup) + reviewer agent. full = all 9 commands + 4 agents. rigorous = full + /investigate + /plan-eng-review.",
                 "filterPaths": {
                     "curated": [
                         "commands/plan/SKILL.md",
                         "commands/commit/SKILL.md",
                         "commands/verify-setup/SKILL.md",
                         "commands/agents/code-reviewer.md",
+                    ],
+                },
+                "extraPaths": {
+                    "rigorous": [
+                        "commands/investigate/SKILL.md",
+                        "commands/plan-eng-review/SKILL.md",
                     ],
                 },
             },
@@ -221,7 +227,7 @@ PERSONAS = {
         "module_flags": {
             "safety": {"lockdown": False},
             "token-efficiency": {"tier": "pro"},
-            "commands": {"subset": "full"},
+            "commands": {"subset": "rigorous"},
         },
         "form_overrides": {
             "mcp_context7": True,
@@ -237,7 +243,7 @@ PERSONAS = {
         "module_flags": {
             "safety": {"lockdown": False},
             "token-efficiency": {"tier": "pro"},
-            "commands": {"subset": "full"},
+            "commands": {"subset": "rigorous"},
         },
         "form_overrides": {
             "branch_strategy": "Trunk-based (short feature branches merged fast)",
@@ -252,7 +258,7 @@ PERSONAS = {
         "modules": ["core", "safety", "git-workflow", "commands", "github-actions"],
         "module_flags": {
             "safety": {"lockdown": False},
-            "commands": {"subset": "curated"},
+            "commands": {"subset": "full"},
         },
         "form_overrides": {
             "license": "MIT",
