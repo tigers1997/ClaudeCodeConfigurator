@@ -695,6 +695,26 @@ def check_deprecations(deprecations: list) -> list:
     return list(deprecations or [])
 
 
+def render_applied_block(persona: str, selected: set, module_flags: dict) -> list:
+    """Returns a list of strings to render under [ APPLIED ].
+
+    Lists the persona name + the final module set with active flag values
+    inline (e.g. `commands (subset=full)`). Modules ordered per the canonical
+    MODULES list for stable output."""
+    out = ["Persona  {}".format(persona or "custom")]
+    canonical = [m["id"] for m in MODULES if m["id"] in selected]
+    flag_strs = []
+    for mid in canonical:
+        fkv = (module_flags or {}).get(mid, {})
+        if fkv:
+            kv = ", ".join("{}={}".format(k, v) for k, v in sorted(fkv.items()))
+            flag_strs.append("{} ({})".format(mid, kv))
+        else:
+            flag_strs.append(mid)
+    out.append("Modules  " + ", ".join(flag_strs))
+    return out
+
+
 def check_design_docs(target_dir) -> list:
     """Return paths to design/spec/plan docs found at target_dir, relative to
     target_dir. Used to detect "designed but unscaffolded" projects (typically
@@ -1715,6 +1735,16 @@ def main():
         print(bold(yellow("[ DEPRECATED ]")))
         for d in deprecations:
             print(f"  {yellow('!')} {d}")
+
+    applied = render_applied_block(
+        initial.get("persona", "custom"),
+        config["selected"],
+        config.get("module_flags", {}),
+    )
+    print()
+    print(bold(blue("[ APPLIED ]")))
+    for line in applied:
+        print(f"  {line}")
 
     design_docs = check_design_docs(target_dir)
     if design_docs:
