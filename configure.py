@@ -316,7 +316,9 @@ def deep_merge(a, b):
     return b
 
 
-def compute_merged_settings(form_values: dict, selected: set) -> dict:
+def compute_merged_settings(form_values: dict, selected: set, module_flags: dict = None) -> dict:
+    if module_flags is None:
+        module_flags = {}
     base = json.loads(BASE_SETTINGS_PATH.read_text(encoding="utf-8"))
     settings = json.loads(json.dumps(base))
     settings.setdefault("hooks", {})
@@ -334,6 +336,14 @@ def compute_merged_settings(form_values: dict, selected: set) -> dict:
             settings["hooks"] = deep_merge(settings.get("hooks", {}), m["extraSettingsHook"])
         if m.get("extraSettings"):
             settings = deep_merge(settings, m["extraSettings"])
+        # Apply per-module flag-gated extra patches.
+        for flag_name, flag_def in m.get("flags", {}).items():
+            if module_flags.get(m["id"], {}).get(flag_name, flag_def["default"]):
+                extra = flag_def.get("extraSettingsPatch")
+                if extra:
+                    extra_patch = json.loads((TEMPLATE_DIR / extra).read_text(encoding="utf-8"))
+                    extra_patch = {k: v for k, v in extra_patch.items() if not k.startswith("//")}
+                    settings = deep_merge(settings, extra_patch)
 
     if form_values.get("default_model"):
         settings["model"] = form_values["default_model"]
@@ -1077,7 +1087,7 @@ def compute_mcp_json(form_values: dict) -> str:
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
-def collect_files(form_values: dict, selected: set):
+def collect_files(form_values: dict, selected: set, module_flags: dict = None):
     files = []
     gitignore_lines = []
     placeholders = compute_placeholders(form_values, selected)
@@ -1108,7 +1118,7 @@ def collect_files(form_values: dict, selected: set):
 
     files.append({
         "target": ".claude/settings.json",
-        "content": json.dumps(compute_merged_settings(form_values, selected), indent=2) + "\n",
+        "content": json.dumps(compute_merged_settings(form_values, selected, module_flags), indent=2) + "\n",
         "executable": False,
     })
     if "mcp" in selected:
@@ -1373,6 +1383,39 @@ def interactive(target_dir: Path, initial: dict) -> dict:
 
 
 # -----------------------------------------------------------------------------
+# Legacy module translator
+# -----------------------------------------------------------------------------
+LEGACY_MODULE_MAP = {
+    "lockdown": ("safety", {"lockdown": True}),
+    # Filled in by tasks 3, 4 below.
+}
+
+
+def translate_legacy_modules(wanted, current_flags):
+    """Returns (new_module_set, updated_flags, deprecation_messages).
+
+    Translates legacy module IDs into their modern equivalents, updating
+    module_flags as needed. Used by --modules arg handling.
+    """
+    out_modules = set()
+    out_flags = dict(current_flags)
+    deprecations = []
+    for mid in wanted:
+        if mid in LEGACY_MODULE_MAP:
+            new_id, flag_kv = LEGACY_MODULE_MAP[mid]
+            out_modules.add(new_id)
+            out_flags.setdefault(new_id, {}).update(flag_kv)
+            deprecations.append(
+                "--modules {}  →  --modules {} ({})".format(
+                    mid, new_id, ", ".join("{}=true".format(k) for k in flag_kv)
+                )
+            )
+        else:
+            out_modules.add(mid)
+    return out_modules, out_flags, deprecations
+
+
+# -----------------------------------------------------------------------------
 # CLI entry
 # -----------------------------------------------------------------------------
 def parse_args():
@@ -1451,7 +1494,11 @@ def main():
         apply_preset(initial["formValues"])
     if args.modules:
         wanted = {m.strip() for m in args.modules.split(",") if m.strip()}
+        wanted, initial["module_flags"], deprecations = translate_legacy_modules(
+            wanted, initial.get("module_flags", {})
+        )
         initial["selected"] = wanted | {m["id"] for m in MODULES if m.get("required")}
+        initial.setdefault("_deprecations", []).extend(deprecations)
 
     # --- interactive if needed ---
     if args.yes or args.config or args.preset or args.modules or args.save_config_only:
@@ -1473,7 +1520,7 @@ def main():
         print(dim(f"(also saved config to {args.save_config})"))
 
     # --- scaffold ---
-    files, gitignore_lines = collect_files(config["formValues"], config["selected"])
+    files, gitignore_lines = collect_files(config["formValues"], config["selected"], config.get("module_flags", {}))
 
     # Pre-flight: surface version mismatches, schema drift, heavy hooks,
     # and module prerequisites before writing any files.
@@ -1484,7 +1531,7 @@ def main():
         for w in version_warnings:
             print(f"  {yellow('!')} {w}")
 
-    merged = compute_merged_settings(config["formValues"], config["selected"])
+    merged = compute_merged_settings(config["formValues"], config["selected"], config.get("module_flags", {}))
     schema_warnings = check_schema_url(merged)
     if schema_warnings:
         print()

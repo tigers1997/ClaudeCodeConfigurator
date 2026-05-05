@@ -28,6 +28,13 @@ MODULES = [
             "safety/hooks/scan-secrets.sh",
         ],
         "settingsPatch": "safety/settings-patch.json",
+        "flags": {
+            "lockdown": {
+                "default": False,
+                "description": "Block all CC updates (autoupdate + manual). Sets DISABLE_UPDATES=1.",
+                "extraSettingsPatch": "safety/settings-patch.lockdown.json",
+            },
+        },
     },
     {
         "id": "git-workflow",
@@ -119,13 +126,6 @@ MODULES = [
             "experiments-memory/memory/experiments/CLAUDE.md",
             "experiments-memory/memory/experiments/2026-04-24-example-profile-budget.md",
         ],
-    },
-    {
-        "id": "lockdown",
-        "title": "Lockdown: block all Claude Code updates",
-        "description": "Sets DISABLE_UPDATES=1 in settings env so autoupdates AND manual `claude update` are both blocked. For air-gapped / enterprise environments where Claude Code must flow through a controlled release channel. Stricter than DISABLE_AUTOUPDATER.",
-        "paths": [],
-        "settingsPatch": "lockdown/settings-patch.json",
     },
     {
         "id": "multi-agent",
