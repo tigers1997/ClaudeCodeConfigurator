@@ -23,8 +23,13 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 - `library-author`: `curated` → `full` (gets all 9 commands + 4 agents; no rigor)
 - `solo-newer` + `custom`: unchanged
 
-**To come in this release line:**
-- 4 microbit commands (/freeze, /unfreeze, /guard, /careful) + enforcer hook (PR 6)
+**Microbits + enforcer hook (PR 6):**
+- `/freeze` / `/unfreeze` — pause work, blocks all Write/Edit/NotebookEdit until unfrozen.
+- `/guard <glob>` — protect specific paths from edits (rejects matching writes).
+- `/careful <glob>` — heightened-caution mode (emits an `ask` action so Claude Code prompts the user before each matching write).
+- `microbit-enforcer.sh` PreToolUse hook auto-installed alongside the microbits when `commands.subset` is `full` or `rigorous`. Single bash hook handles all 3 marker files (`.claude/.frozen`, `.claude/.guarded`, `.claude/.careful`).
+- `SessionStart` hook clears all 3 markers — session-scoped lifecycle.
+- 4 bash fixture tests (`test/microbit-enforcer/`) verify clean pass-through, frozen block, guarded block + non-match pass, and careful ask-action emission. CI runs all 4.
 
 **Claude Code compat:** unchanged (2.1.116–2.1.128).
 
