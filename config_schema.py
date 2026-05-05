@@ -190,10 +190,12 @@ MODULES = [
 #                configurator against. Newer is likely fine but unverified.
 CLAUDE_CODE_COMPAT = {
     "min_version": "2.1.116",   # agent mcpServers http (2.1.116/117)
-    "tested_up_to": "2.1.123",  # alwaysLoad MCP, updatedToolOutput PostToolUse,
+    "tested_up_to": "2.1.128",  # alwaysLoad MCP, updatedToolOutput PostToolUse,
                                 # ultrareview non-interactive, prUrlTemplate +
                                 # sandbox.network.deniedDomains schema-validated.
-                                # 2.1.122-123: bug fixes only, no schema additions.
+                                # 2.1.122-128: bug fixes + MCP "workspace" reserved
+                                # + managed-settings channelsEnabled (enterprise);
+                                # no configurator-territory schema additions.
 }
 
 
