@@ -9,7 +9,7 @@
       "tier": "pro"
     },
     "commands": {
-      "subset": "full"
+      "subset": "rigorous"
     }
   },
   "formValues": {

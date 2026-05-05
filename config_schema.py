@@ -227,7 +227,7 @@ PERSONAS = {
         "module_flags": {
             "safety": {"lockdown": False},
             "token-efficiency": {"tier": "pro"},
-            "commands": {"subset": "full"},
+            "commands": {"subset": "rigorous"},
         },
         "form_overrides": {
             "mcp_context7": True,
@@ -243,7 +243,7 @@ PERSONAS = {
         "module_flags": {
             "safety": {"lockdown": False},
             "token-efficiency": {"tier": "pro"},
-            "commands": {"subset": "full"},
+            "commands": {"subset": "rigorous"},
         },
         "form_overrides": {
             "branch_strategy": "Trunk-based (short feature branches merged fast)",
@@ -258,7 +258,7 @@ PERSONAS = {
         "modules": ["core", "safety", "git-workflow", "commands", "github-actions"],
         "module_flags": {
             "safety": {"lockdown": False},
-            "commands": {"subset": "curated"},
+            "commands": {"subset": "full"},
         },
         "form_overrides": {
             "license": "MIT",

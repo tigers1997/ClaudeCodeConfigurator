@@ -21,6 +21,8 @@
 ./.claude/settings.local.json.example
 ./.claude/skills/check-context/SKILL.md
 ./.claude/skills/commit/SKILL.md
+./.claude/skills/investigate/SKILL.md
+./.claude/skills/plan-eng-review/SKILL.md
 ./.claude/skills/plan/SKILL.md
 ./.claude/skills/retrofit/SKILL.md
 ./.claude/skills/review/SKILL.md
