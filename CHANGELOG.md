@@ -12,8 +12,12 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 - **`security-auditor` agent** — embeds confidence gate (≥8, stricter than rigor default), independent verification, 17 false-positive exclusions distilled from gstack `/cso`, a concrete-exploit requirement (every finding must include a one-paragraph exploit scenario), and a lightweight STRIDE checklist. Sonatype MCP wiring preserved.
 - **`run_check`** validates pattern-include lines in `/review` and the `security-auditor` agent (in addition to `/investigate` and `/plan-eng-review` from v2.1.0).
 
-**To come in this release line:**
-- `safety/hooks/slop-scan.sh` PostToolUse hook + `safety.slop_scan*` flags (PR 8)
+**Slop-scan + safety sub-flags (PR 8):**
+- New `safety/hooks/slop-scan.sh` PostToolUse hook on Write/Edit/NotebookEdit. 4 default pattern categories (filler / marketing-voice / hedging / em-dash-spam) — high confidence, low FP rate.
+- 4 new safety sub-flags: `slop_scan` (default false; non-custom personas opt in), `slop_scan_action` (warn|block, default warn), `slop_scan_density` (opt-in, FP-prone), `slop_scan_imports` (opt-in, FP-prone).
+- New **`extraSettingsEnv`** mechanism: a flag's selected value (or the `$VALUE` sentinel) is merged into `settings.env`, exposing per-flag config to the running hook.
+- 4 non-custom personas pre-set `slop_scan=true` + `slop_scan_action=warn`. `custom` leaves it false.
+- 6 bash fixture tests (`test/slop-scan/`) verify clean / filler / marketing / hedging / em-dash / block-mode. CI runs all 6.
 
 **Claude Code compat:** unchanged (2.1.116–2.1.128).
 
