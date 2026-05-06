@@ -90,6 +90,41 @@ def pick_persona_modules(persona: str) -> tuple:
     return set(p["modules"]) | required, dict(p["module_flags"])
 
 
+def infer_persona(selected: set, module_flags: dict) -> str:
+    """Score each non-custom persona by how well it matches a translated
+    user config; return the closest match or 'custom' if no persona scores
+    above 0.5. Used as the default for the v1-upgrade NOTICE prompt so
+    users with v1 configs get a sensible inferred suggestion instead of
+    a blind 'custom' default.
+
+    Scoring: Jaccard similarity on module sets (weight 0.7) + flag-match
+    ratio (weight 0.3). Threshold 0.5 keeps idiosyncratic configs from
+    being mislabeled as one of the canonical personas."""
+    required = {m["id"] for m in MODULES if m.get("required")}
+    sel = set(selected) | required
+    best_name, best_score = "custom", 0.0
+    for name, p in PERSONAS.items():
+        if name == "custom":
+            continue
+        p_modules = set(p["modules"]) | required
+        intersect = len(sel & p_modules)
+        union = len(sel | p_modules)
+        mod_score = intersect / union if union else 0.0
+        flag_total = 0
+        flag_matches = 0
+        for mid, persona_flags in p.get("module_flags", {}).items():
+            user_flags = module_flags.get(mid, {})
+            for key, val in persona_flags.items():
+                flag_total += 1
+                if user_flags.get(key) == val:
+                    flag_matches += 1
+        flag_score = flag_matches / flag_total if flag_total else 0.0
+        score = mod_score * 0.7 + flag_score * 0.3
+        if score > best_score:
+            best_name, best_score = name, score
+    return best_name if best_score >= 0.5 else "custom"
+
+
 def apply_persona_defaults(persona: str, form_values: dict) -> dict:
     """Apply a persona's form_overrides to form_values, OVERRIDING any existing
     values. Caller is responsible for ordering: apply persona defaults BEFORE
@@ -790,12 +825,16 @@ def check_placeholders(form_values: dict) -> list:
     return out
 
 
-def render_applied_block(persona: str, selected: set, module_flags: dict) -> list:
+def render_applied_block(persona: str, selected: set, module_flags: dict,
+                         overrides: list = None) -> list:
     """Returns a list of strings to render under [ APPLIED ].
 
     Lists the persona name + the final module set with active flag values
     inline (e.g. `commands (subset=full)`). Modules ordered per the canonical
-    MODULES list for stable output."""
+    MODULES list for stable output. When `overrides` is non-empty, appends a
+    `Persona overrides:` block listing flag values the persona changed from
+    user-set values — surfaces silent overrides on v1 upgrades and
+    `--persona` re-runs against an existing config."""
     out = ["Persona  {}".format(persona or "custom")]
     canonical = [m["id"] for m in MODULES if m["id"] in selected]
     flag_strs = []
@@ -807,7 +846,26 @@ def render_applied_block(persona: str, selected: set, module_flags: dict) -> lis
         else:
             flag_strs.append(mid)
     out.append("Modules  " + ", ".join(flag_strs))
+    if overrides:
+        out.append("Persona overrides:")
+        for mid, key, before, after in overrides:
+            out.append("  {}.{}: {} → {}".format(mid, key, before, after))
     return out
+
+
+def detect_persona_overrides(pre_flags: dict, persona: str) -> list:
+    """Returns (module, key, before, after) tuples where the persona's flag
+    pick conflicts with a flag the user had explicitly set in their saved
+    config. Skips additions (persona introduces a new flag the user never
+    had) since those aren't overrides — they're augmentations."""
+    p = PERSONAS.get(persona, {})
+    overrides = []
+    for mid, persona_flags in p.get("module_flags", {}).items():
+        pre = pre_flags.get(mid, {})
+        for key, after in persona_flags.items():
+            if key in pre and pre[key] != after:
+                overrides.append((mid, key, pre[key], after))
+    return overrides
 
 
 def check_design_docs(target_dir) -> list:
@@ -1128,10 +1186,15 @@ def apply_file_collision_strategy(files, target_dir, strategy):
             staged.write_text(f["content"], encoding="utf-8")
             if f.get("executable"):
                 staged.chmod(staged.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH)
+            try:
+                identical = dest.read_text(encoding="utf-8") == f["content"]
+            except (OSError, UnicodeDecodeError):
+                identical = False
             report.append({
                 "target": target,
                 "action": "skip",
                 "incoming": str(staged.relative_to(target_dir)),
+                "identical": identical,
             })
             # Drop from files list (don't write to original location).
         elif strategy == "rename":
@@ -1181,15 +1244,32 @@ def write_retrofit_report(target_dir, structured_merges, collision_report):
             lines.append(f"- `{target_rel}` — {msg}")
         lines.append("")
     if skipped:
-        lines.append("## Skipped (your version preserved; ours staged for review)")
-        lines.append("")
-        lines.append("Diff each pair to decide. Keep yours, replace with ours, or merge.")
-        lines.append("")
-        lines.append("| Original (yours, unchanged) | Incoming (ours, staged) |")
-        lines.append("|---|---|")
-        for r in skipped:
-            lines.append(f"| `{r['target']}` | `{r['incoming']}` |")
-        lines.append("")
+        identical = [r for r in skipped if r.get("identical")]
+        differs = [r for r in skipped if not r.get("identical")]
+        if identical:
+            lines.append("## Skipped — identical to v2 (safe to drop)")
+            lines.append("")
+            lines.append("Your file matches the v2 template byte-for-byte. The staged copy is "
+                         "redundant — delete it from `.claude-retrofit/incoming/` once you've "
+                         "spot-checked. Future-you may also want to delete the original and "
+                         "let the next `cc-configure` run write our copy directly.")
+            lines.append("")
+            lines.append("| Original (yours) | Incoming (identical) |")
+            lines.append("|---|---|")
+            for r in identical:
+                lines.append(f"| `{r['target']}` | `{r['incoming']}` |")
+            lines.append("")
+        if differs:
+            lines.append("## Skipped — differs from v2 (review)")
+            lines.append("")
+            lines.append("Content diverges from the v2 template. Either you customized the "
+                         "file, or v2 evolved the template. Diff each pair to decide.")
+            lines.append("")
+            lines.append("| Original (yours) | Incoming (v2) |")
+            lines.append("|---|---|")
+            for r in differs:
+                lines.append(f"| `{r['target']}` | `{r['incoming']}` |")
+            lines.append("")
     if renamed:
         lines.append("## Renamed (both versions installed side-by-side)")
         lines.append("")
@@ -1215,7 +1295,7 @@ def write_retrofit_report(target_dir, structured_merges, collision_report):
     if renamed:
         lines.append(f"{'4' if skipped else '1'}. The renamed entries are usable immediately. If you decide you want ours as the canonical, rename the existing file out of the way and rename the `-cc` version into place.")
     lines.append("")
-    lines.append("A future `/retrofit` skill (Tier 3, see project backlog) will walk this report interactively.")
+    lines.append("Run `claude` in this project and invoke `/retrofit` to walk this report interactively — the skill ships under `.claude/skills/retrofit/` (or staged at `.claude-retrofit/incoming/.claude/skills/retrofit/SKILL.md` if it collided).")
     path.write_text("\n".join(lines), encoding="utf-8")
     return ".claude-retrofit/REPORT.md"
 
@@ -1586,8 +1666,13 @@ def prompt_modules(selected: set):
     return selected
 
 
-def quick_interactive(target_dir: Path, initial: dict) -> dict:
-    """5-question happy-path intake. Persona drives module/flag/form defaults."""
+def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = False) -> dict:
+    """5-question happy-path intake. Persona drives module/flag/form defaults.
+
+    `skip_persona_q` is set by the v1-NOTICE branch in main(), which has
+    already prompted for persona and applied its modules/flags/form defaults.
+    Re-prompting from quick_interactive in that case shows the menu twice
+    AND would replace (not union) the user's pre-existing module set."""
     print(bold("=" * 60))
     print(bold("  Claude Code project configurator \u2014 quick mode"))
     print(bold("=" * 60))
@@ -1596,16 +1681,17 @@ def quick_interactive(target_dir: Path, initial: dict) -> dict:
     print(dim("  Use --detailed for the full intake. Ctrl+C to abort."))
     print()
 
-    # Q1: persona
-    persona = _ask_persona(initial.get("persona", "solo-newer"))
-    pmods, pflags = pick_persona_modules(persona)
-    initial["persona"] = persona
-    initial["selected"] = pmods
-    initial.setdefault("module_flags", {})
-    for mid, fkv in pflags.items():
-        initial["module_flags"].setdefault(mid, {}).update(fkv)
-    apply_persona_defaults(persona, initial["formValues"])
-    inject_placeholders(initial["formValues"], persona)
+    if not skip_persona_q:
+        # Q1: persona
+        persona = _ask_persona(initial.get("persona", "solo-newer"))
+        pmods, pflags = pick_persona_modules(persona)
+        initial["persona"] = persona
+        initial["selected"] = pmods
+        initial.setdefault("module_flags", {})
+        for mid, fkv in pflags.items():
+            initial["module_flags"].setdefault(mid, {}).update(fkv)
+        apply_persona_defaults(persona, initial["formValues"])
+        inject_placeholders(initial["formValues"], persona)
 
     # Q2: project name
     fv = initial["formValues"]
@@ -1786,6 +1872,12 @@ def main():
     else:
         initial = {"formValues": default_form_values(), "selected": default_selected()}
 
+    # Snapshot the user's pre-persona module_flags so we can show what got
+    # overridden by the persona's flag picks in the [ APPLIED ] block.
+    initial["_pre_persona_flags"] = {
+        mid: dict(fkv) for mid, fkv in initial.get("module_flags", {}).items()
+    }
+
     # v1-config upgrade: a one-time interactive prompt offers a persona pick
     # when an existing .claude-config.json predates schema_version=2. Bypassed
     # by every non-interactive path so script callers' behavior is unchanged.
@@ -1804,7 +1896,9 @@ def main():
         print(bold(yellow("[ NOTICE ]")), "Persona-based defaults are new in v2.0.")
         print("           Pick one to simplify future re-runs, or 'custom' to keep")
         print("           your current granular config.")
-        chosen = _ask_persona("custom")
+        suggested = infer_persona(initial.get("selected", set()),
+                                  initial.get("module_flags", {}))
+        chosen = _ask_persona(suggested)
         initial["persona"] = chosen
         initial["schema_version"] = 2
         if chosen != "custom":
@@ -1858,7 +1952,9 @@ def main():
     elif args.detailed:
         config = interactive(target_dir, initial)
     else:
-        config = quick_interactive(target_dir, initial)
+        # When the v1-NOTICE branch already prompted for a persona, skip Q1
+        # in quick_interactive so the menu doesn't appear twice.
+        config = quick_interactive(target_dir, initial, skip_persona_q=is_v1_config)
 
     # Resolve any declared module dependencies before saving or scaffolding,
     # so we never generate an inconsistent set.
@@ -1934,10 +2030,15 @@ def main():
         for d in deprecations:
             print(f"  {yellow('!')} {d}")
 
+    overrides = detect_persona_overrides(
+        initial.get("_pre_persona_flags", {}),
+        initial.get("persona", "custom"),
+    )
     applied = render_applied_block(
         initial.get("persona", "custom"),
         config["selected"],
         config.get("module_flags", {}),
+        overrides=overrides,
     )
     print()
     print(bold(blue("[ APPLIED ]")))
@@ -1987,7 +2088,12 @@ def main():
     print(f"  Modules: {', '.join(sorted(config['selected']))}")
     print(f"  Files  : {len(files)} ({sum(1 for f in files if f['executable'])} executable)")
     if gitignore_lines:
-        print(f"  .gitignore: append {sum(1 for l in gitignore_lines if l.strip() and not l.startswith('#'))} rules")
+        rules = [l.strip() for l in gitignore_lines if l.strip() and not l.startswith('#')]
+        if len(rules) <= 5:
+            sample = ", ".join(rules)
+        else:
+            sample = ", ".join(rules[:3]) + f", … and {len(rules) - 3} more"
+        print(f"  .gitignore: append {len(rules)} rules ({sample})")
 
     # Retrofit Tier 2: structured-asset deep-merge + file-collision strategy.
     # --force short-circuits both — every existing file is overwritten with
@@ -2052,22 +2158,28 @@ def main():
     print()
     result = apply_files(files, gitignore_lines, target_dir,
                         dry_run=False, backup=not args.no_backup)
-    for p in result["written"]:
+    # Write the retrofit report up-front so its path joins the wrote group
+    # rather than landing between backed-up and saved-config lines.
+    report_path = write_retrofit_report(target_dir, merge_messages, collision_report)
+
+    # Per-task MCP profile alternates render as a single grouped line so
+    # they don't visually crowd the active .mcp.json among regular writes.
+    mcp_alts = (".mcp.minimal.json", ".mcp.frontend.json", ".mcp.research.json")
+    written_alts = [p for p in result["written"] if str(p) in mcp_alts]
+    written_main = [p for p in result["written"] if str(p) not in mcp_alts]
+
+    for p in written_main:
         print(f"    {green('wrote')} {p}")
+    if written_alts:
+        names = ", ".join(sorted(str(p) for p in written_alts))
+        print(f"    {green('wrote')} {len(written_alts)} MCP profile alternates ({names}) — switch via cp")
+    if report_path:
+        print(f"    {green('wrote')} {report_path}")
     for p in result["backed_up"]:
         print(f"    {yellow('backed up')} {p}")
     if result["gitignore_added"]:
         print(f"    {green('+')} .gitignore (Claude Code block appended)")
 
-    # Write the retrofit report (.claude-retrofit/REPORT.md) if there were
-    # any merges or collisions to record. Lets users review what happened
-    # outside of the live terminal output, and seeds the future /retrofit
-    # skill (Tier 3) which walks this report interactively.
-    report_path = write_retrofit_report(target_dir, merge_messages, collision_report)
-    if report_path:
-        print(f"    {green('wrote')} {report_path}")
-
-    # Save config for re-runs
     save_config(config, saved_config_path)
     print(dim(f"    saved config to {saved_config_path.relative_to(target_dir)}"))
 

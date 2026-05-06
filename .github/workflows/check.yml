@@ -69,3 +69,10 @@ jobs:
           for t in test/v1-legacy-upgrade/test-*.sh; do
             bash "$t"
           done
+
+      - name: v1 upgrade UX tests
+        run: |
+          set -e
+          for t in test/v1-upgrade-ux/test-*.sh; do
+            bash "$t"
+          done
