@@ -4,7 +4,43 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
-### v2.2.1 (unreleased) — cosmetic carries cleanup
+## [2.3.0] — 2026-05-06
+
+Bundle release: v1-config upgrade-path bug fix (PR #36) + v1-upgrade UX polish (PR #37) + README attribution housekeeping for gstack-derived patterns (PR #38).
+
+### v2.3.0 — v1-upgrade hardening + attribution housekeeping
+
+**Bug fix — `load_config` legacy translate (PR #36):**
+- `load_config` now applies `translate_legacy_modules` to a saved config's `selected` + `module_flags`, mirroring the `--modules` CLI path. Previously a v1 `.claude-config.json` carrying `lockdown` / `token-efficiency-pro` / `commands-core` / `agents` survived through every non-interactive path (`--yes`, `--save-config-only`, `--config`) untranslated.
+- Resulting deprecations land in `initial["_deprecations"]` so the existing `[ DEPRECATED ]` render pipeline surfaces them uniformly.
+- New `test/v1-legacy-upgrade/test-translate.sh` covers all four `LEGACY_MODULE_MAP` entries via `--save-config-only` roundtrip; wired into CI as `v1 legacy-config upgrade tests`.
+
+**v1-upgrade UX polish (PR #37) — eight fixes surfaced by dogfooding `cc-configure` on a real v1 install:**
+
+*Persona-flow bug fixes:*
+- **No more double persona prompt on v1 upgrade.** The `[ NOTICE ]` branch prompted, then `quick_interactive` Q1 prompted again. New `skip_persona_q` kwarg threaded from `main`.
+- **Persona overrides surfaced.** `detect_persona_overrides()` compares pre-persona `module_flags` against the persona's picks; `[ APPLIED ]` now shows `<module>.<key>: before → after` lines so silent overrides (e.g. `safety.lockdown: True → False`) become visible.
+
+*Inference:*
+- **Persona default on v1 NOTICE is now inferred.** `infer_persona()` scores each persona against the user's translated config (Jaccard module-set 0.7 + flag-match ratio 0.3, threshold 0.5) and suggests the closest fit. Idiosyncratic shapes fall back to `custom`.
+
+*Output polish:*
+- `wrote / backed-up / saved-config` lines no longer interleave; the retrofit report path joins the `wrote` group.
+- `.gitignore` line lists patterns inline (`append 5 rules (.venv, __pycache__, …)`).
+- 3 MCP profile alternates render as a single grouped `wrote 3 MCP profile alternates (…) — switch via cp` line.
+
+*Retrofit report:*
+- `Skipped` is split into **identical to v2 (safe to drop)** vs **differs from v2 (review)** by content-hash comparison. Each gets its own table + actionable recommendation.
+- Stale `/retrofit Tier 3 future` footer replaced with a pointer to the shipped `/retrofit` skill.
+
+5 new fixtures under `test/v1-upgrade-ux/` wired into CI as `v1 upgrade UX tests` (no-double-persona, override-visibility, inference, output-polish, retrofit-report).
+
+**README attribution (PR #38):**
+- **`README.md` `## Acknowledgments`** — adds a second paragraph crediting the MIT-licensed [garrytan/gstack](https://github.com/garrytan/gstack) (© 2026 Garry Tan) with four bullets covering the surfaces it informed: the four `_patterns/` blocks + `/investigate` + `/plan-eng-review`, the four discipline microbits + enforcer, the `security-auditor` agent grafts, and the `slop-scan` PostToolUse hook. Notes that no gstack files are vendored and that the configurator translates the patterns into its own voice. Restores symmetry with how `PacktPublishing/Agentic-Coding-with-Claude-Code` is credited above.
+
+**Claude Code compat:** unchanged (2.1.116–2.1.128).
+
+## [2.2.1] — 2026-05-05 — cosmetic carries cleanup
 
 Closes 3 small items flagged during the v2.0.0 PR 4 code review:
 

@@ -254,6 +254,13 @@ Portions of this project were informed by the MIT-licensed companion code in [Pa
 - `templates/ui/statusline-last-prompt.sh` adapts the transcript-reading pattern demonstrated in that repo's `Chapter08/statusline.py`.
 - The multi-agent guardrails in `templates/multi-agent/dot-claude/rules/multi-agent-guardrails.md` reorganize and extend a taxonomy first presented by Eden Marco in *Agentic Coding with Claude Code* (Packt, 2026).
 
+Additional patterns were distilled from the MIT-licensed [garrytan/gstack](https://github.com/garrytan/gstack) (© 2026 Garry Tan). No gstack files are vendored; the configurator translates the patterns into its own voice. In particular:
+
+- The cross-cutting prompt blocks under `templates/commands/_patterns/` (confidence gate, independent verification, no-fix-without-investigation, AI-slop detection) and the `/investigate` and `/plan-eng-review` rigor skills distill methodology demonstrated in gstack's rigor command set.
+- The four discipline microbits (`/freeze`, `/unfreeze`, `/guard`, `/careful`) and their PreToolUse enforcer adapt the marker-file discipline pattern from gstack.
+- The `security-auditor` agent's confidence gate (≥8), false-positive exclusion list, concrete-exploit requirement, and lightweight STRIDE checklist are distilled from gstack's `/cso` security-review skill.
+- The `slop-scan` PostToolUse hook in `templates/safety/` adapts the AI-slop pattern catalog from gstack.
+
 The configurator, its modules, the preflight-check architecture (`--check` / `check_schema_url` / `check_hook_weight` / `check_github_remote`), the stack-preset system, and all other scaffolding are original work.
 
 ## License
