@@ -154,13 +154,23 @@ def resolve_dependencies(selected: set) -> set:
 # -----------------------------------------------------------------------------
 def load_config(path: Path) -> dict:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    return {
+    # Translate any legacy module IDs (lockdown / token-efficiency-pro /
+    # commands-core / agents) the same way the --modules CLI path does, so
+    # saved v1 configs upgrade in place and deprecations surface uniformly.
+    selected, module_flags, deprecations = translate_legacy_modules(
+        set(raw.get("selected", default_selected())),
+        raw.get("module_flags", {}),
+    )
+    out = {
         "formValues": {**default_form_values(), **raw.get("formValues", {})},
-        "selected": set(raw.get("selected", default_selected())),
-        "module_flags": raw.get("module_flags", {}),
+        "selected": selected,
+        "module_flags": module_flags,
         "persona": raw.get("persona", "custom"),
         "schema_version": raw.get("schema_version", 1),
     }
+    if deprecations:
+        out["_deprecations"] = deprecations
+    return out
 
 
 def save_config(config: dict, path: Path):
