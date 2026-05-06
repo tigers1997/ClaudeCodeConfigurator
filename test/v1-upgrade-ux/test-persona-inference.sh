@@ -4,8 +4,6 @@
 # when no persona scores >= 0.5.
 set -euo pipefail
 
-cd /home/bob/ClaudeCodeConfigurator/ClaudeCodeConfigurator
-
 python3 - <<'PY'
 import sys; sys.path.insert(0, '.')
 from configure import infer_persona
