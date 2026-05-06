@@ -62,3 +62,10 @@ jobs:
           for t in test/slop-scan/test-*.sh; do
             bash "$t"
           done
+
+      - name: v1 legacy-config upgrade tests
+        run: |
+          set -e
+          for t in test/v1-legacy-upgrade/test-*.sh; do
+            bash "$t"
+          done
