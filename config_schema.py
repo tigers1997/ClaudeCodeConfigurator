@@ -323,12 +323,17 @@ PERSONAS = {
 #                configurator against. Newer is likely fine but unverified.
 CLAUDE_CODE_COMPAT = {
     "min_version": "2.1.116",   # agent mcpServers http (2.1.116/117)
-    "tested_up_to": "2.1.128",  # alwaysLoad MCP, updatedToolOutput PostToolUse,
+    "tested_up_to": "2.1.132",  # alwaysLoad MCP, updatedToolOutput PostToolUse,
                                 # ultrareview non-interactive, prUrlTemplate +
                                 # sandbox.network.deniedDomains schema-validated.
                                 # 2.1.122-128: bug fixes + MCP "workspace" reserved
-                                # + managed-settings channelsEnabled (enterprise);
-                                # no configurator-territory schema additions.
+                                # + managed-settings channelsEnabled (enterprise).
+                                # 2.1.129-132: skillOverrides settings.json key now
+                                # works (held — not yet in schemastore 2026-05-06);
+                                # plugin manifests gain experimental: wrapper for
+                                # themes/monitors; CLAUDE_CODE_SESSION_ID exposed in
+                                # Bash subprocess env; no other configurator-
+                                # territory schema additions.
 }
 
 
