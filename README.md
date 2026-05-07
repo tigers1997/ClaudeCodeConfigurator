@@ -53,7 +53,7 @@ From any project directory:
 
 ```bash
 cc-configure                               # quick mode (5 questions)
-cc-configure --detailed                    # full 50-field intake (v1 behavior)
+cc-configure --detailed                    # full 55-field intake (v1 behavior)
 cc-configure --persona solo-newer --yes    # one-shot for newer coders
 cc-configure --persona small-team --yes    # one-shot, team kit
 cc-configure --yes                         # reuse existing .claude-config.json
@@ -68,10 +68,12 @@ Quick mode asks **five questions**: persona, project name, stack preset, repo UR
 | Persona | Pre-picks |
 |---|---|
 | `solo-newer` | `core / safety / git-workflow / token-efficiency (basic) / commands (curated) / mcp (context7)`; documentation fields default to `[TODO:]` placeholders; "Solo on main, squash-merge" branch strategy |
-| `solo-experienced` | + `token-efficiency (pro) / commands (full) / ui` (today's de-facto default) |
+| `solo-experienced` | + `token-efficiency (pro) / commands (rigorous) / ui` (today's de-facto default; `rigorous` adds `/investigate` + `/plan-eng-review` on top of the `full` skill set) |
 | `small-team` | `solo-experienced` + `multi-agent / github-actions`; trunk-based default |
-| `library-author` | `core / safety / git-workflow / commands (curated) / github-actions`; MIT default |
+| `library-author` | `core / safety / git-workflow / commands (full) / github-actions`; MIT default |
 | `custom` | nothing pre-picked; lands in `--detailed` |
+
+All non-`custom` personas pre-set `safety.slop_scan = true` (warn-mode PostToolUse hook flagging filler / marketing / hedging / em-dash patterns).
 
 Answers persist to `.claude-config.json` in the project; re-runs with `--yes` reuse them. Existing v1 `.claude-config.json` files (no `persona` field) load unchanged and behave as `persona: custom`.
 
@@ -119,49 +121,61 @@ Picking `Python (uv)` flips `cmd_test` from `pnpm test` to `uv run pytest`, etc.
 
 ## Modules
 
+There are 11 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
+
 | Module | What it installs |
 | --- | --- |
 | **core** (required) | `CLAUDE.md` populated from your answers, `.claude/settings.json`, `.gitignore` additions. `CLAUDE.md` includes a "Working with Claude" collaboration section (task classification / slot-machine / commit-as-you-go / self-sufficient loops / spec-driven restart). |
-| **safety** | PreToolUse hooks (block dangerous bash + scan Write/Edit for secrets) and `permissions.disableBypassPermissionsMode: "disable"` — hard-blocks `--dangerously-skip-permissions`. |
+| **safety** | PreToolUse hooks (block dangerous bash + scan Write/Edit for secrets); `permissions.disableBypassPermissionsMode: "disable"` hard-blocks `--dangerously-skip-permissions`. Sub-flags: `lockdown` (sets `DISABLE_UPDATES=1` — blocks autoupdates AND manual `claude update`; for air-gapped / enterprise environments); `slop_scan` (PostToolUse hook on Write/Edit/NotebookEdit flagging filler / marketing-voice / hedging / em-dash patterns; `slop_scan_action=warn\|block`, `slop_scan_density` and `slop_scan_imports` opt-in). All non-`custom` personas pre-set `slop_scan=true` action=warn. |
 | **git-workflow** | PostToolUse formatter on Write/Edit, Stop hook running typecheck / lint / tests. |
-| **token-efficiency** | Path-scoped `.claude/rules/` starters + PreCompact snapshot hook. |
-| **token-efficiency-pro** | Bash-output truncation hook + always-loaded discipline rules. |
-| **commands-core** | Eight workflow skills: `/plan`, `/review`, `/commit`, `/ship`, `/sync-docs`, `/check-context`, `/session-retro`, `/verify-setup`. Auto-pulls **agents** via module dependency. |
-| **agents** | Four subagents: `code-reviewer`, `test-runner`, `doc-writer`, `security-auditor`. The `security-auditor` frontmatter wires Sonatype's dependency-management MCP (`https://mcp.guide.sonatype.com/mcp`) scoped to that agent — active only when it runs, so ~0 baseline context cost. Set `SONATYPE_TOKEN` env var to enable ([generate a token](https://guide.sonatype.com/settings/tokens)). |
+| **token-efficiency** | Path-scoped `.claude/rules/` starters + PreCompact snapshot hook. `tier` flag: `basic` (default) ships discipline rules + snapshot only; `pro` adds bash-output truncation hook + always-loaded discipline rules. |
+| **commands** | Slash commands + agents + microbits. `subset` flag (linear ordering: `curated ⊂ full ⊂ rigorous`): **`curated`** = 3 essential skills (`/plan`, `/commit`, `/verify-setup`) + the `code-reviewer` agent. **`full`** (default) = 9 workflow skills (adds `/review`, `/ship`, `/sync-docs`, `/check-context`, `/session-retro`, `/retrofit`) + 4 agents (`code-reviewer`, `test-runner`, `doc-writer`, `security-auditor`) + 4 discipline microbits (`/freeze`, `/unfreeze`, `/guard`, `/careful`) + the `microbit-enforcer.sh` PreToolUse hook. **`rigorous`** = `full` + `/investigate` + `/plan-eng-review`, the rigor skills that embed `templates/commands/_patterns/` cross-cutting blocks (confidence gate, independent verification, no-fix-without-investigation, AI-slop detection). The `security-auditor` frontmatter wires Sonatype's dependency-management MCP (`https://mcp.guide.sonatype.com/mcp`) scoped to that agent — active only when it runs, so ~0 baseline context cost. Set `SONATYPE_TOKEN` env var to enable ([generate a token](https://guide.sonatype.com/settings/tokens)). |
 | **mcp** | `.mcp.json` generated from selected servers, plus **per-task profiles** (`.mcp.research.json`, `.mcp.frontend.json`, `.mcp.minimal.json`) and an executable `./claude-ctx` wrapper that launches Claude with `--mcp-config <profile> --strict-mcp-config` — drops a bloated 4-MCP baseline from ~49% context to under 5%. |
 | **multi-agent** | Path-scoped `multi-agent-guardrails.md` (5-scenario "when not to parallel" list), `/merge-worktrees` skill, `/infinite` skill, `parallel-generator` subagent. |
 | **github-actions** | `.github/workflows/claude.yml` pinned to `anthropics/claude-code-action@v1`. Triggers on `@claude` mentions in issues, PR comments, and PR reviews. |
 | **ui** | Custom status line (project \| branch \| model \| ctx%; optionally effort + thinking indicators when 2.1.119+ is running), `statusline-last-prompt.sh` variant, and a "plan" output style. |
-| **lockdown** | Opt-in only. Sets `DISABLE_UPDATES=1` in settings env — blocks autoupdates AND manual `claude update`. For air-gapped / enterprise environments. |
+| **recommend-plugins** | Drops `docs/recommended-plugins.md` — a stack-aware list of official Claude Code plugins worth considering (always-recommended set + stack-specific picks computed from your form answers). Reference doc; refreshes on every `cc-configure` run. See [`docs/10-plugin-ecosystem.md`](docs/10-plugin-ecosystem.md) for how plugins relate to the configurator. |
 | **experiments-memory** | Opt-in only. Lazy-loaded `memory/experiments/CLAUDE.md` defines a 5-section format (hypothesis/setup/result/conclusion/follow-ups) for logging experiments. Zero context cost until Claude reads files in that folder. |
 
 ## Token-efficiency presets
 
+The legacy `--preset` flag (slated for removal in v3.0 — use `--persona` instead) maps to one of three bundles:
+
 - **Balanced** (recommended): discipline rules on, bash cap 80 lines, sonnet default.
-- **Aggressive**: strict caps (40 lines), haiku-first subagents, `effort: minimal` stamped directly into `/check-context`, `/sync-docs`, `/session-retro` frontmatter.
+- **Aggressive**: strict caps (40 lines), haiku-first subagents, `effort: minimal` stamped directly into `/check-context`, `/verify-setup`, `/sync-docs`, `/session-retro` frontmatter.
 - **Relaxed**: most rules off — correctness over cost.
 
-Individual toggles can be overridden after picking a preset.
+Individual toggles can be overridden after picking a preset. Personas (the v2.x replacement) bundle these defaults together with module / form-value picks; see [Personas](#personas).
 
 ## Preflight checks
 
-Before scaffolding, `cc-configure` runs four non-blocking checks and prints a warning block for each that fires, plus one **blocking** retrofit check:
+Before scaffolding, `cc-configure` runs five non-blocking checks and prints a warning block for each that fires:
 
 - **`[ VERSION WARNINGS ]`** — compares `claude --version` against the declared `CLAUDE_CODE_COMPAT` range. Warns below min, informs above tested-up-to.
 - **`[ SCHEMA WARNINGS ]`** — verifies the generated `settings.json`'s `$schema` matches `https://json.schemastore.org/claude-code-settings.json`. Claude Code silently drops the entire settings file on schema drift, so this guards the exact regression class that originally motivated this project.
 - **`[ HOOK WARNINGS ]`** — flags hooks on high-frequency events (`PreToolUse`/`PostToolUse`/`PostToolUseFailure`) whose entrypoint is a heavy interpreter (`uv`, `python`, `node`, `poetry`, `npm`, `npx`, `pnpm`, `bun`, `deno`, `ruby`, `java`, `go`). Each call adds hundreds of ms.
 - **`[ MODULE WARNINGS ]`** — currently: if the `github-actions` module is selected, verifies the target dir is a git repo with a GitHub remote; otherwise the Action will never trigger.
-- **`[ MERGED ]` and `[ COLLISIONS ]` (informational)** — populated when running on an existing project. The configurator handles structured assets (`.claude/settings.json`, `.mcp.json`) via deep-merge and file-based assets (skills, agents, rules, hooks, CLAUDE.md) via the `--on-collision` strategy. See [Use](#use) above for the full retrofit-safety semantics. `.claude-retrofit/REPORT.md` records what happened.
+- **`[ ENV WARNINGS ]`** — when an MCP server (or an agent that scopes one) is enabled but its required env var isn't set, surfaces it before scaffolding so the silent-never-connected failure mode happens never. Currently checks `GITHUB_TOKEN` (if `mcp_github` is enabled) and `SONATYPE_TOKEN` (if `commands` is selected — `security-auditor` scopes the Sonatype MCP).
 
-All four non-blocking checks are silent on a clean default scaffold; the merge / collisions blocks are silent unless the target already contains files the configurator would write.
+Additional informational blocks render when their condition fires: **`[ DESIGN DETECTED ]`** (target dir already has design output — Next-steps printer adapts), **`[ APPLIED ]`** (persona + final module list with active flag values), **`[ DEPRECATED ]`** (legacy `--preset` / `--modules` aliases used), **`[ NOTICE ]`** (one-time persona prompt for v1 configs), **`[ PLACEHOLDERS ]`** (lists every `[TODO:]` field), **`[ NEXT STEPS ]`** (tailored tips), and **`[ MERGED ]` / `[ COLLISIONS ]`** for retrofit runs (see [Use](#use) for retrofit-safety semantics; `.claude-retrofit/REPORT.md` records what happened).
+
+All five preflight checks are silent on a clean default scaffold; informational blocks are silent unless their condition fires.
 
 ## Flags
 
 ```
 --dir DIR               Target project directory (default: .)
 --config FILE           Load answers from a JSON file; skip prompts
---preset PRESET         balanced | aggressive | relaxed
---modules M1,M2,...     Comma-separated module IDs
+--detailed              Run the full 55-field interactive intake (v1 behavior).
+                        Default is 5-question quick mode.
+--persona NAME          Persona pre-pick: solo-newer | solo-experienced |
+                        small-team | library-author | custom. Combine with
+                        --yes for fully non-interactive scaffolding.
+--preset PRESET         balanced | aggressive | relaxed (deprecated; slated
+                        for removal in v3.0 — use --persona instead).
+--modules M1,M2,...     Comma-separated module IDs. Legacy IDs (lockdown,
+                        token-efficiency-pro, commands-core, agents) still
+                        accepted; each emits a [ DEPRECATED ] line.
 --yes                   Accept defaults / saved config
 --dry-run               Preview without writing (informational only — bypasses
                         the retrofit-abort behavior)
@@ -200,7 +214,7 @@ configure.py        # the CLI
 config_schema.py    # modules + form fields + stack presets
 install.sh          # installer
 templates/          # raw source for every file the CLI writes
-docs/               # 11-part knowledge base (overview → getting started;
+docs/               # 12-part knowledge base (00-overview → 11-getting-started;
                     #  07-backlog.md is gitignored as local-only roadmap)
 ```
 
