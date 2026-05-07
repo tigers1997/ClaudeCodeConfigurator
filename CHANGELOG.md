@@ -4,6 +4,9 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### Changed
+- **README accuracy / completeness pass.** Modules table rewritten to match the post-v1.6.0 11-module reality: drops the stale `commands-core`, `agents`, `token-efficiency-pro`, and `lockdown` rows (now flags / sub-flags); adds the missing `recommend-plugins` row (shipped in v1.3.0); surfaces `commands.subset` (`curated|full|rigorous`), `token-efficiency.tier`, and the four `safety.slop_scan*` flags inline. Personas table corrected — `solo-experienced` and `small-team` now show `commands (rigorous)`, `library-author` shows `commands (full)` (the table was carrying the v1.6.0 values). Flags reference adds `--detailed` and `--persona` (both shipped earlier but absent from the table); `--preset` is now marked deprecated inline. Preflight section says "five non-blocking checks" not "four" (adds `[ ENV WARNINGS ]` from v1.5.0); the seven additional informational blocks (`[ DESIGN DETECTED ]`, `[ DEPRECATED ]`, `[ APPLIED ]`, `[ NOTICE ]`, `[ PLACEHOLDERS ]`, `[ NEXT STEPS ]`, `[ MERGED ]` / `[ COLLISIONS ]`) are now listed. Quick-mode field count corrected from 50 → 55. Aggressive-preset effort-stamping list adds the missing `/verify-setup`. Repo-layout doc count corrected from "11-part" → "12-part" (`00-overview` → `11-getting-started`). README only — no code or template changes.
+
 ## [2.3.0] — 2026-05-06
 
 Bundle release: v1-config upgrade-path bug fix (PR #36) + v1-upgrade UX polish (PR #37) + README attribution housekeeping for gstack-derived patterns (PR #38).
