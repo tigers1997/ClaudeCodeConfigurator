@@ -233,7 +233,7 @@ def lines_to_pointers(text: str) -> str:
     return "\n" + "\n".join(f"- {l.strip()}" for l in text.splitlines() if l.strip())
 
 
-def build_efficiency_rules(v: dict) -> str:
+def build_efficiency_rules(v: dict, tier: str = "basic") -> str:
     rules = []
     if v.get("eff_scoped_reads"):
         rules.append("- **Scoped reads.** Read only the slice you need. Use `Read` with `offset` + `limit` for large files.")
@@ -252,9 +252,20 @@ def build_efficiency_rules(v: dict) -> str:
     cap = v.get("eff_bash_max_lines")
     if cap and cap != "disabled":
         rules.append(f"- **Bash output cap.** Long output truncated past {cap} lines; full log goes to `.claude/logs/`. `tail` it if you need the rest.")
-    if not rules:
+
+    pro_body = ""
+    if tier == "pro":
+        pro_body = (TEMPLATE_DIR / "token-efficiency/pro/efficiency-rules-claude-md.md").read_text(encoding="utf-8").rstrip()
+
+    if not rules and not pro_body:
         return ""
-    return "## Token efficiency rules\n\n" + "\n".join(rules)
+
+    parts = ["## Token efficiency rules"]
+    if rules:
+        parts.append("\n".join(rules))
+    if pro_body:
+        parts.append(pro_body)
+    return "\n\n".join(parts)
 
 
 def compute_recommended_plugins(form_values):
@@ -364,7 +375,7 @@ def compute_recommended_plugins(form_values):
     return "\n".join(lines)
 
 
-def compute_placeholders(form_values: dict, selected: set) -> dict:
+def compute_placeholders(form_values: dict, selected: set, module_flags: dict = None) -> dict:
     v = dict(form_values)
     v["goals"] = lines_to_bullets(v.get("goals", ""))
     v["non_goals"] = lines_to_bullets(v.get("non_goals", ""))
@@ -378,7 +389,8 @@ def compute_placeholders(form_values: dict, selected: set) -> dict:
     if v.get("mcp_playwright"): mcps.append("playwright")
     if v.get("mcp_context7"):   mcps.append("context7")
     v["mcps"] = ", ".join(mcps) if ("mcp" in selected and mcps) else "(none)"
-    v["efficiency_rules"] = build_efficiency_rules(form_values)
+    te_tier = (module_flags or {}).get("token-efficiency", {}).get("tier", "basic")
+    v["efficiency_rules"] = build_efficiency_rules(form_values, tier=te_tier)
     # Lightweight skills (check-context, sync-docs, session-retro) carry an
     # {{effort_frontmatter}} slot. When the user opts into "effort: minimal
     # on simple skills", stamp it; otherwise leave the slot empty so the
@@ -1136,7 +1148,7 @@ def collision_renamed_target(target_path):
     overwriting it. Examples:
       .claude/skills/review/SKILL.md     -> .claude/skills/review-cc/SKILL.md
       .claude/agents/code-reviewer.md    -> .claude/agents/code-reviewer-cc.md
-      .claude/rules/_efficiency-core.md  -> .claude/rules/_efficiency-core-cc.md
+      .claude/rules/_scoping-guide.md    -> .claude/rules/_scoping-guide-cc.md
       .claude/hooks/scan-secrets.sh      -> .claude/hooks/scan-secrets-cc.sh
     """
     parts = target_path.split("/")
@@ -1367,7 +1379,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
         module_flags = {}
     files = []
     gitignore_lines = []
-    placeholders = compute_placeholders(form_values, selected)
+    placeholders = compute_placeholders(form_values, selected, module_flags)
 
     for m in MODULES:
         if m["id"] not in selected:

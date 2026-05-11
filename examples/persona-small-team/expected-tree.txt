@@ -15,7 +15,6 @@
 ./.claude/hooks/stop-run-checks.sh
 ./.claude/hooks/truncate-bash-output.sh
 ./.claude/output-styles/plan.md
-./.claude/rules/_efficiency-core.md
 ./.claude/rules/_scoping-guide.md
 ./.claude/rules/backend.md
 ./.claude/rules/frontend.md
