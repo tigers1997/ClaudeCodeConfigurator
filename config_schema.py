@@ -97,9 +97,8 @@ MODULES = [
             "tier": {
                 "default": "basic",
                 "options": ["basic", "pro"],
-                "description": "basic = path-scoped rules + PreCompact only. pro = adds bash-output truncation + always-loaded discipline rules.",
-                "extraPaths": {"pro": ["token-efficiency/pro/truncate-bash-output.sh",
-                                       "token-efficiency/pro/_efficiency-core.md"]},
+                "description": "basic = path-scoped rules + PreCompact only. pro = adds bash-output truncation + expanded discipline rules in the CLAUDE.md `## Token efficiency rules` section.",
+                "extraPaths": {"pro": ["token-efficiency/pro/truncate-bash-output.sh"]},
                 "extraSettingsPatch": {"pro": "token-efficiency/settings-patch.tier-pro.json"},
             },
         },

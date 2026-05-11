@@ -63,6 +63,13 @@ jobs:
             bash "$t"
           done
 
+      - name: Efficiency-placeholder fixture tests
+        run: |
+          set -e
+          for t in test/efficiency-placeholder/test-*.sh; do
+            bash "$t"
+          done
+
       - name: v1 legacy-config upgrade tests
         run: |
           set -e
