@@ -11,3 +11,8 @@ CLAUDE.local.md
 
 # Worktrees (keep outside the repo, but belt-and-suspenders)
 .worktrees/
+
+# Configurator working-state (form answers from cc-configure). Gitignored so
+# re-runs don't clutter diffs. Teams that want to share configurator selections
+# across the repo can remove this line.
+.claude-config.json
