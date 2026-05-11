@@ -7,6 +7,7 @@
       "Bash(op run:*)"
     ]
   },
+  "// env": "Durable home for env vars including MCP auth tokens — e.g. SONATYPE_TOKEN (security-auditor agent) or GITHUB_TOKEN (mcp_github). Persists across shells, so MCPs keep working even when Claude is launched from a shell that doesn't inherit your tokens. Add entries below alongside EDITOR.",
   "env": {
     "EDITOR": "code"
   }
