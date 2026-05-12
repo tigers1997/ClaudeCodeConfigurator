@@ -154,7 +154,25 @@ PLACEHOLDER_TEMPLATES = {
                       ' e.g., "Run migrations before tests on a fresh clone."]'),
     "pointers": ('[TODO: replace with @-imports.\n'
                  ' e.g., "@docs/architecture.md — system diagram and boundaries"]'),
+    "repo_url": ('[TODO: replace with your repo URL.\n'
+                 ' e.g., "git@github.com:owner/repo.git"\n'
+                 ' or "https://github.com/owner/repo.git"]'),
 }
+
+# Legacy default that pre-dated the [TODO:] treatment. Recognized as
+# "user didn't set this" so saved v2.3.x configs upgrade silently.
+_LEGACY_REPO_URL_DEFAULT = "git@github.com:user/repo.git"
+
+
+def normalize_conditional_placeholders(form_values: dict) -> None:
+    """Inject [TODO:] placeholders for fields whose treatment depends on the
+    value the user supplied, not on the persona. Currently: `repo_url` — an
+    empty string or the legacy literal default both mean "unset", so we stamp
+    the [TODO:] template; an explicit value passes through. Idempotent: a
+    pre-stamped [TODO:] value is left alone."""
+    rv = form_values.get("repo_url", "")
+    if isinstance(rv, str) and rv.strip() in ("", _LEGACY_REPO_URL_DEFAULT):
+        form_values["repo_url"] = PLACEHOLDER_TEMPLATES["repo_url"]
 
 
 def inject_placeholders(form_values: dict, persona: str):
@@ -1719,8 +1737,12 @@ def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = Fa
         fv["stack_preset"] = stack_keys[int(raw) - 1]
     apply_stack_preset(fv)
 
-    # Q4: repo url (optional)
-    fv["repo_url"] = _input(f"  Repo URL (optional) [{fv.get('repo_url', '')}]: ").strip() or fv.get("repo_url", "")
+    # Q4: repo url (optional). Empty default is intentional — a [TODO:]
+    # placeholder gets stamped later by normalize_conditional_placeholders.
+    fv["repo_url"] = _input(
+        f"  Repo URL (optional, e.g. git@github.com:owner/repo.git) "
+        f"[{fv.get('repo_url', '')}]: "
+    ).strip() or fv.get("repo_url", "")
 
     # Q5: license
     fv["license"] = _input(f"  License [{fv.get('license', 'MIT')}]: ").strip() or fv.get("license", "MIT")
@@ -1982,6 +2004,11 @@ def main():
         print(dim(f"(also saved config to {args.save_config})"))
 
     # --- scaffold ---
+    # Value-conditional placeholder stamping (currently `repo_url`). Runs
+    # after every form-input path so [ PLACEHOLDERS ] catches "unset" fields
+    # regardless of whether the user came in via --yes / --persona / --quick.
+    normalize_conditional_placeholders(config["formValues"])
+
     files, gitignore_lines = collect_files(config["formValues"], config["selected"], config.get("module_flags", {}))
 
     # Pre-flight: surface version mismatches, schema drift, heavy hooks,
