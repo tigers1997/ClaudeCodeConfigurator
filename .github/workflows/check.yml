@@ -90,3 +90,10 @@ jobs:
           for t in test/repo-url-placeholder/test-*.sh; do
             bash "$t"
           done
+
+      - name: stop-run-checks fixture tests
+        run: |
+          set -e
+          for t in test/stop-run-checks/test-*.sh; do
+            bash "$t"
+          done
