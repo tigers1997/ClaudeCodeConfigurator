@@ -97,3 +97,10 @@ jobs:
           for t in test/stop-run-checks/test-*.sh; do
             bash "$t"
           done
+
+      - name: repo-bootstrap fixture tests
+        run: |
+          set -e
+          for t in test/repo-bootstrap/test-*.sh; do
+            bash "$t"
+          done
