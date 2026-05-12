@@ -1,7 +1,7 @@
 ---
 name: verify-setup
-description: Audit the current .claude/ configuration against best practices — CLAUDE.md size, rule-file scoping, MCP overhead, schema URL drift, orphan local settings. Complement to /check-context (which covers token cost); this covers the shape of the setup itself.
-{{effort_frontmatter}}allowed-tools: Read Grep Glob Bash(wc:*) Bash(jq:*) Bash(test:*) Bash(cat:*) Bash(grep:*)
+description: Audit the current .claude/ configuration against best practices — CLAUDE.md size, rule-file scoping, MCP overhead, schema URL drift, orphan local settings, scaffold-vs-git bootstrap hygiene. Complement to /check-context (which covers token cost); this covers the shape of the setup itself.
+{{effort_frontmatter}}allowed-tools: Read Grep Glob Bash(wc:*) Bash(jq:*) Bash(test:*) Bash(cat:*) Bash(grep:*) Bash(find:*) Bash(git:*)
 ---
 
 # Verify the Claude Code setup
@@ -47,6 +47,30 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - `.claude/agents/*.md` referenced in any shipped skill's `agent:` frontmatter but not present → flag as broken reference (e.g., a skill says `agent: code-reviewer` but no `code-reviewer.md` exists).
 - `.claude/skills/*/SKILL.md` without `name:` or `description:` frontmatter → invalid.
 
+### 8. Repo URL placeholder
+- Read `CLAUDE.md`. Find the `**Repo:**` line.
+- Value starts with `[TODO:` → ⚠ (cc-configure stamped a placeholder; user never filled it in).
+- Value equals the legacy literal `git@github.com:user/repo.git` → ⚠ (stale default from a pre-v2.4 install — re-run `cc-configure` or edit the line).
+- Anything else, or the line is absent → ✓.
+
+### 9. Claude Code gitignore block
+- Read `.gitignore` at repo root.
+- The sentinel `# --- Claude Code ---` must be present. cc-configure appends a block of transient/local-only paths under that header; without it, `settings.local.json`, `.claude/logs/`, transient state files, and `.claude-config.json` can leak into commits.
+- Missing sentinel → ⚠ (recommend `cc-configure --retrofit` to re-append, or restore manually from `templates/core/.gitignore.append`).
+- `.gitignore` doesn't exist → ⚠ for the same reason.
+
+### 10. Nested `.git/` discipline
+- `find . -mindepth 2 -maxdepth 4 -type d -name .git` to locate vendored / wrapper / cloned-upstream repos inside this project.
+- For each match: its parent directory must appear in `.gitignore`. An unignored nested `.git/` confuses the outer repo (`git status` treats it as a submodule or untracked tree).
+- Any unignored nested repo → ⚠ with the path; suggest adding the parent dir to `.gitignore` above the `# --- Claude Code ---` block.
+- None present → `[ - ]` skipped.
+
+### 11. Scaffold committed
+- Only if `.git/` exists at repo root (else `[ - ]` skipped — covered by `[ NEXT STEPS ]` at scaffold time).
+- `git ls-files --error-unmatch CLAUDE.md .claude/settings.json` — both files must be tracked.
+- Either missing from the index → ⚠ (the configurator output was generated but never committed; collaborators will not see it).
+- Tracked → ✓.
+
 ## Output format
 
 ```
@@ -59,10 +83,17 @@ PROJECT /absolute/path/here
 [ ✓ ] Hook weight: no heavy-interpreter hooks
 [ ✓ ] Local settings: settings.local.json covered by .gitignore
 [ ✓ ] Orphan primitives: none
+[ ⚠ ] Repo URL: still the [TODO:] placeholder — fill in CLAUDE.md line 11
+[ ⚠ ] Gitignore block: `# --- Claude Code ---` sentinel missing → run `cc-configure --retrofit`
+[ - ] Nested .git/: none found
+[ ⚠ ] Scaffold committed: .claude/settings.json untracked → `git add .claude/ && git commit`
 
 Suggested next actions:
 1. Extract frontend-specific rules from CLAUDE.md (lines 45–78) into .claude/rules/frontend.md with paths: "src/frontend/**"
 2. Create .mcp.research.json + .mcp.frontend.json profiles; use ./claude-ctx for scoped sessions.
+3. Edit CLAUDE.md line 11 to replace [TODO:] with the real repo URL.
+4. Restore the Claude Code .gitignore block (rerun cc-configure --retrofit, or append templates/core/.gitignore.append).
+5. Stage and commit the configurator scaffold so collaborators see it.
 ```
 
 Each row: `[ ✓ | ⚠ | ✗ ]`, the check name, the finding in one line.
