@@ -62,6 +62,13 @@ over pasted code. Put path-scoped detail in .claude/rules/*.md instead.
 - Before commit: format → lint → typecheck → test. All green.
 - Use `git worktree add ../<name> -b feat/<name>` for parallel experiments.
 
+### Repo bootstrap
+The cc-configure scaffold makes assumptions about what to track vs. ignore. Honor them when first-committing a new project (`git init` + first `git add`) or when restructuring `.gitignore`:
+
+- **Commit:** `CLAUDE.md`, `.claude/` (agents, hooks, skills, rules, settings.json, output-styles), `.mcp*.json`, `claude-ctx` if present, project source.
+- **Gitignore by default:** `.claude/settings.local.json` (machine-local), `.claude/logs/`, `.claude/.frozen` / `.guarded` / `.careful` (transient state cleared by SessionStart), `.claude-config.json` (configurator working-state). cc-configure appends the `# --- Claude Code ---` block to `.gitignore` automatically — if you rewrite or replace `.gitignore`, preserve that block (or rerun `cc-configure --retrofit` to re-append it).
+- **Nested upstream clones** (vendored deps, fork wrappers) should be gitignored and keep their own `.git/` — don't try to nest two repos in one tree. List the subdir in `.gitignore` *above* the Claude Code block.
+
 ## Design features
 
 - **Architecture:** {{architecture}}

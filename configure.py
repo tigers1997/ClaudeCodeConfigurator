@@ -2094,6 +2094,13 @@ def main():
     next_steps = []
     if placeholders:
         next_steps.append("Edit CLAUDE.md to fill in the [TODO:] placeholders above.")
+    if not args.dry_run and not (target_dir / ".git").is_dir():
+        next_steps.append(
+            "No git repo here yet — `git init -b main && git add . && "
+            "git commit -m 'chore: cc-configure scaffold'`. The Claude Code "
+            ".gitignore block already excludes machine-local / transient files; "
+            "see CLAUDE.md `### Repo bootstrap` for what to track."
+        )
     persona = initial.get("persona", "custom")
     if persona == "solo-newer":
         next_steps.append(
