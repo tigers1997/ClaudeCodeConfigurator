@@ -12,7 +12,7 @@ These are plugins from the official `claude-plugins-official` marketplace that c
 | `claude-md-management` | `claude-md-improver` skill audits and tightens `CLAUDE.md` files against quality criteria. Complementary to the configurator's `/sync-docs` and `/session-retro`. |
 | `feature-dev` | Anthropic-maintained `code-architect`, `code-reviewer`, `code-explorer` agents with confidence-based filtering. Richer than the configurator's `code-reviewer` baseline; consider swapping. |
 | `commit-commands` | Anthropic-maintained `/commit`, `/commit-push-pr`, `/clean_gone`. Richer than the configurator's `/commit`; consider swapping. |
-| `superpowers` | Brainstorming (design-first dev), subagent-driven development with built-in code review, systematic debugging, red/green TDD. **Especially valuable for new projects** — `/brainstorm` enforces a no-implementation-until-design-approved gate. |
+| `superpowers` | Brainstorming (design-first dev), subagent-driven development with built-in code review, systematic debugging, red/green TDD. **Especially valuable for new projects** — the `brainstorming` skill auto-triggers when you describe a build and enforces a no-implementation-until-design-approved gate. (v5.1.0+ removed the `/brainstorm` slash command; invoke `superpowers:brainstorming` directly or just describe the work.) |
 
 ## Stack-specific (from your form answers)
 

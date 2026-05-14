@@ -34,16 +34,18 @@ The configurator is good at producing a deterministic baseline, but a baseline i
 claude /plugin install superpowers
 ```
 
-The `superpowers` plugin (in the official `claude-plugins-official` marketplace) ships a `/brainstorm` command backed by a `brainstorming` skill. The skill enforces a **hard gate**: no implementation, scaffolding, or code-writing until you've presented a design and gotten approval. That's the right discipline for a new project — and the configurator should run *after*, not before.
+The `superpowers` plugin (in the official `claude-plugins-official` marketplace) ships a `brainstorming` skill that auto-triggers when you describe something you want to build. The skill enforces a **hard gate**: no implementation, scaffolding, or code-writing until you've presented a design and gotten approval. That's the right discipline for a new project — and the configurator should run *after*, not before.
+
+> Note: `superpowers` v5.1.0 (2026-04-30) removed the legacy `/brainstorm`, `/write-plan`, and `/execute-plan` slash commands. Invoke the skills directly instead (`superpowers:brainstorming`, `superpowers:writing-plans`, `superpowers:executing-plans`) — or just describe the work in plain English and let the SessionStart hook route to the right skill.
 
 ### 2. Brainstorm the design
 
 ```bash
 claude
-> /brainstorm
+> I want to build <describe your project>
 ```
 
-`superpowers` walks you through:
+The `brainstorming` skill picks up automatically and walks you through:
 
 - Project context (what is this for; who's the user; what's the success criterion)
 - Requirements (must-have vs. nice-to-have)
@@ -90,7 +92,7 @@ You now have:
 - Stack-specific plugins installed
 - `superpowers` available for ongoing design / TDD / debugging discipline
 
-Use the configurator's `/plan` (or `superpowers`' richer `/brainstorm` + `/write-plan`) to scope the first feature. From there, normal development.
+Use the configurator's `/plan` (or `superpowers`' richer `brainstorming` + `writing-plans` skills) to scope the first feature. From there, normal development.
 
 ---
 
@@ -164,7 +166,7 @@ Optional: install `claude-md-management` and run its `/revise-claude-md` for an 
 
 Once scaffolded, the configurator's job is done. Day-to-day:
 
-- `/plan` (configurator) or `/brainstorm` (`superpowers`) — scope the next change
+- `/plan` (configurator) or the `brainstorming` skill (`superpowers`) — scope the next change
 - `/review` (configurator) or `feature-dev` plugin's `code-reviewer` agent — review a diff
 - `/ship` (configurator) or `commit-commands` plugin's `/commit-push-pr` — push the change
 - `/check-context` (configurator) — look at where context is going if sessions feel slow
