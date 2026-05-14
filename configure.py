@@ -787,14 +787,13 @@ def write_cc_manifest(target_dir: Path, version: str) -> tuple:
       the message under a [ MANIFEST WARNINGS ] block. No manifest is written
       in the failure case — never lock in a corrupted-input baseline.
     """
-    import json
     from datetime import datetime, timezone
 
     mcp_json = target_dir / ".mcp.json"
     mcp_servers = []
     if mcp_json.exists():
         try:
-            data = json.loads(mcp_json.read_text())
+            data = json.loads(mcp_json.read_text(encoding="utf-8"))
         except json.JSONDecodeError as e:
             return (False, f".mcp.json is not valid JSON ({e.msg} at line {e.lineno}); "
                            "skipping manifest write — re-run cc-configure after fixing.")
@@ -815,7 +814,7 @@ def write_cc_manifest(target_dir: Path, version: str) -> tuple:
     claude_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = claude_dir / ".cc-manifest.json"
     tmp = manifest_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(payload, indent=2) + "\n")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     tmp.replace(manifest_path)
     return (True, None)
 
