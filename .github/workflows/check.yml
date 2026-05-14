@@ -84,6 +84,20 @@ jobs:
             bash "$t"
           done
 
+      - name: cc-manifest tests
+        run: |
+          set -e
+          for t in test/cc-manifest/test-*.sh; do
+            bash "$t"
+          done
+
+      - name: SessionStart drift-check hook tests
+        run: |
+          set -e
+          for t in test/sessionstart-drift-check/test-*.sh; do
+            bash "$t"
+          done
+
       - name: repo_url placeholder tests
         run: |
           set -e
