@@ -28,12 +28,41 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - Any other value or a missing schema key → ✗ (Claude Code will reject the file silently and drop all settings).
 - Also: if the file doesn't parse as valid JSON → ✗ fatal (settings ignored entirely).
 
-### 4. MCP overhead
-- If `.mcp.json` exists, count the entries under `mcpServers` that aren't keys starting with `//`.
-- `0–1` servers → ✓
-- `2–3` → info
-- `4+` → ⚠ recommend per-task profiles via `./claude-ctx <profile>` (see `docs/mcp-servers.md`)
+### 4. MCP overhead + drift
+
+**Count check (always runs):**
+- If `.mcp.json` exists, count entries under `mcpServers` that aren't `//`-prefixed.
+- `0–1` → ✓ | `2–3` → info | `4+` → ⚠ (recommend per-task profiles via `./claude-ctx`).
 - Also report whether per-task `.mcp.<profile>.json` files exist.
+
+**Drift check (runs only if `.claude/.cc-manifest.json` exists):**
+- Parse `manifest_version`. If ≠ `1` → `[ - ] Drift: manifest v{N}, this skill is v1; skipping drift narrative` and fall back to count-only.
+- Compute `added = current ∖ baseline` and `removed = baseline ∖ current`.
+- Both empty → `[ ✓ ] Drift: 0 changes since baseline ({written_at}).`
+- Otherwise → `[ ⚠ ] Drift: {N} changes since baseline ({written_at}).` Then for each added server, emit a sub-block (see below). For each removed server, one sub-bullet (name only — removals don't undermine efficiency).
+
+**For each ADDED server, the sub-block must cover:**
+
+1. **What it is** — name + inferred purpose from `command + args`. State "unknown" if the model can't identify it.
+2. **Cost class** — qualitative session-start token + latency impact.
+3. **Supply-chain nudge** — parse the package coordinate:
+   - `npx [-y] <pkg>[@<ver>]` → npm package
+   - `uvx <pkg>[@<ver>]` → PyPI package
+   - `node /local/...` / non-registry → skip
+   - For registry-resolvable packages, **recommend the user invoke the available Sonatype MCP tools (`getComponentVersion`, `getLatestComponentVersion`, `getRecommendedComponentVersions`) to vet vulnerability status and pin recommendations before keeping the server.** Especially flag `@latest` / unpinned versions.
+4. **Profile fit** — if task-specific (build tool, UI-only, research-only), recommend `.mcp.<profile>.json` rather than keeping in always-loaded `.mcp.json`.
+
+**Plan-of-attack summary (when drift exists):**
+
+- Accept new baseline: `cc-configure --retrofit`
+- Revert: edit `.mcp.json` to remove added entries
+- Always vet new servers with Sonatype before accepting.
+
+**Edge cases:**
+
+- No manifest + no `.mcp.json` → `[ - ] Drift: no baseline, no MCPs`.
+- Manifest present + no `.mcp.json` → report removals only.
+- No manifest + `.mcp.json` present → `[ ⚠ ] Drift: no baseline recorded (project predates drift monitor) — run cc-configure --retrofit to establish baseline.`
 
 ### 5. Hook weight
 - Read `.claude/settings.json`, walk `hooks.PreToolUse`, `hooks.PostToolUse`, `hooks.PostToolUseFailure`.
