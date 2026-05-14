@@ -194,7 +194,7 @@ MODULES = [
     {
         "id": "mcp",
         "title": "MCP servers (.mcp.json + per-task profiles + claude-ctx)",
-        "description": "Writes .mcp.json with only the MCP servers you enabled. Ships three per-task profiles (.mcp.research.json, .mcp.frontend.json, .mcp.minimal.json) and a claude-ctx wrapper script that runs `claude --mcp-config <profile> --strict-mcp-config` for scoped sessions. Plus a cookbook doc.",
+        "description": "Writes .mcp.json with only the MCP servers you enabled. Ships three per-task profiles (.mcp.research.json, .mcp.frontend.json, .mcp.minimal.json) and a claude-ctx wrapper script that runs `claude --mcp-config <profile> --strict-mcp-config` for scoped sessions. Plus a cookbook doc and a SessionStart drift-monitor hook (alerts when .mcp.json changes since last cc-configure run).",
         "paths": [
             "mcp/mcp.json",
             "mcp/servers-cookbook.md",
@@ -202,7 +202,32 @@ MODULES = [
             "mcp/profiles/mcp.research.json",
             "mcp/profiles/mcp.frontend.json",
             "mcp/profiles/mcp.minimal.json",
+            "mcp/hooks/sessionstart-drift-check.sh",
         ],
+        "extraSettingsHook": {
+            "SessionStart": [
+                {
+                    "matcher": "startup",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sessionstart-drift-check.sh",
+                            "timeout": 5,
+                        }
+                    ],
+                },
+                {
+                    "matcher": "resume",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sessionstart-drift-check.sh",
+                            "timeout": 5,
+                        }
+                    ],
+                },
+            ]
+        },
     },
     {
         "id": "ui",

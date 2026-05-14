@@ -9,6 +9,7 @@
 ./.claude/hooks/microbit-enforcer.sh
 ./.claude/hooks/pre-compact-snapshot.sh
 ./.claude/hooks/scan-secrets.sh
+./.claude/hooks/sessionstart-drift-check.sh
 ./.claude/hooks/slop-scan.sh
 ./.claude/hooks/statusline-last-prompt.sh
 ./.claude/hooks/statusline.sh

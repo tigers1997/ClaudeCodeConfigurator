@@ -5,6 +5,7 @@
 ./.claude/hooks/format-on-write.sh
 ./.claude/hooks/pre-compact-snapshot.sh
 ./.claude/hooks/scan-secrets.sh
+./.claude/hooks/sessionstart-drift-check.sh
 ./.claude/hooks/slop-scan.sh
 ./.claude/hooks/stop-run-checks.sh
 ./.claude/rules/_scoping-guide.md
