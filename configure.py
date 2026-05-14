@@ -40,6 +40,7 @@ except ImportError:
 TEMPLATE_DIR = REPO_ROOT / "templates"
 BASE_SETTINGS_PATH = TEMPLATE_DIR / "core" / "dot-claude" / "settings.json"
 
+CC_VERSION = "2.5.0"
 
 # -----------------------------------------------------------------------------
 # Colored output (only if stdout is a TTY and NO_COLOR isn't set)
@@ -775,6 +776,48 @@ def check_schema_url(settings: dict) -> list:
             f"rejected silently and all settings are ignored."
         )
     return warnings
+
+
+def write_cc_manifest(target_dir: Path, version: str) -> tuple:
+    """Snapshot .mcp.json's mcpServers keys into .claude/.cc-manifest.json.
+
+    Runs unconditionally at end of scaffold/retrofit. Returns (ok, warning):
+    - (True, None) on success.
+    - (False, msg) when .mcp.json exists but cannot be parsed; caller renders
+      the message under a [ MANIFEST WARNINGS ] block. No manifest is written
+      in the failure case — never lock in a corrupted-input baseline.
+    """
+    import json
+    from datetime import datetime, timezone
+
+    mcp_json = target_dir / ".mcp.json"
+    mcp_servers = []
+    if mcp_json.exists():
+        try:
+            data = json.loads(mcp_json.read_text())
+        except json.JSONDecodeError as e:
+            return (False, f".mcp.json is not valid JSON ({e.msg} at line {e.lineno}); "
+                           "skipping manifest write — re-run cc-configure after fixing.")
+        servers = data.get("mcpServers", {})
+        if not isinstance(servers, dict):
+            return (False, ".mcp.json `mcpServers` must be an object; "
+                           "skipping manifest write — re-run cc-configure after fixing.")
+        mcp_servers = sorted(k for k in servers.keys() if not k.startswith("//"))
+
+    payload = {
+        "manifest_version": 1,
+        "written_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "written_by": f"cc-configure {version}",
+        "mcp_servers": mcp_servers,
+    }
+
+    claude_dir = target_dir / ".claude"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = claude_dir / ".cc-manifest.json"
+    tmp = manifest_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n")
+    tmp.replace(manifest_path)
+    return (True, None)
 
 
 def check_github_remote(target_dir) -> list:
@@ -2228,6 +2271,15 @@ def main():
 
     save_config(config, saved_config_path)
     print(dim(f"    saved config to {saved_config_path.relative_to(target_dir)}"))
+
+    # Snapshot the current .mcp.json baseline for the SessionStart drift
+    # monitor. Unconditional: runs even if the mcp module wasn't selected,
+    # so a forward-looking baseline always exists.
+    manifest_ok, manifest_warning = write_cc_manifest(target_dir, CC_VERSION)
+    if not manifest_ok:
+        print()
+        print(bold(yellow("[ MANIFEST WARNINGS ]")))
+        print(f"  {yellow('!')} {manifest_warning}")
 
     print()
     print(green(bold("Done.")))
