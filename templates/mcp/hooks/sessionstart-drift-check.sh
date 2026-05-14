@@ -73,6 +73,11 @@ if [ -n "$removed" ]; then
 fi
 
 # Join parts with " / "
-joined=$(IFS=" / "; echo "${parts[*]}")
+joined=""
+sep=""
+for p in "${parts[@]}"; do
+    joined="${joined}${sep}${p}"
+    sep=" / "
+done
 echo "cc-configure: MCP drift since last cc-configure run — $joined. Run /verify-setup for tradeoffs."
 exit 0
