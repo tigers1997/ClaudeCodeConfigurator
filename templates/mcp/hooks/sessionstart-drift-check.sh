@@ -63,12 +63,12 @@ fi
 parts=()
 if [ -n "$added" ]; then
     n=$(echo "$added" | wc -l | tr -d ' ')
-    names=$(echo "$added" | paste -sd, - | sed 's/,/, /g')
+    names=$(echo "$added" | paste -s -d , - | sed 's/,/, /g')
     parts+=("$n added ($names)")
 fi
 if [ -n "$removed" ]; then
     n=$(echo "$removed" | wc -l | tr -d ' ')
-    names=$(echo "$removed" | paste -sd, - | sed 's/,/, /g')
+    names=$(echo "$removed" | paste -s -d , - | sed 's/,/, /g')
     parts+=("$n removed ($names)")
 fi
 
