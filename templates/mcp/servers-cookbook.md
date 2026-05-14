@@ -112,3 +112,43 @@ Run via the shipped wrapper:
 `--strict-mcp-config` tells Claude Code to ignore the default MCP hierarchy (user/project/local) and only load what's in the specified file. This is the key flag — without it, the per-task file *adds* to the defaults rather than replacing them.
 
 Create your own profile by copying one of the starters and dropping in the servers you actually need for that task class.
+
+## Drift monitor
+
+cc-configure installs a SessionStart hook (`.claude/hooks/sessionstart-drift-check.sh`) that compares `.mcp.json` against `.claude/.cc-manifest.json` on every session startup/resume. If MCP servers were added or removed since the last cc-configure run, the hook emits a one-line system reminder pointing to `/verify-setup`:
+
+```
+cc-configure: MCP drift since last cc-configure run — 2 added (shadcn, next-devtools). Run /verify-setup for tradeoffs.
+```
+
+Run `/verify-setup` for the deep narrative — per-server purpose, session-start cost, supply-chain vetting nudge (via Sonatype MCP tools), profile-split fit, and a plan-of-attack block.
+
+### Accepting drift
+
+When the new servers are intentional and you want to suppress the alert, re-run cc-configure:
+
+```bash
+python3 /path/to/configure.py --persona <your-persona> --yes
+```
+
+The retrofit run snapshots the current `.mcp.json` into a fresh baseline; subsequent sessions are silent until the next unannounced change.
+
+### Reverting drift
+
+Edit `.mcp.json` to remove the unwanted entries. The hook will be silent on the next session (baseline matches again).
+
+### Opting out
+
+Two ways to disable drift detection:
+
+1. **Project-level:** delete the `hooks.SessionStart` block from `.claude/settings.json` that points to `sessionstart-drift-check.sh`. The manifest stays on disk as inert state.
+2. **Scaffold-time:** run cc-configure with a persona or module set that excludes `mcp` (e.g., `library-author`, or `--modules core,safety,git-workflow`). The hook is module-gated.
+
+### Merge-conflict resolution
+
+`.claude/.cc-manifest.json` is tracked in git so the baseline travels with the repo. If two developers run cc-configure on the same branch and both commit, you'll see a merge conflict on the manifest. Resolution:
+
+- Keep the **newer** `written_at`.
+- Take the **union** of `mcp_servers` (lossless: includes whatever both developers had).
+
+A conflict is informative — it signals two parallel scaffold/retrofit events on the same branch. Worth a quick alignment chat with your collaborator about which MCP set you actually want.
