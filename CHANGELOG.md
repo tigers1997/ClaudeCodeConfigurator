@@ -4,6 +4,8 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+- **docs: drop legacy `/brainstorm` + `/write-plan` references after superpowers v5.1.0.** `superpowers` v5.1.0 (2026-04-30) removed the `/brainstorm`, `/write-plan`, and `/execute-plan` slash commands — they were deprecated stubs and users must now invoke the skills directly (or just describe the work; the SessionStart bootstrap auto-routes). Configurator references updated: `configure.py` "Next steps" output now says "describe what you want to build" instead of "invoke /brainstorm"; `docs/11-getting-started.md` walkthrough swaps the explicit `> /brainstorm` prompt for plain-English intent and adds an inline note about the v5.1.0 removal; `docs/10-plugin-ecosystem.md` install snippet drops `claude /brainstorm`; `templates/recommend-plugins/recommended-plugins.md` row reframes the gate as skill-driven. Historical CHANGELOG entries unchanged (they reference what was current at the time).
+
 ## [2.4.0] — 2026-05-12
 
 Bundle release: scaffold-vs-git bootstrap hygiene driven by a brainstorming-phase dogfood (PRs #44 + #45 + #46 + #47), token-efficiency template fix (PR #43), `.claude-config.json` gitignore default (PR #41), tested-up-to bump (PR #40), `settings.local.json.example` MCP-token hint (PR #42), and a README accuracy pass (PR #39). All nine PRs were either driven by or surfaced by dogfooding `cc-configure` on existing/in-flight projects.

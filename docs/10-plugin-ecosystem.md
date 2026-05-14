@@ -51,7 +51,7 @@ See [`11-getting-started.md`](11-getting-started.md) for the full walkthrough. H
 
 ```
 claude /plugin install superpowers          # design-first brainstorming
-claude /brainstorm                          # turn an idea into an approved design
+claude                                      # describe what you want — brainstorming skill auto-triggers
 # (capture the design to docs/design.md)
 cc-configure                                # answers shaped by the design
 # (configurator emits docs/recommended-plugins.md if the recommend-plugins module is enabled)
