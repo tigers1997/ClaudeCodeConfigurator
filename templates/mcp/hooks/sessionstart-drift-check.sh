@@ -112,6 +112,38 @@ if [ "$mv" = "2" ]; then
         fi
         echo "cc-configure: stack drift — ${stack_parts}. Run /verify-setup for details."
     fi
+
+    # === §3 Command alignment (configured binary's expected manifest must be present) ===
+    # Same manifest_for() table as stop-run-checks.sh — keep in sync.
+    manifest_for_binary() {
+        case "$1" in
+            pnpm|npm|yarn|bun)            echo "package.json" ;;
+            uv|poetry|pip|pip3)           echo "pyproject.toml" ;;
+            cargo|rustc)                  echo "Cargo.toml" ;;
+            go)                           echo "go.mod" ;;
+            bundle|gem)                   echo "Gemfile" ;;
+            mvn)                          echo "pom.xml" ;;
+            gradle|./gradlew)             echo "build.gradle" ;;
+            *)                            echo "" ;;
+        esac
+    }
+
+    cmd_mismatches=""
+    cmd_sep=""
+    for kind in typecheck lint test; do
+        bin=$(jq -r ".check_commands.${kind} // empty" "$MANIFEST" 2>/dev/null)
+        [ -z "$bin" ] && continue
+        expected=$(manifest_for_binary "$bin")
+        [ -z "$expected" ] && continue  # unknown binary — skip silently
+        if [ ! -f "$ROOT/$expected" ]; then
+            cmd_mismatches="${cmd_mismatches}${cmd_sep}${kind} (${bin} needs ${expected})"
+            cmd_sep=", "
+        fi
+    done
+
+    if [ -n "$cmd_mismatches" ]; then
+        echo "cc-configure: command misalignment — ${cmd_mismatches}. Run /verify-setup for details."
+    fi
 fi
 
 exit 0
