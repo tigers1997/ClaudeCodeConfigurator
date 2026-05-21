@@ -801,6 +801,23 @@ def detect_stack_manifests(target_dir: Path) -> list:
     )
 
 
+def extract_first_binaries(typecheck: str = None, lint: str = None, test: str = None) -> dict:
+    """Map cc-configure check-command form values to {kind: first_binary}.
+
+    Empty, None, or whitespace-only values are omitted (user opted out of that
+    check). Uses shlex.split so quoted arguments don't trip the first-token rule.
+    """
+    import shlex
+    out = {}
+    for kind, cmd in (("typecheck", typecheck), ("lint", lint), ("test", test)):
+        if not cmd or not cmd.strip():
+            continue
+        parts = shlex.split(cmd)
+        if parts:
+            out[kind] = parts[0]
+    return out
+
+
 def write_cc_manifest(target_dir: Path, version: str) -> tuple:
     """Snapshot .mcp.json's mcpServers keys into .claude/.cc-manifest.json.
 
