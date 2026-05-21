@@ -24,7 +24,7 @@ second_written=$(jq -r '.written_at' "$manifest")
     || { echo "FAIL: .cc-manifest.json.tmp left on disk"; exit 1; }
 
 # Manifest is still valid JSON
-jq -e '.manifest_version == 1' "$manifest" >/dev/null \
+jq -e '.manifest_version == 2' "$manifest" >/dev/null \
     || { echo "FAIL: manifest invalid after re-run"; cat "$manifest"; exit 1; }
 
 echo "PASS: manifest atomically overwritten on re-run"

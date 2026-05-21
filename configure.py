@@ -778,14 +778,57 @@ def check_schema_url(settings: dict) -> list:
     return warnings
 
 
-def write_cc_manifest(target_dir: Path, version: str) -> tuple:
-    """Snapshot .mcp.json's mcpServers keys into .claude/.cc-manifest.json.
+KNOWN_STACK_MANIFESTS = (
+    "package.json",
+    "pyproject.toml",
+    "Cargo.toml",
+    "go.mod",
+    "Gemfile",
+    "pom.xml",
+    "build.gradle",
+)
+
+
+def detect_stack_manifests(target_dir: Path) -> list:
+    """Return sorted list of known stack-manifest filenames present at target_dir.
+
+    The universe of names mirrors the inverse of manifest_for() in
+    templates/git-workflow/hooks/stop-run-checks.sh — keep the two in sync.
+    """
+    return sorted(
+        name for name in KNOWN_STACK_MANIFESTS
+        if (target_dir / name).exists()
+    )
+
+
+def extract_first_binaries(typecheck: str = None, lint: str = None, test: str = None) -> dict:
+    """Map cc-configure check-command form values to {kind: first_binary}.
+
+    Empty, None, or whitespace-only values are omitted (user opted out of that
+    check). Uses shlex.split so quoted arguments don't trip the first-token rule.
+    """
+    import shlex
+    out = {}
+    for kind, cmd in (("typecheck", typecheck), ("lint", lint), ("test", test)):
+        if not cmd or not cmd.strip():
+            continue
+        parts = shlex.split(cmd)
+        if parts:
+            out[kind] = parts[0]
+    return out
+
+
+def write_cc_manifest(target_dir: Path, version: str, form_values: dict = None) -> tuple:
+    """Snapshot the .mcp.json / stack / check-command baseline into .claude/.cc-manifest.json.
 
     Runs unconditionally at end of scaffold/retrofit. Returns (ok, warning):
     - (True, None) on success.
     - (False, msg) when .mcp.json exists but cannot be parsed; caller renders
       the message under a [ MANIFEST WARNINGS ] block. No manifest is written
       in the failure case — never lock in a corrupted-input baseline.
+
+    form_values is the cc-configure form dict; only cmd_typecheck/cmd_lint/cmd_test
+    are read. Passing None is equivalent to an empty check_commands.
     """
     from datetime import datetime, timezone
 
@@ -803,11 +846,18 @@ def write_cc_manifest(target_dir: Path, version: str) -> tuple:
                            "skipping manifest write — re-run cc-configure after fixing.")
         mcp_servers = sorted(k for k in servers.keys() if not k.startswith("//"))
 
+    fv = form_values or {}
     payload = {
-        "manifest_version": 1,
+        "manifest_version": 2,
         "written_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "written_by": f"cc-configure {version}",
         "mcp_servers": mcp_servers,
+        "stack_manifests": detect_stack_manifests(target_dir),
+        "check_commands": extract_first_binaries(
+            typecheck=fv.get("cmd_typecheck"),
+            lint=fv.get("cmd_lint"),
+            test=fv.get("cmd_test"),
+        ),
     }
 
     claude_dir = target_dir / ".claude"
@@ -2274,7 +2324,9 @@ def main():
     # Snapshot the current .mcp.json baseline for the SessionStart drift
     # monitor. Unconditional: runs even if the mcp module wasn't selected,
     # so a forward-looking baseline always exists.
-    manifest_ok, manifest_warning = write_cc_manifest(target_dir, CC_VERSION)
+    manifest_ok, manifest_warning = write_cc_manifest(
+        target_dir, CC_VERSION, config.get("formValues")
+    )
     if not manifest_ok:
         print()
         print(bold(yellow("[ MANIFEST WARNINGS ]")))

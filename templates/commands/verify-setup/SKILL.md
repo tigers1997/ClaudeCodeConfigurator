@@ -64,6 +64,36 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - Manifest present + no `.mcp.json` → report removals only.
 - No manifest + `.mcp.json` present → `[ ⚠ ] Drift: no baseline recorded (project predates drift monitor) — run cc-configure --retrofit to establish baseline.`
 
+### 4b. Stack drift
+
+**Runs only if** `manifest_version ≥ 2` and `stack_manifests` field is present in the manifest.
+
+- Parse `stack_manifests` → baseline set.
+- Probe repo root for the 7 known filenames (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `pom.xml`, `build.gradle`) → current set.
+- Both equal → `[ ✓ ] Stack drift: 0 changes since baseline ({written_at}).`
+- Otherwise → `[ ⚠ ] Stack drift: {N} changes since baseline.` Then per-change narrative:
+  - `+ pyproject.toml` → "Python added. cc-configure baseline was Node-only; re-run cc-configure to pick up Python-specific patterns (uv detection, pytest defaults, ruff config)."
+  - `+ Cargo.toml` → "Rust added. Re-run cc-configure to pick up Rust-specific patterns (cargo check, clippy)."
+  - `+ go.mod` → "Go added. Re-run cc-configure for Go-specific patterns (go vet, golangci-lint)."
+  - `- package.json` → "Node removed. Stop-hook checks that reference pnpm/npm/yarn will now skip silently — re-run cc-configure to reset for the new stack."
+  - Apply the same shape for the other known manifests.
+
+**Plan of attack when drift exists:**
+
+- Accept new baseline: `cc-configure --retrofit`
+- Revert: restore the missing manifest, or remove the unwanted one.
+
+### 4c. Command alignment
+
+**Runs only if** `check_commands` field is present in the manifest (i.e., v2+ manifest).
+
+- For each `{kind: binary}` entry, look up the expected manifest via the same `manifest_for()` table that `stop-run-checks.sh` uses (pnpm/npm/yarn/bun → `package.json`, uv/poetry/pip → `pyproject.toml`, cargo → `Cargo.toml`, go → `go.mod`, bundle/gem → `Gemfile`, mvn → `pom.xml`, gradle → `build.gradle`). Binaries outside this map (tsc, pytest, ruff, eslint, …) have no guard and are skipped silently.
+- **Pre-bootstrap skip:** If the expected manifest was not in the baseline `stack_manifests` either, skip — the project hasn't bootstrapped its stack yet (typical right after `cc-configure` on an empty dir), so the configured command isn't drift, just pre-bootstrap. Same spirit as `stop-run-checks.sh`'s manifest-missing rule.
+- All commands have backing → `[ ✓ ] Command alignment: configured tools match current stack.`
+- Mismatches → `[ ⚠ ] Command alignment: {N} configured checks have no stack backing.` Per mismatch list: `{kind}: {binary} needs {expected manifest}, but it's not present.` Suggest a replacement based on whichever stack manifest IS present (e.g., if `pyproject.toml` is present and `pnpm test` was configured, suggest `uv run pytest` / `pytest`).
+
+**Plan of attack:** re-run cc-configure to pick stack-appropriate commands, or edit `.claude-config.json` and re-run `cc-configure --retrofit`.
+
 ### 5. Hook weight
 - Read `.claude/settings.json`, walk `hooks.PreToolUse`, `hooks.PostToolUse`, `hooks.PostToolUseFailure`.
 - Flag any command whose first token (basename) is `uv`, `python`, `python3`, `node`, `poetry`, `npm`, `npx`, `pnpm`, `bun`, `deno`, `ruby`, `java`, or `go`. Heavy interpreters on per-tool events add hundreds of ms per call.
@@ -109,6 +139,8 @@ PROJECT /absolute/path/here
 [ ⚠ ] Path-scoped rules: none found, CLAUDE.md is 180 lines → consider splitting frontend/backend/tests rules
 [ ✓ ] Settings schema: https://json.schemastore.org/claude-code-settings.json
 [ ⚠ ] MCP: 4 servers loaded globally — consider per-task profiles (./claude-ctx research, etc.)
+[ ✓ ] Stack drift: 0 changes since baseline (2026-05-21T00:00:00Z)
+[ ⚠ ] Command alignment: 1 configured check has no stack backing — test (pnpm needs package.json)
 [ ✓ ] Hook weight: no heavy-interpreter hooks
 [ ✓ ] Local settings: settings.local.json covered by .gitignore
 [ ✓ ] Orphan primitives: none
