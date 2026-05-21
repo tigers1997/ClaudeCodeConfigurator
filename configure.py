@@ -778,6 +778,29 @@ def check_schema_url(settings: dict) -> list:
     return warnings
 
 
+KNOWN_STACK_MANIFESTS = (
+    "package.json",
+    "pyproject.toml",
+    "Cargo.toml",
+    "go.mod",
+    "Gemfile",
+    "pom.xml",
+    "build.gradle",
+)
+
+
+def detect_stack_manifests(target_dir: Path) -> list:
+    """Return sorted list of known stack-manifest filenames present at target_dir.
+
+    The universe of names mirrors the inverse of manifest_for() in
+    templates/git-workflow/hooks/stop-run-checks.sh — keep the two in sync.
+    """
+    return sorted(
+        name for name in KNOWN_STACK_MANIFESTS
+        if (target_dir / name).exists()
+    )
+
+
 def write_cc_manifest(target_dir: Path, version: str) -> tuple:
     """Snapshot .mcp.json's mcpServers keys into .claude/.cc-manifest.json.
 
