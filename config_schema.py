@@ -358,6 +358,17 @@ CLAUDE_CODE_COMPAT = {
                                 # themes/monitors; CLAUDE_CODE_SESSION_ID exposed in
                                 # Bash subprocess env; no other configurator-
                                 # territory schema additions.
+                                # 2026-05-21 resurvey of 2.1.133-2.1.146: eleven
+                                # configurator-territory keys + five env vars held
+                                # in SchemaStore PR #5706 (sync to v2.1.143;
+                                # supersedes the closed #5665). Bump deferred until
+                                # #5706 merges and the unblock batch ships per the
+                                # "no lone tracking bumps" rule. Two further items
+                                # (terminalSequence hook output from 2.1.141;
+                                # background_tasks/session_crons hook input from
+                                # 2.1.145) need a future sync PR. No live breakage:
+                                # /simplify → /code-review rename in 2.1.146 does
+                                # not collide with the configurator's /review.
 }
 
 
