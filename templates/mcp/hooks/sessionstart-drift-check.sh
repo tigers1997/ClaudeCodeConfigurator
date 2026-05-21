@@ -24,16 +24,20 @@ MCP="$ROOT/.mcp.json"
 # Require jq; if missing, fail silent
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Check manifest_version. Hook is v1.
+# Check manifest_version. Hook understands v1 (read-only — skips new dimensions)
+# and v2 (full drift narrative). v3+ → emit one-line upgrade nudge and exit.
 mv=$(jq -r '.manifest_version // empty' "$MANIFEST" 2>/dev/null)
 if [ -z "$mv" ]; then
     # Manifest malformed or missing key — silent
     exit 0
 fi
-if [ "$mv" != "1" ]; then
-    echo "cc-configure: manifest version $mv detected; this hook is v1 — please update cc-configure."
-    exit 0
-fi
+case "$mv" in
+    1|2) ;;
+    *)
+        echo "cc-configure: manifest version $mv detected; this hook is v2 — please update cc-configure."
+        exit 0
+        ;;
+esac
 
 # Read baseline MCP server keys (sorted)
 baseline=$(jq -r '.mcp_servers[]?' "$MANIFEST" 2>/dev/null | LC_ALL=C sort -u)
