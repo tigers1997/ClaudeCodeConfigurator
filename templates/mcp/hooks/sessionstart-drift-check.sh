@@ -135,6 +135,13 @@ if [ "$mv" = "2" ]; then
         [ -z "$bin" ] && continue
         expected=$(manifest_for_binary "$bin")
         [ -z "$expected" ] && continue  # unknown binary — skip silently
+        # Skip if the expected manifest wasn't recorded at baseline either:
+        # the project hadn't bootstrapped its stack yet, so the configured
+        # binary isn't drift — it's pre-bootstrap. (Same spirit as
+        # stop-run-checks.sh's manifest-missing skip rule.)
+        if ! printf '%s\n' "$stack_baseline" | grep -qx "$expected"; then
+            continue
+        fi
         if [ ! -f "$ROOT/$expected" ]; then
             cmd_mismatches="${cmd_mismatches}${cmd_sep}${kind} (${bin} needs ${expected})"
             cmd_sep=", "

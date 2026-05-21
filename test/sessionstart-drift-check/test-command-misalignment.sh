@@ -13,7 +13,7 @@ cat > "$tmp/.claude/.cc-manifest.json" <<'EOF'
 { "manifest_version": 2, "written_at": "2026-05-21T00:00:00Z",
   "written_by": "cc-configure 2.6.0",
   "mcp_servers": [],
-  "stack_manifests": [],
+  "stack_manifests": ["package.json"],
   "check_commands": { "lint": "pnpm", "test": "pnpm" } }
 EOF
 echo '{ "mcpServers": {} }' > "$tmp/.mcp.json"

@@ -88,6 +88,7 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 **Runs only if** `check_commands` field is present in the manifest (i.e., v2+ manifest).
 
 - For each `{kind: binary}` entry, look up the expected manifest via the same `manifest_for()` table that `stop-run-checks.sh` uses (pnpm/npm/yarn/bun → `package.json`, uv/poetry/pip → `pyproject.toml`, cargo → `Cargo.toml`, go → `go.mod`, bundle/gem → `Gemfile`, mvn → `pom.xml`, gradle → `build.gradle`). Binaries outside this map (tsc, pytest, ruff, eslint, …) have no guard and are skipped silently.
+- **Pre-bootstrap skip:** If the expected manifest was not in the baseline `stack_manifests` either, skip — the project hasn't bootstrapped its stack yet (typical right after `cc-configure` on an empty dir), so the configured command isn't drift, just pre-bootstrap. Same spirit as `stop-run-checks.sh`'s manifest-missing rule.
 - All commands have backing → `[ ✓ ] Command alignment: configured tools match current stack.`
 - Mismatches → `[ ⚠ ] Command alignment: {N} configured checks have no stack backing.` Per mismatch list: `{kind}: {binary} needs {expected manifest}, but it's not present.` Suggest a replacement based on whichever stack manifest IS present (e.g., if `pyproject.toml` is present and `pnpm test` was configured, suggest `uv run pytest` / `pytest`).
 
