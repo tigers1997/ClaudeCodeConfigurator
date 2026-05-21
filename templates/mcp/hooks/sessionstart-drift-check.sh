@@ -58,30 +58,60 @@ fi
 added=$(comm -13 <(echo "$baseline") <(echo "$current") | sed '/^$/d')
 removed=$(comm -23 <(echo "$baseline") <(echo "$current") | sed '/^$/d')
 
-# No drift → silent
-if [ -z "$added" ] && [ -z "$removed" ]; then
-    exit 0
+# Emit MCP drift line only if there's drift; otherwise fall through to §2/§3.
+if [ -n "$added" ] || [ -n "$removed" ]; then
+    parts=()
+    if [ -n "$added" ]; then
+        n=$(echo "$added" | wc -l | tr -d ' ')
+        names=$(echo "$added" | paste -s -d , - | sed 's/,/, /g')
+        parts+=("$n added ($names)")
+    fi
+    if [ -n "$removed" ]; then
+        n=$(echo "$removed" | wc -l | tr -d ' ')
+        names=$(echo "$removed" | paste -s -d , - | sed 's/,/, /g')
+        parts+=("$n removed ($names)")
+    fi
+    joined=""
+    sep=""
+    for p in "${parts[@]}"; do
+        joined="${joined}${sep}${p}"
+        sep=" / "
+    done
+    echo "cc-configure: MCP drift since last cc-configure run — $joined. Run /verify-setup for tradeoffs."
 fi
 
-# Build one-line summary
-parts=()
-if [ -n "$added" ]; then
-    n=$(echo "$added" | wc -l | tr -d ' ')
-    names=$(echo "$added" | paste -s -d , - | sed 's/,/, /g')
-    parts+=("$n added ($names)")
-fi
-if [ -n "$removed" ]; then
-    n=$(echo "$removed" | wc -l | tr -d ' ')
-    names=$(echo "$removed" | paste -s -d , - | sed 's/,/, /g')
-    parts+=("$n removed ($names)")
+# === §2 Stack drift — v2 manifests only (v1 has no stack_manifests field) ===
+if [ "$mv" = "2" ]; then
+    stack_baseline=$(jq -r '.stack_manifests[]?' "$MANIFEST" 2>/dev/null | LC_ALL=C sort -u)
+
+    # Probe known manifest filenames at the repo root. Mirror the inverse of
+    # manifest_for() in stop-run-checks.sh; keep both sides in sync.
+    stack_current=""
+    for f in package.json pyproject.toml Cargo.toml go.mod Gemfile pom.xml build.gradle; do
+        if [ -f "$ROOT/$f" ]; then
+            stack_current="${stack_current}${f}
+"
+        fi
+    done
+    stack_current=$(printf '%s' "$stack_current" | LC_ALL=C sort -u)
+
+    stack_added=$(comm -13 <(echo "$stack_baseline") <(echo "$stack_current") | sed '/^$/d')
+    stack_removed=$(comm -23 <(echo "$stack_baseline") <(echo "$stack_current") | sed '/^$/d')
+
+    if [ -n "$stack_added" ] || [ -n "$stack_removed" ]; then
+        stack_parts=""
+        sep=""
+        if [ -n "$stack_added" ]; then
+            names=$(echo "$stack_added" | paste -s -d , - | sed 's/,/, /g')
+            stack_parts="${stack_parts}${sep}added ${names}"
+            sep="; "
+        fi
+        if [ -n "$stack_removed" ]; then
+            names=$(echo "$stack_removed" | paste -s -d , - | sed 's/,/, /g')
+            stack_parts="${stack_parts}${sep}removed ${names}"
+        fi
+        echo "cc-configure: stack drift — ${stack_parts}. Run /verify-setup for details."
+    fi
 fi
 
-# Join parts with " / "
-joined=""
-sep=""
-for p in "${parts[@]}"; do
-    joined="${joined}${sep}${p}"
-    sep=" / "
-done
-echo "cc-configure: MCP drift since last cc-configure run — $joined. Run /verify-setup for tradeoffs."
 exit 0
