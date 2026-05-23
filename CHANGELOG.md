@@ -4,6 +4,26 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## Unreleased
 
+### feat(defaults): promote skillOverrides + autoMode.hard_deny to active defaults
+
+Follow-up to the #5706 unblock batch: two of the eight opt-ins shipped as stubs in that PR are now active defaults, based on a per-key review against the configurator's existing safety/efficiency goals. The other six stay stubbed for genuine reasons (user-workflow choice, infrastructure-dependent, or would break the shipped scripts).
+
+**Promoted to active:**
+
+- **`skillOverrides: "name-only"`** is now active in `templates/token-efficiency/settings-patch.tier-pro.json` (renders only when `token-efficiency.tier=pro`). The pro tier already signals "user wants aggressive context efficiency" — this extends that contract by collapsing skill descriptions (the largest single contributor to per-turn context overhead, exactly the metric `/check-context` flags). Model still sees skill names and can invoke them; only the descriptions are trimmed. `basic` tier is unaffected. Personas: `solo-experienced` + `small-team` get it (both use pro); `solo-newer` + `library-author` + `custom` do not. Override to `"off"` / `"user-invocable-only"` / unset by editing the patch if `"name-only"` is too aggressive for your skill set.
+- **`autoMode.hard_deny: ["Running executable files", "Writing to system directories"]`** is now active in `templates/safety/settings-patch.json`. Pure upside: zero behavior change for standard manual sessions (the auto-mode classifier doesn't fire without `--auto-mode`), meaningful safety backstop for users who do run with `--auto-mode`. Consistent with the configurator's existing safety-first posture (`disableBypassPermissionsMode: disable`, PreToolUse Bash blocking, scan-secrets, slop-scan). Renders for all non-custom personas (every non-custom persona includes the `safety` module). Tune or remove entries by editing the patch if the example categories don't match your project's threat model.
+
+**Stubbed opt-ins kept as stubs** (with rationale):
+
+- `worktree.baseRef` (multi-agent) — `"fresh"` vs `"head"` is a genuine workflow preference, no persona signal distinguishes
+- `worktree.bgIsolation` (multi-agent) — stub value matches CC's default, so writing active is a no-op; stub provides discoverability of the lever (and future-proofs if CC flips its default again like it did with `baseRef` between 2.1.128/2.1.133)
+- `sandbox.failIfUnavailable` (safety) — fail-closed aligns with safety goals but breaks users on platforms where `bwrap`/`socat` aren't easily installable (esp. macOS); proper fix is a future `safety.sandbox_strict` flag
+- `subagentStatusLine` (ui) — shipped `statusline.sh` doesn't handle the `--subagent` flag; promotable once the script learns it
+- `statusLine.hideVimModeIndicator` (ui) — shipped `statusline.sh` doesn't render vim mode; active default would just remove vim display entirely for vim users (strict downgrade); promotable once the script learns vim mode
+- `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (safety) — no shipped Stop hook actually blocks repeatedly, so raising the cap adds noise without benefit by default; only useful for user-authored strict-blocking hooks
+
+**For existing users on `cc-configure --retrofit`:** the merged `.claude/settings.json` will gain a top-level `autoMode` block (all non-custom personas) and, for pro-tier users (`solo-experienced` and `small-team`), a top-level `skillOverrides: "name-only"`. Both are no-ops in common workflows: `autoMode.hard_deny` only fires under `--auto-mode`, and `skillOverrides: "name-only"` preserves all `/`-menu access while trimming descriptions the user typically doesn't read. Test plan covers per-persona rendering. No `tested_up_to` bump (stays 2.1.150 from the prior PR).
+
 ### chore(compat): bump tested_up_to to 2.1.150 + ship eight schema-validated opt-ins after SchemaStore PR #5706 merge
 
 [SchemaStore PR #5706](https://github.com/SchemaStore/schemastore/pull/5706) merged 2026-05-23, syncing `claude-code-settings.json` to Claude Code v2.1.143 and unblocking nine settings keys (+ five env vars) that had been held in the configurator's backlog through three prior CHANGELOG resurveys. This PR ships all of them as commented-out opt-ins so users can uncomment to activate, matching the established pattern from PRs #17 (`prUrlTemplate`) and #18 (`sandbox.network.deniedDomains`). Bumps `tested_up_to` 2.1.132 → 2.1.150 (covers the 18 CC releases since the last bump, including the 2.1.147–2.1.150 resurvey that found only one new configurator-adjacent key — `allowAllClaudeAiMcps`, 2.1.149 — Enterprise managed setting, outside configurator territory). Closes tracking issue #53.
