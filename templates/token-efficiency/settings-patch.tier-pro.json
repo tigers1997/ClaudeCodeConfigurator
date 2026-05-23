@@ -1,6 +1,6 @@
 {
-  "//": "Optional: skillOverrides (CC 2.1.129+, schemastore-validated 2026-05-23). Suppresses skill visibility/descriptions to reduce context overhead — the metric /check-context flags. Values: 'off' (hides from model AND /-menu), 'user-invocable-only' (hides from model, /-menu still works), 'name-only' (collapses description to just the skill name). 'name-only' is the conservative default; pick 'user-invocable-only' if you only ever invoke skills explicitly. Uncomment the next line by removing the leading '// '.",
-  "// skillOverrides": "name-only",
+  "//": "skillOverrides (CC 2.1.129+) is set to 'name-only' by default in the pro tier: the model sees skill names but not descriptions, cutting the largest contributor to per-turn context overhead (the metric /check-context flags). Other values: 'off' (hides from model AND /-menu — too aggressive for most), 'user-invocable-only' (hides from model only, you keep /-menu access). Override here if 'name-only' is too aggressive for your skill set.",
+  "skillOverrides": "name-only",
   "env": {
     "CLAUDE_BASH_MAX_LINES": "80"
   },
