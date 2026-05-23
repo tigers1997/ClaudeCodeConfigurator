@@ -40,7 +40,7 @@ except ImportError:
 TEMPLATE_DIR = REPO_ROOT / "templates"
 BASE_SETTINGS_PATH = TEMPLATE_DIR / "core" / "dot-claude" / "settings.json"
 
-CC_VERSION = "2.5.0"
+CC_VERSION = "2.6.0"
 
 # -----------------------------------------------------------------------------
 # Colored output (only if stdout is a TTY and NO_COLOR isn't set)
