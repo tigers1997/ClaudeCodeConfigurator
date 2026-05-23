@@ -1,5 +1,5 @@
 {
-  "// microbit-enforcer.json": "Auto-installed alongside the freeze/unfreeze/guard/careful microbits when commands.subset is 'full' or 'rigorous'. PreToolUse rejects Write/Edit/NotebookEdit when a marker is present; SessionStart clears markers (session-scoped lifecycle).",
+  "//": "Auto-installed alongside the freeze/unfreeze/guard/careful microbits when commands.subset is 'full' or 'rigorous'. PreToolUse rejects Write/Edit/NotebookEdit when a marker is present; SessionStart clears markers (session-scoped lifecycle).",
   "hooks": {
     "PreToolUse": [
       {

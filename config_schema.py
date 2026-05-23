@@ -182,6 +182,7 @@ MODULES = [
             "commands/merge-worktrees/SKILL.md",
             "commands/infinite/SKILL.md",
         ],
+        "settingsPatch": "multi-agent/settings-patch.json",
     },
     {
         "id": "github-actions",
@@ -242,7 +243,14 @@ MODULES = [
             "statusLine": {
                 "type": "command",
                 "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh",
-            }
+                "//": "Optional: hideVimModeIndicator (CC 2.1.143+, schemastore-validated 2026-05-23). When the statusline script renders its own vim mode display, set to true to suppress Claude Code's built-in one. Uncomment the next key by removing the leading '// ' (and drop this '//' explainer).",
+                "// hideVimModeIndicator": True,
+            },
+            "//": "Optional: subagentStatusLine (CC 2.1.143+, schemastore-validated 2026-05-23). Distinct statusline for subagent runs so they're visually separable from the parent session. Uncomment the next block by removing the leading '// ' from the key.",
+            "// subagentStatusLine": {
+                "type": "command",
+                "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh --subagent",
+            },
         },
     },
 ]
@@ -347,28 +355,31 @@ PERSONAS = {
 #                configurator against. Newer is likely fine but unverified.
 CLAUDE_CODE_COMPAT = {
     "min_version": "2.1.116",   # agent mcpServers http (2.1.116/117)
-    "tested_up_to": "2.1.132",  # alwaysLoad MCP, updatedToolOutput PostToolUse,
-                                # ultrareview non-interactive, prUrlTemplate +
-                                # sandbox.network.deniedDomains schema-validated.
-                                # 2.1.122-128: bug fixes + MCP "workspace" reserved
-                                # + managed-settings channelsEnabled (enterprise).
-                                # 2.1.129-132: skillOverrides settings.json key now
-                                # works (held — not yet in schemastore 2026-05-06);
-                                # plugin manifests gain experimental: wrapper for
-                                # themes/monitors; CLAUDE_CODE_SESSION_ID exposed in
-                                # Bash subprocess env; no other configurator-
-                                # territory schema additions.
-                                # 2026-05-21 resurvey of 2.1.133-2.1.146: eleven
-                                # configurator-territory keys + five env vars held
-                                # in SchemaStore PR #5706 (sync to v2.1.143;
-                                # supersedes the closed #5665). Bump deferred until
-                                # #5706 merges and the unblock batch ships per the
-                                # "no lone tracking bumps" rule. Two further items
-                                # (terminalSequence hook output from 2.1.141;
-                                # background_tasks/session_crons hook input from
-                                # 2.1.145) need a future sync PR. No live breakage:
-                                # /simplify → /code-review rename in 2.1.146 does
-                                # not collide with the configurator's /review.
+    "tested_up_to": "2.1.150",  # SchemaStore PR #5706 merged 2026-05-23 (sync to
+                                # v2.1.143), unblocking nine settings.json keys for
+                                # opt-in templating: skillOverrides (token-
+                                # efficiency-pro tier-pro patch), worktree.baseRef
+                                # + worktree.bgIsolation (multi-agent patch),
+                                # autoMode.hard_deny + sandbox.failIfUnavailable
+                                # (safety patch), subagentStatusLine +
+                                # statusLine.hideVimModeIndicator (ui extraSettings),
+                                # and the hook `args: string[]` + `continueOnBlock`
+                                # forms (doc-only in safety/git-workflow patches).
+                                # Five new env vars also schema-validated and
+                                # mention-only in module docs: ANTHROPIC_WORKSPACE_ID,
+                                # CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE,
+                                # CLAUDE_CODE_PLUGIN_PREFER_HTTPS,
+                                # CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY,
+                                # CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (safety patch).
+                                # 2.1.147-150 resurvey (2026-05-23): only one new
+                                # configurator-adjacent key (allowAllClaudeAiMcps,
+                                # 2.1.149) — Enterprise managed setting, outside
+                                # configurator territory. /simplify → /code-review
+                                # rename (2.1.146) does not collide with /review.
+                                # Still held for a future schemastore sync PR:
+                                # hook output `terminalSequence` (2.1.147); Stop /
+                                # SubagentStop hook input `background_tasks` +
+                                # `session_crons` fields (2.1.149).
 }
 
 
