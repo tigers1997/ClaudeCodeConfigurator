@@ -4,7 +4,11 @@
   "//3": "Optional opt-in: sandbox.network.deniedDomains (CC 2.1.113+, schemastore-validated 2026-04-28).",
   "//4": "Only takes effect when the sandbox is otherwise active for the command (see sandboxing docs).",
   "//5": "Supports wildcards (*.example.com). Below is a small data-exfiltration-resistant baseline; tune for your threat model.",
-  "//6": "Uncomment by removing the leading '// ' on the next key, then drop these //N keys.",
+  "//6": "Inside the // sandbox block: failIfUnavailable (CC 2.1.143+, schemastore-validated 2026-05-23) makes sandbox startup a hard failure when required dependencies are missing, instead of falling back to non-sandboxed execution. Fail-closed posture for safety-sensitive projects — uncomment the inner '// failIfUnavailable: true' line after uncommenting the outer block.",
+  "//7": "Optional: autoMode.hard_deny (CC 2.1.136+, schemastore-validated 2026-05-23). Classifier rules that block unconditionally regardless of user intent or allow exceptions — final guardrail when running with auto mode. Edit the strings to match the action categories you want to hard-block. Only meaningful if you run `claude --auto-mode`.",
+  "//8": "Optional: env CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (CC 2.1.143+) overrides the default 8-block cap for consecutive Stop hook blocks. Raise this only if a safety Stop hook intentionally blocks repeatedly and you want to tolerate it without the cap kicking in.",
+  "//9": "Hook authoring note (CC 2.1.139+, schemastore-validated 2026-05-23): hookCommand entries now accept 'args: string[]' for direct-exec form (no shell, no quote-escaping pain) and 'continueOnBlock: boolean' for prompt hooks (default false; when true, ok:false feeds the reason back to Claude and the turn continues instead of stopping). Use these on custom hooks you add below.",
+  "//10": "Uncomment any opt-in by removing the leading '// ' on its key, then drop the explainer //N keys.",
   "// sandbox": {
     "network": {
       "deniedDomains": [
@@ -19,7 +23,17 @@
         "anonfiles.com",
         "uguu.se"
       ]
-    }
+    },
+    "// failIfUnavailable": true
+  },
+  "// autoMode": {
+    "hard_deny": [
+      "Running executable files",
+      "Writing to system directories"
+    ]
+  },
+  "// env": {
+    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "16"
   },
   "hooks": {
     "PreToolUse": [

@@ -435,6 +435,16 @@ def substitute_placeholders(text: str, values: dict) -> str:
     return re.sub(r"\{\{(\w+)\}\}", repl, text)
 
 
+def _is_doc_label(k: str) -> bool:
+    # Source patch files use two `//` conventions: numbered doc labels
+    # ("//", "//2", "//9") that explain the patch to humans reading the
+    # source and must NOT propagate to the user's generated settings.json,
+    # and stub keys ("// sandbox", "// prUrlTemplate") that DO propagate so
+    # the user can uncomment them. Distinguish by the bit after `//`: pure
+    # digits (or empty) = doc label.
+    return k == "//" or (k.startswith("//") and k[2:].isdigit())
+
+
 def deep_merge(a, b):
     if isinstance(a, list) and isinstance(b, list):
         return a + b
@@ -460,7 +470,7 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
         if m.get("settingsPatch"):
             patch_path = TEMPLATE_DIR / m["settingsPatch"]
             patch = json.loads(patch_path.read_text(encoding="utf-8"))
-            patch = {k: v for k, v in patch.items() if not k.startswith("//")}
+            patch = {k: v for k, v in patch.items() if not _is_doc_label(k)}
             settings = deep_merge(settings, patch)
         if m.get("extraSettingsHook"):
             settings["hooks"] = deep_merge(settings.get("hooks", {}), m["extraSettingsHook"])
@@ -475,7 +485,7 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
                     extra = extra.get(selected_value)
                 if extra:
                     extra_patch = json.loads((TEMPLATE_DIR / extra).read_text(encoding="utf-8"))
-                    extra_patch = {k: v for k, v in extra_patch.items() if not k.startswith("//")}
+                    extra_patch = {k: v for k, v in extra_patch.items() if not _is_doc_label(k)}
                     settings = deep_merge(settings, extra_patch)
             # extraSettingsEnv: merge env vars driven by the flag's value.
             # Boolean false ⇒ skip. Otherwise emit each {key: value} pair into
