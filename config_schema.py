@@ -231,6 +231,41 @@ MODULES = [
         },
     },
     {
+        "id": "discipline-skills",
+        "title": "Curated discipline skills (brainstorming, planning, verification, worktrees)",
+        "description": "Seven discipline skills forked from the MIT-licensed obra/superpowers v5.1.0 plugin: brainstorming, writing-plans, executing-plans, verification-before-completion, using-git-worktrees, subagent-driven-development, finishing-a-development-branch. Ships as project-level .claude/skills/ so it costs ~930 fewer SessionStart tokens than installing the full upstream plugin (no using-superpowers injection, no descriptions for the 7 unused upstream skills). Includes a slim SessionStart bootstrap that auto-suppresses when the upstream `superpowers` plugin is also installed. See docs/10-plugin-ecosystem.md and templates/discipline-skills/SYNC.md for the curation rationale and upstream-sync workflow.",
+        "paths": [
+            "discipline-skills/LICENSE",
+            "discipline-skills/brainstorming/SKILL.md",
+            "discipline-skills/brainstorming/spec-document-reviewer-prompt.md",
+            "discipline-skills/writing-plans/SKILL.md",
+            "discipline-skills/writing-plans/plan-document-reviewer-prompt.md",
+            "discipline-skills/executing-plans/SKILL.md",
+            "discipline-skills/verification-before-completion/SKILL.md",
+            "discipline-skills/using-git-worktrees/SKILL.md",
+            "discipline-skills/subagent-driven-development/SKILL.md",
+            "discipline-skills/subagent-driven-development/implementer-prompt.md",
+            "discipline-skills/subagent-driven-development/spec-reviewer-prompt.md",
+            "discipline-skills/subagent-driven-development/code-quality-reviewer-prompt.md",
+            "discipline-skills/finishing-a-development-branch/SKILL.md",
+            "discipline-skills/hooks/sessionstart-discipline.sh",
+        ],
+        "extraSettingsHook": {
+            "SessionStart": [
+                {
+                    "matcher": "startup|clear|compact",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sessionstart-discipline.sh",
+                            "timeout": 5,
+                        }
+                    ],
+                }
+            ]
+        },
+    },
+    {
         "id": "ui",
         "title": "Custom status line + plan output style",
         "description": "Status line script (project dir | branch | model | context %), an alternative 'last-prompt' status line, and a 'plan' output style.",
@@ -263,7 +298,7 @@ PERSONAS = {
     "solo-newer": {
         "title": "Solo, newer to coding",
         "description": "Sensible kit for a single developer learning the ropes. Documentation fields default to bracketed [TODO:] placeholders.",
-        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp"],
+        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "discipline-skills"],
         "module_flags": {
             "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "token-efficiency": {"tier": "basic"},
@@ -288,7 +323,7 @@ PERSONAS = {
     "solo-experienced": {
         "title": "Solo, experienced",
         "description": "Today's de-facto default. Full kit minus team-only modules.",
-        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui"],
+        "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui", "discipline-skills"],
         "module_flags": {
             "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "token-efficiency": {"tier": "pro"},
@@ -304,7 +339,7 @@ PERSONAS = {
         "title": "Small team (2-5 devs)",
         "description": "Solo-experienced + multi-agent + github-actions. Trunk-based default.",
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui",
-                    "multi-agent", "github-actions"],
+                    "multi-agent", "github-actions", "discipline-skills"],
         "module_flags": {
             "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
             "token-efficiency": {"tier": "pro"},
@@ -794,6 +829,14 @@ def target_path_for(template_rel: str):
         if rest_path.startswith("microbit-enforcer/") and rest_path.endswith(".sh"):
             fname = rest_path[len("microbit-enforcer/"):]
             return f".claude/hooks/{fname}"
+        return f".claude/skills/{rest_path}"
+    if module == "discipline-skills":
+        # MIT attribution ships as a discoverable file next to the skills.
+        # `_`-prefix keeps it visually separate from real skill directories.
+        if rest_path == "LICENSE":
+            return ".claude/skills/_LICENSE-discipline-skills.md"
+        # hooks/ already handled by the generic rule above.
+        # Everything else: <skill-name>/<file> → .claude/skills/<skill-name>/<file>
         return f".claude/skills/{rest_path}"
     if module == "ui":
         if rest_path == "statusline.sh":

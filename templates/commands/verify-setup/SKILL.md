@@ -130,6 +130,15 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - Either missing from the index → ⚠ (the configurator output was generated but never committed; collaborators will not see it).
 - Tracked → ✓.
 
+### 12. Discipline-skills duplication
+
+- Skip unless `.claude/skills/_LICENSE-discipline-skills.md` exists (the configurator's `discipline-skills` module is installed).
+- Check the user's installed plugins via glob (any marketplace): `ls -d ~/.claude/plugins/cache/*/superpowers 2>/dev/null` (a directory match under any marketplace name — `claude-plugins-official`, `obra-superpowers-marketplace`, or other — means the upstream plugin is installed).
+- **Neither installed (discipline-skills marker absent):** `[ - ] Discipline skills: module not installed` (skipped — nothing to compare).
+- **Only the configurator's module:** `[ ✓ ] Discipline skills: configurator's curated 7 (no upstream overlap).`
+- **Only upstream superpowers:** `[ - ] Discipline skills: upstream superpowers plugin in use (configurator's module not installed).`
+- **Both installed:** `[ ⚠ ] Discipline skills: BOTH installed — your /skills menu has 7 forked skills + 14 upstream skills with the same names. The configurator's SessionStart bootstrap auto-suppresses, but skill invocations may resolve to either copy depending on namespace.` Suggest: pick one — either `cc-configure --retrofit` without `discipline-skills` to drop the fork, or `/plugin uninstall superpowers` to drop the upstream.
+
 ## Output format
 
 ```
@@ -148,6 +157,7 @@ PROJECT /absolute/path/here
 [ ⚠ ] Gitignore block: `# --- Claude Code ---` sentinel missing → run `cc-configure --retrofit`
 [ - ] Nested .git/: none found
 [ ⚠ ] Scaffold committed: .claude/settings.json untracked → `git add .claude/ && git commit`
+[ - ] Discipline skills: module not installed
 
 Suggested next actions:
 1. Extract frontend-specific rules from CLAUDE.md (lines 45–78) into .claude/rules/frontend.md with paths: "src/frontend/**"

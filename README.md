@@ -275,6 +275,8 @@ Additional patterns were distilled from the MIT-licensed [garrytan/gstack](https
 - The `security-auditor` agent's confidence gate (≥8), false-positive exclusion list, concrete-exploit requirement, and lightweight STRIDE checklist are distilled from gstack's `/cso` security-review skill.
 - The `slop-scan` PostToolUse hook in `templates/safety/` adapts the AI-slop pattern catalog from gstack.
 
+The `discipline-skills` module ships a curated 7-skill subset (brainstorming, writing-plans, executing-plans, verification-before-completion, using-git-worktrees, subagent-driven-development, finishing-a-development-branch) forked from the MIT-licensed [obra/superpowers](https://github.com/obra/superpowers) v5.1.0 plugin by Jesse Vincent (© 2025 Jesse Vincent). The skill bodies are lightly edited: bare cross-references replace `superpowers:`-prefixed ones, the visual-companion section is stripped from brainstorming, the `requesting-code-review` template is embedded inline into `subagent-driven-development/code-quality-reviewer-prompt.md`, and a slim SessionStart bootstrap replaces the upstream `using-superpowers` injection. See `templates/discipline-skills/LICENSE` for the upstream MIT notice and `templates/discipline-skills/SYNC.md` for the maintainer-internal sync workflow.
+
 The configurator, its modules, the preflight-check architecture (`--check` / `check_schema_url` / `check_hook_weight` / `check_github_remote`), the stack-preset system, and all other scaffolding are original work.
 
 ## License
