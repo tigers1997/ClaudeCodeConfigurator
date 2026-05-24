@@ -1,6 +1,5 @@
 {
-  "//": "skillOverrides (CC 2.1.129+) is set to 'name-only' by default in the pro tier: the model sees skill names but not descriptions, cutting the largest contributor to per-turn context overhead (the metric /check-context flags). Other values: 'off' (hides from model AND /-menu — too aggressive for most), 'user-invocable-only' (hides from model only, you keep /-menu access). Override here if 'name-only' is too aggressive for your skill set.",
-  "skillOverrides": "name-only",
+  "//": "Pro tier ships an aggressive PostToolUse Bash-output truncation hook + a tighter CLAUDE_BASH_MAX_LINES cap. The largest per-turn context overhead /check-context flags is skill descriptions, but the Claude Code schema for skillOverrides requires a per-skill object map (`{\"skill-name\": \"name-only\"}`); there is no documented \"apply to all skills\" form. Users wanting to compress specific noisy skills can add their own object-form override in .claude/settings.local.json.example — the configurator does not ship a default because guessing which skills to compress is project-specific. Also: per code.claude.com/docs/en/settings the setting does not apply to plugin skills at all, further narrowing its usefulness as a tier-wide default.",
   "env": {
     "CLAUDE_BASH_MAX_LINES": "80"
   },

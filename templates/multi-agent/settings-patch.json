@@ -1,10 +1,3 @@
 {
-  "//": "Merged into .claude/settings.json. Multi-agent module ships no active settings by default — the commented opt-ins below are for users running parallel sessions or worktrees and pair naturally with /merge-worktrees.",
-  "//2": "Optional: worktree.baseRef (CC 2.1.133+, schemastore-validated 2026-05-23). Values: 'fresh' (default; creates new worktrees from origin/HEAD) or 'head' (preserves unpushed local commits in the new worktree). Pick 'head' if you frequently spin up worktrees from in-progress work.",
-  "//3": "Optional: worktree.bgIsolation (CC 2.1.143+, schemastore-validated 2026-05-23). Values: 'worktree' (default; background sessions get their own worktree) or 'none' (background sessions edit the live working copy directly, skipping EnterWorktree). 'none' is useful for repos where worktrees are impractical (build artifacts outside the tree, hardcoded paths).",
-  "//4": "Uncomment by removing the leading '// ' on the next key + tuning the values, then drop these //N keys.",
-  "// worktree": {
-    "baseRef": "head",
-    "bgIsolation": "worktree"
-  }
+  "//": "Merged into .claude/settings.json. Multi-agent module ships no active settings by default — the available opt-ins (worktree.baseRef, worktree.bgIsolation, CC 2.1.133+/2.1.143+) are documented in templates/core/dot-claude/settings.local.json.example with copy-paste-ready stubs."
 }
