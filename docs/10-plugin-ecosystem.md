@@ -84,6 +84,28 @@ If you want to drop the configurator's `commands-core` skills in favor of `featu
 
 You're trading "deterministic, fork-able templates I control" for "Anthropic-maintained, latest-version plugins." Both are valid; the swap is reversible.
 
+## Discipline skills: bundled vs. upstream plugin
+
+The configurator ships a `discipline-skills` module — a curated 7-skill subset forked from the MIT-licensed `obra/superpowers` v5.1.0 plugin: `brainstorming`, `writing-plans`, `executing-plans`, `verification-before-completion`, `using-git-worktrees`, `subagent-driven-development`, `finishing-a-development-branch`. They land at project-level `.claude/skills/<name>/SKILL.md`. A slim SessionStart hook (`sessionstart-discipline.sh`) primes the model with a terse seven-skill bootstrap.
+
+**Why ship a fork instead of just recommending the upstream plugin:**
+
+- **~930 tokens saved per session.** Full superpowers injects ~1,200 tokens at SessionStart via `using-superpowers` plus ~270 tokens of skill descriptions for 14 skills. The configurator's bootstrap is ~400 tokens and we ship 7 skill descriptions, totaling ~540 — a ~63% reduction in fixed session-overhead for these capabilities.
+- **Curation control.** The configurator picks which 7 skills earn the context cost. The other 7 upstream skills (`systematic-debugging`, `test-driven-development`, `dispatching-parallel-agents`, `requesting-code-review`, `receiving-code-review`, `writing-skills`, `using-superpowers`) overlap configurator-shipped equivalents (`/investigate`, `multi-agent-guardrails.md`, `/review`, `code-reviewer` agent) or are too meta for the default kit.
+- **Rugpull immunity.** Upstream v5.1.0 (2026-04-30) removed three slash commands (`/brainstorm`, `/write-plan`, `/execute-plan`) — that broke configurator references and required a cleanup PR. A forked-snapshot module stays stable until we choose to sync.
+- **Plugin-skill namespacing means no conflict.** Per `code.claude.com/docs/en/skills`: *"Plugin skills use a `plugin-name:skill-name` namespace, so they cannot conflict with other levels."* If a user installs both this module and the upstream plugin, the configurator's bootstrap auto-suppresses (detects `~/.claude/plugins/cache/claude-plugins-official/superpowers/`) and the two coexist. `/verify-setup` Check #12 flags the duplication so the user can pick one.
+
+**When to use which:**
+
+| Situation | Recommendation |
+|---|---|
+| `solo-newer`, `solo-experienced`, `small-team` personas | `discipline-skills` module (default — already in the persona's module set) |
+| You want the *full* upstream methodology including TDD, systematic-debugging, parallel-agents, code-review patterns | `claude /plugin install superpowers` (skip or uninstall `discipline-skills`) |
+| You want both | Allowed — namespacing prevents conflicts. The configurator's bootstrap will auto-suppress; check `/verify-setup` Check #12. |
+| You want neither (lean baseline) | `cc-configure` without `discipline-skills` in selected modules |
+
+**Upstream-sync workflow:** see `templates/discipline-skills/SYNC.md` (maintainer-internal, not shipped). Every cc-configure release that includes a discipline-skills bump cites the upstream version in the CHANGELOG.
+
 ## Future direction
 
 A v2.x of the configurator may re-architect around plugins: instead of copying skill/agent files, the scaffolded output declares which plugins to install (via a `.claude-plugin/plugin.json` or a bootstrap script). The configurator's job becomes "generate the project-specific glue (CLAUDE.md, settings.json, hooks)" while delegating commodity content to upstream. Tracked as a v2 item in the local backlog.
