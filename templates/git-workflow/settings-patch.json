@@ -1,14 +1,6 @@
 {
   "//": "Merge into .claude/settings.json hooks.",
-  "//2": "Optional: prUrlTemplate (Claude Code 2.1.119+, schemastore-validated 2026-04-28).",
-  "//3": "Footer PR badge + tool-result summaries follow this URL template instead of github.com.",
-  "//4": "Placeholders: {host}, {owner}, {repo}, {number}.",
-  "//5": "GitLab:    https://gitlab.com/{owner}/{repo}/-/merge_requests/{number}",
-  "//6": "Bitbucket: https://bitbucket.org/{owner}/{repo}/pull-requests/{number}",
-  "//7": "GHE:       https://gh.example.com/{owner}/{repo}/pull/{number}",
-  "//8": "Hook authoring note (CC 2.1.139+, schemastore-validated 2026-05-23): hookCommand entries now accept 'args: string[]' for direct-exec form (no shell wrapping, no quote-escaping pain) and 'continueOnBlock: boolean' for prompt hooks (default false; when true, ok:false feeds reason back to Claude and continues the turn instead of stopping). Useable on the hooks below if you customize them.",
-  "//9": "Uncomment prUrlTemplate by removing the leading '// ' on the next line, then set the template, then drop these //N keys.",
-  "// prUrlTemplate": "https://gitlab.com/{owner}/{repo}/-/merge_requests/{number}",
+  "//2": "Optional opt-ins (prUrlTemplate for non-github.com platforms, CC 2.1.119+) are documented in templates/core/dot-claude/settings.local.json.example with copy-paste-ready stubs. Hook authoring note (CC 2.1.139+): hookCommand entries accept 'args: string[]' for direct-exec form and 'continueOnBlock: boolean' for prompt hooks.",
   "hooks": {
     "PostToolUse": [
       {

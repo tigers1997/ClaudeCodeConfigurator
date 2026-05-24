@@ -278,14 +278,15 @@ MODULES = [
             "statusLine": {
                 "type": "command",
                 "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh",
-                "//": "Optional: hideVimModeIndicator (CC 2.1.143+, schemastore-validated 2026-05-23). When the statusline script renders its own vim mode display, set to true to suppress Claude Code's built-in one. Uncomment the next key by removing the leading '// ' (and drop this '//' explainer).",
-                "// hideVimModeIndicator": True,
             },
-            "//": "Optional: subagentStatusLine (CC 2.1.143+, schemastore-validated 2026-05-23). Distinct statusline for subagent runs so they're visually separable from the parent session. Uncomment the next block by removing the leading '// ' from the key.",
-            "// subagentStatusLine": {
-                "type": "command",
-                "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh --subagent",
-            },
+            # Optional opt-ins (statusLine.hideVimModeIndicator,
+            # subagentStatusLine — both CC 2.1.143+, schemastore-validated
+            # 2026-05-23) are documented in
+            # templates/core/dot-claude/settings.local.json.example with
+            # copy-paste-ready stubs. Removed from inline extraSettings on
+            # 2026-05-24 because the `// foo` stub keys propagated to user
+            # settings.json and triggered schema-validator complaints —
+            # see CHANGELOG for the dogfood-driven correction.
         },
     },
 ]

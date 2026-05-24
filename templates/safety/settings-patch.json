@@ -1,36 +1,12 @@
 {
   "//": "Merged into .claude/settings.json. PreToolUse hooks guard dangerous Bash and scan Write/Edit for secrets. permissions.disableBypassPermissionsMode='disable' hard-disables --dangerously-skip-permissions for this project, even if the user passes the flag.",
   "//2": "autoMode.hard_deny (CC 2.1.136+, schemastore-validated 2026-05-23) is on by default with two reasonable category blocks. The classifier only fires under `claude --auto-mode`, so this is a no-op for standard manual sessions — pure upside for auto-mode users. Tune the strings or remove entries to match your project's threat model.",
-  "//3": "Optional opt-in: sandbox.network.deniedDomains (CC 2.1.113+, schemastore-validated 2026-04-28). Only takes effect when the sandbox is otherwise active for the command (see sandboxing docs). Supports wildcards (*.example.com); the // sandbox block below has a small data-exfiltration-resistant baseline — tune for your threat model.",
-  "//4": "Inside the // sandbox block: failIfUnavailable (CC 2.1.143+, schemastore-validated 2026-05-23) makes sandbox startup a hard failure when required dependencies are missing instead of falling back to non-sandboxed execution. Fail-closed posture for safety-sensitive projects — uncomment the inner '// failIfUnavailable: true' line after uncommenting the outer block.",
-  "//5": "Optional: env CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (CC 2.1.143+) overrides the default 8-block cap for consecutive Stop hook blocks. Raise only if a safety Stop hook intentionally blocks repeatedly and you want to tolerate it without the cap kicking in.",
-  "//6": "Hook authoring note (CC 2.1.139+, schemastore-validated 2026-05-23): hookCommand entries now accept 'args: string[]' for direct-exec form (no shell, no quote-escaping pain) and 'continueOnBlock: boolean' for prompt hooks (default false; when true, ok:false feeds the reason back to Claude and the turn continues instead of stopping). Use these on custom hooks you add below.",
-  "//7": "Uncomment any opt-in by removing the leading '// ' on its key, then drop the explainer //N keys.",
+  "//3": "Optional opt-ins (sandbox.network.deniedDomains, sandbox.failIfUnavailable, env CLAUDE_CODE_STOP_HOOK_BLOCK_CAP) are documented in templates/core/dot-claude/settings.local.json.example with copy-paste-ready stubs. Hook authoring note (CC 2.1.139+): hookCommand entries accept 'args: string[]' for direct-exec form and 'continueOnBlock: boolean' for prompt hooks.",
   "autoMode": {
     "hard_deny": [
       "Running executable files",
       "Writing to system directories"
     ]
-  },
-  "// sandbox": {
-    "network": {
-      "deniedDomains": [
-        "pastebin.com",
-        "paste.ee",
-        "hastebin.com",
-        "ix.io",
-        "0x0.st",
-        "bashupload.com",
-        "transfer.sh",
-        "file.io",
-        "anonfiles.com",
-        "uguu.se"
-      ]
-    },
-    "// failIfUnavailable": true
-  },
-  "// env": {
-    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "16"
   },
   "hooks": {
     "PreToolUse": [

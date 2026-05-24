@@ -436,13 +436,31 @@ def substitute_placeholders(text: str, values: dict) -> str:
 
 
 def _is_doc_label(k: str) -> bool:
-    # Source patch files use two `//` conventions: numbered doc labels
-    # ("//", "//2", "//9") that explain the patch to humans reading the
-    # source and must NOT propagate to the user's generated settings.json,
-    # and stub keys ("// sandbox", "// prUrlTemplate") that DO propagate so
-    # the user can uncomment them. Distinguish by the bit after `//`: pure
-    # digits (or empty) = doc label.
-    return k == "//" or (k.startswith("//") and k[2:].isdigit())
+    # ANY key starting with `//` is maintainer-facing documentation and must
+    # NOT propagate to the user's generated settings.json. Claude Code's
+    # settings schema rejects unknown top-level keys (including `// foo`
+    # commented-stub keys), so propagating them produces validator complaints
+    # in the user's editor. Source patch files may use either bare `//` /
+    # numbered (`//2`, `//9`) doc labels for explanatory text, or `// foo`
+    # commented-stub keys that show maintainers an opt-in's exact shape.
+    # Both forms are stripped at merge time. User-facing opt-in discovery
+    # lives in `templates/core/dot-claude/settings.local.json.example`.
+    # See CHANGELOG entry for the dogfood-driven correction (was: PR #56's
+    # original filter kept `// foo` stubs intentionally).
+    return isinstance(k, str) and k.startswith("//")
+
+
+def _strip_doc_labels(obj):
+    """Recursively strip all dict keys starting with `//` from obj.
+    Applied as the final pass over compute_merged_settings's output so
+    nested doc labels (e.g. `statusLine.// hideVimModeIndicator`) are
+    also caught — not just the top-level ones the shallow per-merge
+    filter handles."""
+    if isinstance(obj, dict):
+        return {k: _strip_doc_labels(v) for k, v in obj.items() if not _is_doc_label(k)}
+    if isinstance(obj, list):
+        return [_strip_doc_labels(x) for x in obj]
+    return obj
 
 
 def deep_merge(a, b):
@@ -475,7 +493,8 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
         if m.get("extraSettingsHook"):
             settings["hooks"] = deep_merge(settings.get("hooks", {}), m["extraSettingsHook"])
         if m.get("extraSettings"):
-            settings = deep_merge(settings, m["extraSettings"])
+            extra = {k: v for k, v in m["extraSettings"].items() if not _is_doc_label(k)}
+            settings = deep_merge(settings, extra)
         # Apply per-module flag-gated extra patches.
         for flag_name, flag_def in m.get("flags", {}).items():
             selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
@@ -517,6 +536,9 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
         else:
             settings.setdefault("env", {})["CLAUDE_BASH_MAX_LINES"] = str(cap)
 
+    # Final pass: strip any `//`-prefixed keys at any nesting depth. Catches
+    # nested doc labels / stubs that escape the shallow per-merge filters.
+    settings = _strip_doc_labels(settings)
     return settings
 
 
@@ -720,6 +742,21 @@ def run_check() -> int:
             if not re.search(r"^description:\s*\S+", fm, flags=re.MULTILINE):
                 err(src, "frontmatter missing required `description:` field")
 
+    # --- 3b. Source-patch shape: skillOverrides must be an object, never a
+    # string. Catches the dogfood-driven regression class where a patch
+    # ships `"skillOverrides": "name-only"` — schema-invalid since CC
+    # 2.1.129+ requires the per-skill object form.
+    for f in sorted(TEMPLATE_DIR.rglob("settings-patch*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue  # already reported above
+        rel = f.relative_to(TEMPLATE_DIR)
+        if "skillOverrides" in data and not isinstance(data["skillOverrides"], dict):
+            err(f"templates/{rel}",
+                f"skillOverrides must be an object map "
+                f"(got {type(data['skillOverrides']).__name__})")
+
     # --- 4. Cross-cutting pattern integration (rigor skills) ---
     # Each rigor skill must embed its named pattern blocks via `include
     # _patterns/<name>.md` references. Catches drift where a future edit
@@ -785,6 +822,69 @@ def check_schema_url(settings: dict) -> list:
             f"accepts only {GOOD_SCHEMA_URL!r}. Files with this mismatch are "
             f"rejected silently and all settings are ignored."
         )
+    return warnings
+
+
+def _find_doc_label_paths(obj, prefix=""):
+    """Recursively yield JSON-pointer-ish paths to any `//`-prefixed key
+    found in obj. Used by check_settings_validates as a regression guard
+    against _strip_doc_labels leaking a stub into the rendered settings."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            here = f"{prefix}.{k}" if prefix else k
+            if _is_doc_label(k):
+                yield here
+            yield from _find_doc_label_paths(v, here)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _find_doc_label_paths(v, f"{prefix}[{i}]")
+
+
+def check_settings_validates(settings: dict) -> list:
+    """Catch the two settings-validator complaint classes surfaced by
+    dogfooding cc-configure on a downstream project (2026-05-24):
+
+      1. Top-level `//`-prefixed keys (doc labels / commented stubs) — the
+         Claude Code settings schema rejects unknown top-level keys, so
+         editors flag them and the user sees red squiggles. _strip_doc_labels
+         is supposed to remove these before render; this check is the
+         regression guard.
+      2. `skillOverrides` shape — schema requires an object map keyed by
+         skill name with enum values (`"on"|"name-only"|"user-invocable-only"|"off"`).
+         Earlier versions shipped a top-level string `"name-only"` which the
+         current schema rejects. Also: per code.claude.com/docs/en/settings
+         the setting does not apply to plugin skills at all.
+    """
+    warnings = []
+    valid_overrides = {"on", "name-only", "user-invocable-only", "off"}
+
+    leaks = list(_find_doc_label_paths(settings))
+    if leaks:
+        warnings.append(
+            "rendered settings.json contains `//`-prefixed keys that the "
+            f"Claude Code schema rejects: {', '.join(leaks[:5])}"
+            + (f" (+{len(leaks) - 5} more)" if len(leaks) > 5 else "")
+            + ". This is a configurator bug — _strip_doc_labels should have "
+            "removed these before render."
+        )
+
+    if "skillOverrides" in settings:
+        so = settings["skillOverrides"]
+        if not isinstance(so, dict):
+            warnings.append(
+                f"settings.json `skillOverrides` is a {type(so).__name__} "
+                f"({so!r}) but the Claude Code schema requires an object map "
+                "keyed by skill name. Editors will reject the file; CC may drop "
+                "the setting silently."
+            )
+        else:
+            bad = [(k, v) for k, v in so.items() if v not in valid_overrides]
+            if bad:
+                warnings.append(
+                    "settings.json `skillOverrides` contains entries whose "
+                    f"value isn't one of {sorted(valid_overrides)}: "
+                    f"{bad[:3]}" + (f" (+{len(bad) - 3} more)" if len(bad) > 3 else "")
+                )
     return warnings
 
 
@@ -2138,6 +2238,15 @@ def main():
             print(f"  {yellow('!')} {w}")
         print(dim("  Heavy interpreters on high-frequency events add hundreds of ms per tool call."))
         print(dim("  Prefer .sh wrappers or native binaries when attaching to PreToolUse/PostToolUse."))
+
+    settings_warnings = check_settings_validates(merged)
+    if settings_warnings:
+        print()
+        print(bold(yellow("[ SETTINGS WARNINGS ]")))
+        for w in settings_warnings:
+            print(f"  {yellow('!')} {w}")
+        print(dim("  These trigger Claude Code's settings-validator complaints in the user's editor."))
+        print(dim("  File a configurator issue with the offending key + module — this is a template bug."))
 
     # Surface module-level prerequisites that can't be fixed by the configurator.
     module_warnings = []
