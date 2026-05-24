@@ -1146,9 +1146,16 @@ def deep_merge_settings(existing: dict, new: dict):
         existing entries first, new entries appended without duplicates.
       - permissions.disableBypassPermissionsMode: ours wins (security default
         the user opted into by selecting safety).
-      - hooks: concatenate per-event groups (existing first, then ours). No
-        dedupe — if the user has a hook group with the same matcher, both
-        run; user can manually remove duplicates if undesired.
+      - hooks: per-event groups merged via _merge_unique_list (existing
+        first, then ours, structural-equality dedup). Critical for
+        retrofits: without dedup, every cc-configure --retrofit run
+        re-appends the configurator's own hook set against the prior
+        scaffold's identical set, so after N retrofits every hook fires
+        N+1 times. User-customized hook groups (different matcher,
+        different command list, different timeout) are structurally
+        distinct from configurator-shipped ones and survive dedup.
+        Self-heals existing buildup: a user whose settings.json already
+        accumulated N duplicates collapses them to 1 on next retrofit.
       - env: dict merge with existing keys winning on collision (preserves
         user's deliberate overrides).
       - statusLine, model: preserve existing if set; otherwise use new.
@@ -1177,8 +1184,12 @@ def deep_merge_settings(existing: dict, new: dict):
         out_hooks = dict(out.get("hooks", {}))
         for event, new_groups in new["hooks"].items():
             existing_groups = out_hooks.get(event, [])
-            out_hooks[event] = list(existing_groups) + list(new_groups)
-            counts["hook_groups_added"] += len(new_groups)
+            merged = _merge_unique_list(existing_groups, new_groups)
+            # Also collapse any prior-retrofit duplicates already in
+            # existing_groups (self-heal). Reapply unique-list against itself.
+            merged = _merge_unique_list([], merged)
+            counts["hook_groups_added"] += len(merged) - len(existing_groups)
+            out_hooks[event] = merged
         out["hooks"] = out_hooks
 
     if "env" in new:
