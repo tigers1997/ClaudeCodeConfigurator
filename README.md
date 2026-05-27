@@ -281,4 +281,10 @@ The configurator, its modules, the preflight-check architecture (`--check` / `ch
 
 ## License
 
-MIT
+**GNU Affero General Public License v3.0** (AGPL-3.0) — see `LICENSE`.
+
+The configurator switched from MIT to AGPL-3.0 to close the SaaS-loophole used to fork copyleft projects into closed managed services (the "MongoDB on AWS" pattern). Self-hosting and use in open-source projects remain free; closed-source or commercial managed-service use requires a separate license.
+
+Carve-out: `templates/discipline-skills/` remains under the **MIT License** (© 2025 Jesse Vincent), forked from the MIT-licensed [obra/superpowers](https://github.com/obra/superpowers) v5.1.0 plugin. The MIT terms travel with those files when users install the module into their own projects. See `NOTICE` for the full bundled-license breakdown and `templates/discipline-skills/LICENSE` for the upstream MIT notice.
+
+Past releases tagged before this commit remain available under the MIT license they shipped under; the AGPL-3.0 terms apply to all subsequent code.

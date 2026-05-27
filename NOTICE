@@ -1,0 +1,28 @@
+ClaudeCodeConfigurator
+Copyright (C) 2026 Bob Rougeaux
+
+This program is licensed under the GNU Affero General Public License
+version 3 (AGPL-3.0). See LICENSE for the full text.
+
+----
+
+Bundled third-party code under different (compatible) licenses:
+
+* templates/discipline-skills/
+    Forked from obra/superpowers v5.1.0
+    (https://github.com/obra/superpowers)
+    Copyright (c) 2025 Jesse Vincent
+    Licensed under the MIT License
+    (see templates/discipline-skills/LICENSE).
+
+    The MIT terms govern this subtree and travel with the files when
+    users install the discipline-skills module into their own projects.
+    The AGPL-3.0 license covers the surrounding configurator code.
+    MIT-licensed code is compatible with AGPL-3.0 aggregation.
+
+Patterns informed by (no files vendored):
+
+* PacktPublishing/Agentic-Coding-with-Claude-Code — MIT, © 2026 Packt
+* garrytan/gstack — MIT, © 2026 Garry Tan
+
+See README.md `## Acknowledgments` for details.
