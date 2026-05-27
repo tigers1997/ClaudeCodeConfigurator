@@ -22,6 +22,11 @@ check_package_available() {
   local pm="$1" pkg="$2"
   case "$pm" in
     apt)    _check_apt    "$pkg" ;;
+    brew)   _check_brew   "$pkg" ;;
+    dnf)    _check_dnf    "$pkg" ;;
+    yum)    _check_yum    "$pkg" ;;
+    pacman) _check_pacman "$pkg" ;;
+    apk)    _check_apk    "$pkg" ;;
     *)      return 2 ;;
   esac
 }
@@ -30,4 +35,34 @@ _check_apt() {
   local pkg="$1"
   command -v apt-cache >/dev/null 2>&1 || return 2
   apt-cache pkgnames "$pkg" 2>/dev/null | grep -qx "$pkg"
+}
+
+_check_brew() {
+  local pkg="$1"
+  command -v brew >/dev/null 2>&1 || return 2
+  brew formula "$pkg" >/dev/null 2>&1
+}
+
+_check_dnf() {
+  local pkg="$1"
+  command -v dnf >/dev/null 2>&1 || return 2
+  dnf info -q "$pkg" >/dev/null 2>&1
+}
+
+_check_yum() {
+  local pkg="$1"
+  command -v yum >/dev/null 2>&1 || return 2
+  yum info -q "$pkg" >/dev/null 2>&1
+}
+
+_check_pacman() {
+  local pkg="$1"
+  command -v pacman >/dev/null 2>&1 || return 2
+  pacman -Si "$pkg" >/dev/null 2>&1
+}
+
+_check_apk() {
+  local pkg="$1"
+  command -v apk >/dev/null 2>&1 || return 2
+  apk info -e "$pkg" >/dev/null 2>&1
 }
