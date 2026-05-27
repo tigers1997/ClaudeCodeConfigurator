@@ -556,7 +556,7 @@ FORM_SCHEMA = [
             {"key": "default_branch", "label": "Default branch", "type": "select",
              "options": ["main", "master", "trunk", "develop"], "default": "main"},
             {"key": "license", "label": "License", "type": "select",
-             "options": ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause", "MPL-2.0",
+             "options": ["MIT", "Apache-2.0", "AGPL-3.0", "GPL-3.0", "BSD-3-Clause", "MPL-2.0",
                          "Proprietary", "Unlicensed", "Other"],
              "default": "MIT"},
         ],
