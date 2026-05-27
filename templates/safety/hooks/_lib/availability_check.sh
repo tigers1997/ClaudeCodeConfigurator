@@ -34,7 +34,8 @@ check_package_available() {
 _check_apt() {
   local pkg="$1"
   command -v apt-cache >/dev/null 2>&1 || return 2
-  apt-cache pkgnames "$pkg" 2>/dev/null | grep -qx "$pkg"
+  # Process substitution avoids SIGPIPE when grep closes early under set -o pipefail callers.
+  grep -qx "$pkg" <(apt-cache pkgnames "$pkg" 2>/dev/null)
 }
 
 _check_brew() {

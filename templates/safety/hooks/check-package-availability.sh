@@ -93,9 +93,102 @@ case "$bin" in
   *) exit 0 ;;
 esac
 
-# At this point: pm is set, tokens[0]/tokens[1] are cmd/subcmd.
-# Remaining tokens are flags + packages.
-# For Task 5 (skeleton), we stop here — extracting packages comes in later tasks.
-# Bail with stderr note so we know we got this far during testing.
-echo "[check-package-availability] reached pm=$pm dispatch (parsing not yet implemented)" >&2
-exit 0
+# --- Extract packages from remaining tokens ---
+# Per-PM value-taking flag allowlist (next token is a value, skip both).
+declare -a value_flags_apt=("-t" "--target-release" "-o" "--option" "--config-file")
+declare -a value_flags_dnf=("--releasever")
+declare -a value_flags_pacman=("--config" "--dbpath" "--root")
+declare -a value_flags_apk=("--repository" "--keys-dir")
+
+skip_next=0
+declare -a pkgs=()
+i=2  # tokens[0]=bin, tokens[1]=subcmd
+while [ "$i" -lt "${#tokens[@]}" ]; do
+  tok="${tokens[$i]}"
+  i=$((i+1))
+
+  if [ "$skip_next" -eq 1 ]; then
+    skip_next=0
+    continue
+  fi
+
+  # Skip flags (start with -); check for value-taking ones first.
+  case "$tok" in
+    -*=*) continue ;;  # --foo=bar; no extra token to skip
+    -*)
+      # Look up in PM-specific value-flag list.
+      flag_list=()
+      case "$pm" in
+        apt) flag_list=("${value_flags_apt[@]}") ;;
+        dnf|yum) flag_list=("${value_flags_dnf[@]}") ;;
+        pacman) flag_list=("${value_flags_pacman[@]}") ;;
+        apk) flag_list=("${value_flags_apk[@]}") ;;
+      esac
+      for vf in "${flag_list[@]}"; do
+        if [ "$tok" = "$vf" ]; then
+          skip_next=1
+          break
+        fi
+      done
+      continue
+      ;;
+  esac
+
+  # Skip file installs (./, /, *.deb, *.rpm, *.apk).
+  case "$tok" in
+    ./*|/*) echo "[check-package-availability] file install in args; not gating" >&2; exit 0 ;;
+    *.deb|*.rpm|*.apk) echo "[check-package-availability] local archive in args; not gating" >&2; exit 0 ;;
+  esac
+
+  # Skip globs / brace / vars (parser bailouts).
+  case "$tok" in
+    *'*'*|*'?'*) echo "[check-package-availability] glob in pkg name; not gating" >&2; exit 0 ;;
+    *'{'*'}'*) echo "[check-package-availability] brace expansion; not gating" >&2; exit 0 ;;
+    *'$'*) echo "[check-package-availability] shell var in pkg name; not gating" >&2; exit 0 ;;
+  esac
+
+  # Strip version pin: pkg=ver (apt/dnf) or pkg@ver (brew).
+  case "$pm" in
+    brew) tok="${tok%@*}" ;;
+    *)    tok="${tok%=*}" ;;
+  esac
+
+  pkgs+=("$tok")
+done
+
+# Nothing to check? bail.
+[ "${#pkgs[@]}" -eq 0 ] && exit 0
+
+# --- Run availability checks ---
+[ -f "$AVAIL_LIB" ] || { echo "[check-package-availability] lib not found at $AVAIL_LIB; not gating" >&2; exit 0; }
+# shellcheck disable=SC1090
+source "$AVAIL_LIB"
+
+declare -a missing=()
+for pkg in "${pkgs[@]}"; do
+  if check_package_available "$pm" "$pkg"; then
+    :  # available — continue
+  else
+    rc=$?
+    if [ "$rc" -eq 1 ]; then
+      missing+=("$pkg")
+    else
+      # rc=2 inconclusive (probe failure / unknown pm)
+      echo "[check-package-availability] $pm probe inconclusive for '$pkg' (rc=$rc); not gating" >&2
+      exit 0
+    fi
+  fi
+done
+
+# All available?
+[ "${#missing[@]}" -eq 0 ] && exit 0
+
+# --- DENY ---
+# Denial format is finalized in Task 7. For now, minimal message.
+{
+  printf '[check-package-availability] DENIED\n\n'
+  printf 'Command: %s\n' "$cmd"
+  printf 'Package manager: %s\n' "$pm"
+  printf 'Missing: %s\n' "$(IFS=,; echo "${missing[*]}")"
+} >&2
+exit 2
