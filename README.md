@@ -242,24 +242,7 @@ The same check runs in CI on every push and PR (`.github/workflows/check.yml`). 
 
 ## Contributing
 
-Issues and PRs welcome. **All changes to `main` go through a PR** — direct pushes are blocked by the repo's `MainBrnchRuleset`, which requires the `check` CI job green before merge. One-liners included; the gate is non-negotiable.
-
-The flow:
-
-1. **Branch from `main`.** Descriptive names: `feat/<thing>`, `fix/<thing>`, `docs/<thing>`, `chore/<thing>`.
-2. **Push and open a PR against `main`.** `gh pr create --fill` is the fast path.
-3. **CI (`check.yml`) must pass.** It runs `python3 configure.py --check` (static validation of templates + `MODULES` registry) plus a dry-run smoke test across every opt-in module.
-4. **Describe the change briefly.** What it does, why, and any schema/template paths touched. Reference an issue number if one exists.
-5. **Add a `CHANGELOG.md` entry** under `## Unreleased` using Keep-a-Changelog sections (`### Added`/`### Changed`/`### Fixed`/etc.). SHA-anchor after merge.
-6. **Squash-merge by default.** One logical change per PR, one commit on `main`. `gh pr merge --squash --delete-branch` does it in one call.
-
-Before opening a PR, local verification:
-
-```bash
-python3 configure.py --check    # same gate CI runs
-```
-
-Versioning: semver from v1.0.0 onward. Patch = bug fixes; minor = new modules/skills, backward-compatible; major = anything that invalidates a saved `.claude-config.json` or rewrites template paths.
+All changes go through a PR with a CLA, automated AI code review, and CI. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full process; [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) and [`SECURITY.md`](SECURITY.md) cover conduct and vulnerability reporting respectively.
 
 ## Acknowledgments
 
