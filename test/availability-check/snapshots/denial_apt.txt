@@ -1,0 +1,15 @@
+[check-package-availability] DENIED
+
+Command: sudo apt install -y postgresql-18 postgresql-client-18
+Package manager: apt
+Missing: postgresql-18,postgresql-client-18
+
+Available (related to "postgresql", up to 8):
+  postgresql-15 postgresql-16 postgresql-client-15 postgresql-client-16 ...
+
+Detected installed: PostgreSQL 17.4
+
+To proceed:
+  • Pick an available version above, OR
+  • Configure the upstream repo first (then re-run), OR
+  • Recheck the package name

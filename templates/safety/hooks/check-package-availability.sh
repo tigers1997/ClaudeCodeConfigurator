@@ -184,11 +184,95 @@ done
 [ "${#missing[@]}" -eq 0 ] && exit 0
 
 # --- DENY ---
-# Denial format is finalized in Task 7. For now, minimal message.
+
+# Sibling search: derive stem (drop trailing -<digits>) and run a per-PM lookup.
+sibling_stem() {
+  local pkg="$1"
+  # postgresql-18 → postgresql
+  # postgresql-client-18 → postgresql-client
+  echo "${pkg%-[0-9]*}"
+}
+
+available_list_apt() {
+  local stem="$1"
+  apt-cache search --names-only "^${stem}(-[a-z]+)?-?[0-9]+$" 2>/dev/null \
+    | awk '{print $1}' | head -n 8
+}
+
+available_list_dnf() {
+  local stem="$1"
+  dnf -q list available "${stem}*" 2>/dev/null \
+    | awk 'NR>1{print $1}' | head -n 8
+}
+
+available_list_yum() {
+  local stem="$1"
+  yum -q list available "${stem}*" 2>/dev/null \
+    | awk 'NR>1{print $1}' | head -n 8
+}
+
+available_list_pacman() {
+  local stem="$1"
+  pacman -Ss "^${stem}" 2>/dev/null \
+    | awk '/^[a-z]/{split($1,a,"/"); print a[2]}' | head -n 8
+}
+
+available_list_apk() {
+  local stem="$1"
+  apk search -q "${stem}*" 2>/dev/null | head -n 8
+}
+
+# brew search is slow; emit hint instead.
+available_list_brew() {
+  echo "(try: brew search ${1})"
+}
+
+# Detected installed version line, only if relevant to the missing pkg family.
+detected_version_for_pkg() {
+  local pkg="$1"
+  case "$pkg" in
+    postgresql*|postgres*)
+      command -v pg_config >/dev/null 2>&1 || return
+      pg_config --version 2>/dev/null
+      ;;
+    nodejs|node)
+      command -v node >/dev/null 2>&1 || return
+      node -v 2>/dev/null
+      ;;
+    python3*|python-*)
+      command -v python3 >/dev/null 2>&1 || return
+      python3 -V 2>&1
+      ;;
+    docker*|docker-ce*)
+      command -v docker >/dev/null 2>&1 || return
+      docker -v 2>/dev/null
+      ;;
+  esac
+}
+
 {
   printf '[check-package-availability] DENIED\n\n'
   printf 'Command: %s\n' "$cmd"
   printf 'Package manager: %s\n' "$pm"
   printf 'Missing: %s\n' "$(IFS=,; echo "${missing[*]}")"
+
+  # Sibling search: take stem from first missing pkg.
+  stem=$(sibling_stem "${missing[0]}")
+  fn="available_list_${pm}"
+  printf '\nAvailable (related to "%s", up to 8):\n  ' "$stem"
+  $fn "$stem" | tr '\n' ' '
+  printf '\n'
+
+  # Detected installed version (if any matches the missing pkg family).
+  det=$(detected_version_for_pkg "${missing[0]}")
+  if [ -n "$det" ]; then
+    printf '\nDetected installed: %s\n' "$det"
+  fi
+
+  printf '\nTo proceed:\n'
+  printf '  • Pick an available version above, OR\n'
+  printf '  • Configure the upstream repo first (then re-run), OR\n'
+  printf '  • Recheck the package name\n'
 } >&2
+
 exit 2
