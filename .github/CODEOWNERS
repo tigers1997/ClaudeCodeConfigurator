@@ -1,0 +1,33 @@
+# CODEOWNERS — auto-requests review from the listed owner(s) when matching
+# paths change. See:
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-customization/customizing-your-repository/about-code-owners
+#
+# "Require approval from Code Owners" is NOT enabled in branch protection today
+# (a solo maintainer cannot approve their own PR). The AI review
+# (.github/workflows/review.yml) is the merge gate. This file documents intent
+# + flags sensitive surfaces; enable Code Owner enforcement when a co-maintainer
+# joins.
+
+# Default owner — everything not matched below
+*                                       @tigers1997
+
+# Legal substrate — touch only with explicit license/maintainer review
+/LICENSE                                @tigers1997
+/NOTICE                                 @tigers1997
+/CLA.md                                 @tigers1997
+/CODE_OF_CONDUCT.md                     @tigers1997
+/CONTRIBUTING.md                        @tigers1997
+/SECURITY.md                            @tigers1997
+/.github/CODEOWNERS                     @tigers1997
+
+# CI integrity — the review gate itself lives here; tampering is a smell
+/.github/workflows/                     @tigers1997
+/.github/pull_request_template.md       @tigers1997
+
+# MIT carve-out boundary — different license rules apply to this subtree
+/templates/discipline-skills/           @tigers1997
+/templates/discipline-skills/LICENSE    @tigers1997
+
+# Core configurator engine — high regression-risk surface
+/configure.py                           @tigers1997
+/config_schema.py                       @tigers1997
