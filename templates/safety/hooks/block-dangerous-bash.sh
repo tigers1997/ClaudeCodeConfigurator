@@ -11,8 +11,9 @@ CMD="$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.s
 
 # Deny list — extend as you find footguns.
 PATTERNS=(
-  'rm[[:space:]]+-rf?[[:space:]]+/($|[[:space:]])'     # rm -rf /
-  'rm[[:space:]]+-rf?[[:space:]]+~($|[[:space:]])'     # rm -rf ~
+  'rm[[:space:]]+-rf?[[:space:]]+/+($|[[:space:]])'    # rm -rf / (also //)
+  'rm[[:space:]]+-rf?[[:space:]]+~/?($|[[:space:]])'   # rm -rf ~ (also ~/, trailing slash)
+  'rm[[:space:]]+-rf?[[:space:]]+"?\$HOME"?/?($|[[:space:]])'  # rm -rf $HOME / "$HOME" (also trailing slash)
   'rm[[:space:]]+-rf?[[:space:]]+\.($|[[:space:]])'    # rm -rf .
   'rm[[:space:]]+-rf?[[:space:]]+\*'                    # rm -rf *
   ':\(\)\{.*\|:&\};:'                                   # fork bomb
