@@ -4,6 +4,9 @@
 # Fail-open posture: any uncertainty → exit 0 with stderr note.
 set -uo pipefail
 
+# Fail-open posture: any uncaught error → exit 0 with stderr note. Never block on internal bug.
+trap 'rc=$?; echo "[check-package-availability] internal error (rc=$rc); not gating" >&2; exit 0' ERR
+
 # Resolve lib paths relative to the installed hook location (.claude/hooks/check-package-availability.sh).
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AVAIL_LIB="${HOOK_DIR}/_lib/availability_check.sh"
@@ -161,19 +164,21 @@ done
 
 # --- Run availability checks ---
 [ -f "$AVAIL_LIB" ] || { echo "[check-package-availability] lib not found at $AVAIL_LIB; not gating" >&2; exit 0; }
-# shellcheck disable=SC1090
-source "$AVAIL_LIB"
 
 declare -a missing=()
 for pkg in "${pkgs[@]}"; do
-  if check_package_available "$pm" "$pkg"; then
+  # Each probe bounded at 3s via timeout; lib is re-sourced inside the subshell.
+  if timeout 3 bash -c '. "$1" && check_package_available "$2" "$3"' _ "$AVAIL_LIB" "$pm" "$pkg"; then
     :  # available — continue
   else
     rc=$?
     if [ "$rc" -eq 1 ]; then
       missing+=("$pkg")
+    elif [ "$rc" -eq 124 ]; then
+      echo "[check-package-availability] $pm probe timed out for '$pkg'; not gating" >&2
+      exit 0
     else
-      # rc=2 inconclusive (probe failure / unknown pm)
+      # rc=2 inconclusive (probe failure / unknown pm) or other non-zero
       echo "[check-package-availability] $pm probe inconclusive for '$pkg' (rc=$rc); not gating" >&2
       exit 0
     fi
