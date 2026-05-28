@@ -4,7 +4,10 @@
 ./.claude/agents/doc-writer.md
 ./.claude/agents/security-auditor.md
 ./.claude/agents/test-runner.md
+./.claude/hooks/_lib/availability_check.sh
+./.claude/hooks/_lib/detect_tool_versions.sh
 ./.claude/hooks/block-dangerous-bash.sh
+./.claude/hooks/check-package-availability.sh
 ./.claude/hooks/format-on-write.sh
 ./.claude/hooks/microbit-enforcer.sh
 ./.claude/hooks/pre-compact-snapshot.sh
