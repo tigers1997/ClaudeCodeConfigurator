@@ -155,7 +155,10 @@ jobs:
           # itself. Anthropics/claude-code-action detects this and exits
           # cleanly with no comment posted. Without this hatch, every PR
           # that touches review.yml would have a permanently-red gate.
-          if gh pr diff "$PR_NUMBER" --name-only | grep -qx '\.github/workflows/review\.yml'; then
+          # Use the API (not `gh pr diff`) because this job has no
+          # checkout; `gh pr diff` falls back to git and fails.
+          changed_files=$(gh api --paginate -X GET "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')
+          if printf '%s\n' "$changed_files" | grep -qx '.github/workflows/review.yml'; then
             echo "::warning::This PR modifies .github/workflows/review.yml. GitHub's workflow-modification safety skips the AI review job on this PR; the workflow will activate on subsequent PRs after merge. Soft-passing the gate."
             exit 0
           fi
