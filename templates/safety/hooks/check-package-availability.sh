@@ -4,8 +4,27 @@
 # Fail-open posture: any uncertainty → exit 0 with stderr note.
 set -uo pipefail
 
+# Always-declared state so _log_decision is safe to call from anywhere (incl. ERR trap).
+declare -a pkgs=()
+declare -a missing=()
+pm=""
+
 # Fail-open posture: any uncaught error → exit 0 with stderr note. Never block on internal bug.
-trap 'rc=$?; echo "[check-package-availability] internal error (rc=$rc); not gating" >&2; exit 0' ERR
+trap 'rc=$?; echo "[check-package-availability] internal error (rc=$rc); not gating" >&2; _log_decision bail internal_error 2>/dev/null || true; exit 0' ERR
+
+# JSONL decision logger. No-op if .claude/logs/ doesn't exist in CWD.
+_log_decision() {
+  local decision="$1" bail_reason="${2:-}"
+  local logs_dir="${PWD}/.claude/logs"
+  [ -d "$logs_dir" ] || return 0
+  local pkgs_csv=""
+  if [ "${#pkgs[@]}" -gt 0 ]; then
+    pkgs_csv=$(IFS=,; echo "${pkgs[*]}")
+  fi
+  printf '{"timestamp":"%s","decision":"%s","pm":"%s","pkgs":"%s","bail_reason":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$decision" "$pm" "$pkgs_csv" "$bail_reason" \
+    >> "$logs_dir/availability-check.log"
+}
 
 # Resolve lib paths relative to the installed hook location (.claude/hooks/check-package-availability.sh).
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,7 +74,6 @@ bin="${tokens[0]}"
 subcmd="${tokens[1]}"
 
 # --- Match package manager + subcommand ---
-pm=""
 case "$bin" in
   apt|apt-get)
     case "$subcmd" in
@@ -104,8 +122,7 @@ declare -a value_flags_pacman=("--config" "--dbpath" "--root")
 declare -a value_flags_apk=("--repository" "--keys-dir")
 
 skip_next=0
-declare -a pkgs=()
-i=2  # tokens[0]=bin, tokens[1]=subcmd
+i=2  # tokens[0]=bin, tokens[1]=subcmd; pkgs already declared at top
 while [ "$i" -lt "${#tokens[@]}" ]; do
   tok="${tokens[$i]}"
   i=$((i+1))
@@ -165,7 +182,6 @@ done
 # --- Run availability checks ---
 [ -f "$AVAIL_LIB" ] || { echo "[check-package-availability] lib not found at $AVAIL_LIB; not gating" >&2; exit 0; }
 
-declare -a missing=()
 for pkg in "${pkgs[@]}"; do
   # Each probe bounded at 3s via timeout; lib is re-sourced inside the subshell.
   if timeout 3 bash -c '. "$1" && check_package_available "$2" "$3"' _ "$AVAIL_LIB" "$pm" "$pkg"; then
@@ -186,7 +202,10 @@ for pkg in "${pkgs[@]}"; do
 done
 
 # All available?
-[ "${#missing[@]}" -eq 0 ] && exit 0
+if [ "${#missing[@]}" -eq 0 ]; then
+  _log_decision allow
+  exit 0
+fi
 
 # --- DENY ---
 
@@ -294,4 +313,5 @@ detected_version_for_pkg() {
   fi
 } >&2
 
+_log_decision deny
 exit 2
