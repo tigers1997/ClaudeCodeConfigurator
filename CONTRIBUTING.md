@@ -8,10 +8,10 @@ See [`SECURITY.md`](SECURITY.md) for vulnerability reporting — **do not** file
 ## Your rights as a contributor
 
 - You keep copyright on your code. You can use your own contribution elsewhere.
-- You grant the project the right to use, modify, sublicense, and **sell** your contribution under any license, by signing the project's CLA on your first pull request (handled automatically by the cla-assistant.io bot).
+- You grant the project the right to use, modify, sublicense, and **sell** your contribution under any license, by signing the **SAP Individual Contributor License Agreement** on your first pull request (presented automatically by the cla-assistant.io bot; one-time per contributor).
 - You will not be paid for contributions unless a separate written agreement says so.
 - The AGPL-3.0 version of the project will remain available under AGPL-3.0. Your contributions don't get retroactively closed-sourced from the community.
-- Contributions to `templates/discipline-skills/` are governed by **MIT** (the subtree's own license), not AGPL. The CLA reflects this carve-out.
+- Contributions to `templates/discipline-skills/` are governed by **MIT** (the subtree's own LICENSE file), not AGPL. The subtree's LICENSE file is the authoritative governance for those files; the SAP ICLA's broad sublicensing grant applies to the surrounding AGPL-3.0 code.
 - The CLA only covers what you submit after signing; it doesn't retroactively cover prior contributions.
 
 ## License compatibility checklist
@@ -52,11 +52,12 @@ The PR body is auto-populated from `.github/pull_request_template.md`. Fill chec
 
 **On your first PR:** cla-assistant will comment with a one-click sign link. The `license/cla` status check stays red until you sign. Sign once; future PRs are auto-recognized.
 
-**Three required status checks must be green to merge:**
+**Required status checks (all must be green to merge):**
 
 1. `check` — static validation + smoke tests + fixture tests + persona snapshots.
-2. `review` — automated AI code review (see § "The review gate" below).
-3. `license/cla` — CLA signature confirmation.
+2. `ai-review` — the `anthropics/claude-code-action@v1` run itself. Succeeds when the action completes (including the GitHub workflow-modification skip).
+3. `verdict-gate` — parses the latest review comment for `VERDICT: PASS|BLOCK|COMMENT-ONLY` and fails on `BLOCK` or missing-VERDICT. This is the load-bearing review gate.
+4. `license/cla` — CLA signature confirmation from cla-assistant.io (added to the ruleset after the first PR establishes the exact check name).
 
 ## The review gate
 
@@ -69,11 +70,13 @@ Every PR is reviewed by [`anthropics/claude-code-action`](https://github.com/ant
 - Schema-claim hygiene (settings.json keys cross-checked against [SchemaStore](https://github.com/SchemaStore/schemastore)).
 - Scope creep (multiple unrelated changes in one PR).
 
-Findings post as a PR comment. Blocking findings fail the `review` check. **No merge is possible while `review` is failing — including for the maintainer.**
+Findings post as a single PR conversation comment beginning with `VERDICT: PASS|BLOCK|COMMENT-ONLY`. A follow-up `verdict-gate` job parses that line; `VERDICT: BLOCK` or missing-VERDICT fails the gate. **No merge is possible while `verdict-gate` is failing — including for the maintainer.**
 
-To re-trigger after addressing findings: push a new commit, or comment `/claude review` on the PR.
+To re-trigger after addressing findings: push a new commit, or comment `@claude review` on the PR.
 
 To dispute a finding: reply in the PR thread. The maintainer can re-prompt the action with overriding context. Hard override of the gate itself is rare, requires written justification in the PR body, and is recorded in `CHANGELOG.md` under `### Notes`.
+
+**Self-bootstrap escape hatch.** When a PR modifies `.github/workflows/review.yml` itself, GitHub silently skips the modified workflow (a security measure). `verdict-gate` detects this case via the PR's file list and soft-passes — otherwise every workflow-edit PR would have a permanently-red gate.
 
 ## CHANGELOG, squash-merge, versioning
 
@@ -86,12 +89,13 @@ To dispute a finding: reply in the PR thread. The maintainer can re-prompt the a
 The settings below are enforced on `main` via `MainBrnchRuleset` (canonical export in [`docs/governance/branch-protection.json`](docs/governance/branch-protection.json)):
 
 - PR required (no direct push).
-- Required status checks: `check`, `review`, `license/cla`.
-- Required signed commits.
+- Required status checks: `check`, `ai-review`, `verdict-gate`, and `license/cla` (added after the first PR establishes the exact check name).
+- Required signed commits (GPG or SSH).
 - Required linear history.
-- Required conversation resolution before merge.
+- Required conversation resolution before merge (nested under "Require a pull request before merging" in the GitHub ruleset UI).
 - Force-push blocked.
-- "Include administrators" ON — the maintainer is also bound by the gate.
+- Branch-deletion blocked.
+- Bypass actors: none — the maintainer is bound by the gate.
 
 Any change to the ruleset gets a corresponding update to `branch-protection.json` and a CHANGELOG entry under `### Changed`.
 
