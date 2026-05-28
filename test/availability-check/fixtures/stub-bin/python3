@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+echo "Python 3.13.1"

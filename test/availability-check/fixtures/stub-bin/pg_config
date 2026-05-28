@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+echo "PostgreSQL 17.4"

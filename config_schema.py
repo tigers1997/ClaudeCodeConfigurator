@@ -22,10 +22,13 @@ MODULES = [
     {
         "id": "safety",
         "title": "Safety hooks + bypass lockout",
-        "description": "PreToolUse hooks (block dangerous bash: rm -rf, sudo, curl | sh, force push, hard reset) + scan Write/Edit for secrets. Also sets permissions.disableBypassPermissionsMode='disable' so --dangerously-skip-permissions cannot be used in this project.",
+        "description": "PreToolUse hooks (block dangerous bash: rm -rf, sudo, curl | sh, force push, hard reset; gate apt/brew/dnf/yum/pacman/apk install for packages not in any configured repo) + scan Write/Edit for secrets. Also sets permissions.disableBypassPermissionsMode='disable' so --dangerously-skip-permissions cannot be used in this project.",
         "paths": [
             "safety/hooks/block-dangerous-bash.sh",
             "safety/hooks/scan-secrets.sh",
+            "safety/hooks/check-package-availability.sh",
+            "safety/hooks/_lib/availability_check.sh",
+            "safety/hooks/_lib/detect_tool_versions.sh",
         ],
         "settingsPatch": "safety/settings-patch.json",
         "flags": {
@@ -268,7 +271,7 @@ MODULES = [
     {
         "id": "ui",
         "title": "Custom status line + plan output style",
-        "description": "Status line script (project dir | branch | model | context %), an alternative 'last-prompt' status line, and a 'plan' output style.",
+        "description": "Status line script (project dir | branch | model | context % | OS+tool-version chip), an alternative 'last-prompt' status line, and a 'plan' output style.",
         "paths": [
             "ui/statusline.sh",
             "ui/statusline-last-prompt.sh",
@@ -287,6 +290,13 @@ MODULES = [
             # 2026-05-24 because the `// foo` stub keys propagated to user
             # settings.json and triggered schema-validator complaints —
             # see CHANGELOG for the dogfood-driven correction.
+        },
+        "flags": {
+            "no_version_chip": {
+                "default": False,
+                "description": "Omit the OS+tool-version chip from the status line (e.g., for narrow terminals or privacy).",
+                "extraSettingsEnv": {"CC_STATUSLINE_NO_VERSION_CHIP": "1"},
+            },
         },
     },
 ]

@@ -11,6 +11,18 @@ set -euo pipefail
 # stdin → env var so the heredoc below stays stdin-free for the Python reader.
 export CC_STATUSLINE_INPUT="$(cat)"
 
+# Optional OS+tool-version chip from safety/_lib (silently absent when safety
+# module isn't installed). Opt out by exporting CC_STATUSLINE_NO_VERSION_CHIP=1.
+export CC_STATUSLINE_CHIP=""
+if [ -z "${CC_STATUSLINE_NO_VERSION_CHIP:-}" ]; then
+  __chip_lib="${CLAUDE_PROJECT_DIR:-$PWD}/.claude/hooks/_lib/detect_tool_versions.sh"
+  if [ -r "$__chip_lib" ]; then
+    # shellcheck disable=SC1090
+    CC_STATUSLINE_CHIP=$(. "$__chip_lib" && emit_version_chip 2>/dev/null) || CC_STATUSLINE_CHIP=""
+    export CC_STATUSLINE_CHIP
+  fi
+fi
+
 python3 <<'PY'
 import json, os, subprocess
 from pathlib import Path
@@ -63,6 +75,10 @@ if effort:
     parts.append(f"effort {effort}")
 if thinking:
     parts.append(f"{Y}think{R}")
+
+chip = os.environ.get("CC_STATUSLINE_CHIP", "").strip()
+if chip:
+    parts.append(f"{D}{chip}{R}")
 
 print(sep.join(parts), end="")
 PY
