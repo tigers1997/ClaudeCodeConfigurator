@@ -1,0 +1,195 @@
+name: review
+
+# AI code-review gate for every PR.
+# Two jobs:
+#   1. ai-review     — runs anthropics/claude-code-action with a repo-specific
+#                      prompt. With `prompt:` set, the action enters AGENT MODE
+#                      (no auto comment posting); Claude must explicitly post
+#                      via `gh pr comment`. The prompt requires the model to
+#                      lead its review body with `VERDICT: PASS|BLOCK|COMMENT-ONLY`.
+#   2. verdict-gate  — runs even on ai-review failure (always() in if:), parses
+#                      the latest VERDICT line from PR comments, fails the
+#                      workflow on `BLOCK` or missing VERDICT. Branch protection
+#                      requires `review` as a status check.
+#
+# Manual re-trigger: comment `@claude review` on the PR.
+# Drafts skipped via the if: gate on pull_request.draft.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write  # required by claude-code-action for its GitHub OIDC auth (not Anthropic federation)
+
+jobs:
+  ai-review:
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      || (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-sonnet-4-6
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Read,Grep,Glob,WebFetch"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+
+            You are reviewing a PR for ClaudeCodeConfigurator, an AGPL-3.0
+            licensed Python tool that scaffolds Claude Code configurations
+            into target projects.
+
+            ## Step 1 — read context
+
+            Read first:
+              - CONTRIBUTING.md (the contributor contract)
+              - CHANGELOG.md (project tone + pending changes under `## Unreleased`)
+              - The PR diff via `gh pr diff $PR_NUMBER` (or `git diff origin/main...HEAD`)
+
+            ## Step 2 — produce a review
+
+            Decide on a single verdict:
+
+              VERDICT: PASS         — nothing blocking, nothing worth commenting on
+              VERDICT: BLOCK        — at least one BLOCKING finding (see § "Block on" below)
+              VERDICT: COMMENT-ONLY — advisory findings only; nothing blocking
+
+            ## Step 3 — post the review as a PR conversation comment
+
+            Post EXACTLY ONE PR conversation comment via:
+
+              gh pr comment $PR_NUMBER --body "<review body>"
+
+            The review body MUST begin on its own line with the verdict, in
+            unwrapped plain text (no bold, no quotes, no list prefix):
+
+              VERDICT: PASS
+
+            (or BLOCK / COMMENT-ONLY). A separate workflow job parses this line
+            and fails the merge gate on BLOCK. Without this line the gate fails
+            with "no VERDICT found".
+
+            After the verdict line, group findings under:
+              ## Blocking
+              ## Advisory
+
+            Cite paths with line numbers (path:line) where applicable. Do not
+            post inline review comments — use only the single conversation
+            comment. If you need to update your own previous comment for the
+            same VERDICT line, post a fresh comment; the gate picks the latest.
+
+            ## Block on
+
+            1. Correctness or regression risk — broken validation, broken
+               persona snapshots under `examples/persona-*/`, broken fixture
+               tests under `test/`.
+
+            2. AGPL contamination — third-party code added without a
+               corresponding `NOTICE` entry, or code under an
+               AGPL-3.0-incompatible license (proprietary, GPL-2-only,
+               unknown).
+
+            3. `templates/discipline-skills/` MIT integrity — code added to
+               that subtree that is NOT MIT-or-compatible. The subtree
+               carries its own LICENSE file and must stay MIT-clean.
+
+            4. Missing `CHANGELOG.md` `## Unreleased` entry when the change
+               is user-visible (feat/fix/BREAKING). Docs/chore PRs may skip.
+
+            5. Schema-claim hygiene — if the PR adds keys to a settings.json
+               schema or templates, cross-check against
+               https://github.com/SchemaStore/schemastore. Cite the source.
+
+            6. Scope creep — multiple unrelated changes in one PR. Recommend
+               splitting.
+
+            ## Comment (COMMENT-ONLY) on
+
+            Style nits, naming, doc clarity, refactor opportunities,
+            additional test coverage suggestions where existing tests pass.
+
+            ## Pass
+
+            Nothing blocking, nothing worth commenting on. One sentence under
+            the verdict is enough.
+
+  verdict-gate:
+    needs: ai-review
+    if: |
+      always() &&
+      (
+        (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+        || (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review'))
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Parse latest review comment for VERDICT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Self-bootstrap escape hatch.
+          # GitHub silently skips a workflow's body when the workflow file
+          # itself is being modified by the PR — a security measure that
+          # stops a malicious PR from running a tampered workflow against
+          # itself. Anthropics/claude-code-action detects this and exits
+          # cleanly with no comment posted. Without this hatch, every PR
+          # that touches review.yml would have a permanently-red gate.
+          # Use the API (not `gh pr diff`) because this job has no
+          # checkout; `gh pr diff` falls back to git and fails.
+          changed_files=$(gh api --paginate -X GET "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')
+          if printf '%s\n' "$changed_files" | grep -qx '.github/workflows/review.yml'; then
+            echo "::warning::This PR modifies .github/workflows/review.yml. GitHub's workflow-modification safety skips the AI review job on this PR; the workflow will activate on subsequent PRs after merge. Soft-passing the gate."
+            exit 0
+          fi
+
+          echo "Looking for the latest VERDICT line in PR #$PR_NUMBER comments..."
+
+          # Paginate in case the PR has accumulated >30 comments.
+          body=$(gh api --paginate -X GET \
+            "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select(.body | test("VERDICT:"))] | sort_by(.created_at) | last | .body // ""')
+
+          if [ -z "$body" ]; then
+            echo "::error::No comment with a VERDICT: line found. The ai-review job may have failed before posting, or Claude did not include the VERDICT line."
+            exit 1
+          fi
+
+          verdict=$(printf '%s' "$body" | grep -m1 -oE 'VERDICT: (PASS|BLOCK|COMMENT-ONLY)' || true)
+          echo "Detected verdict: $verdict"
+
+          case "$verdict" in
+            "VERDICT: BLOCK")
+              echo "::error::Review verdict is BLOCK — failing the gate."
+              exit 1
+              ;;
+            "VERDICT: PASS"|"VERDICT: COMMENT-ONLY")
+              echo "Review verdict accepted."
+              ;;
+            *)
+              echo "::error::Could not parse VERDICT from latest review comment."
+              echo "Comment body (first 500 chars):"
+              printf '%s' "$body" | head -c 500
+              exit 1
+              ;;
+          esac
