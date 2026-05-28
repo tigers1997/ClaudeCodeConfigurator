@@ -278,6 +278,20 @@ detected_version_for_pkg() {
   printf '  • Pick an available version above, OR\n'
   printf '  • Configure the upstream repo first (then re-run), OR\n'
   printf '  • Recheck the package name\n'
+
+  # Stale-cache warning (apt only).
+  if [ "$pm" = "apt" ]; then
+    lists_dir="${APT_LISTS_DIR:-/var/lib/apt/lists}"
+    if [ -d "$lists_dir" ]; then
+      if mtime=$(stat -c %Y "$lists_dir" 2>/dev/null); then
+        now=$(date +%s)
+        age_days=$(( (now - mtime) / 86400 ))
+        if [ "$age_days" -gt 7 ]; then
+          printf '\n⚠ apt cache is %d days old; consider '\''apt update'\'' before trusting this denial\n' "$age_days"
+        fi
+      fi
+    fi
+  fi
 } >&2
 
 exit 2
