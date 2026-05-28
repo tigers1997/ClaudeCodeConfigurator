@@ -57,7 +57,7 @@ The PR body is auto-populated from `.github/pull_request_template.md`. Fill chec
 1. `check` — static validation + smoke tests + fixture tests + persona snapshots.
 2. `ai-review` — the `anthropics/claude-code-action@v1` run itself. Succeeds when the action completes (including the GitHub workflow-modification skip).
 3. `verdict-gate` — parses the latest review comment for `VERDICT: PASS|BLOCK|COMMENT-ONLY` and fails on `BLOCK` or missing-VERDICT. This is the load-bearing review gate.
-4. `license/cla` — CLA signature confirmation from cla-assistant.io. Source pin is "Any source" because cla-assistant uses the legacy Statuses API rather than the Check Runs API; the requirement still satisfies on exact name match.
+4. `license/cla` — CLA signature confirmation from cla-assistant.io. Source pin is "Any source" because cla-assistant uses the legacy Statuses API rather than the Check Runs API; the name-match requirement remains fully enforced.
 
 ## The review gate
 

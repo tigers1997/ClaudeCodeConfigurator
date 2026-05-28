@@ -10,7 +10,7 @@ name: review
 #   2. verdict-gate  — runs even on ai-review failure (always() in if:), parses
 #                      the latest VERDICT line from PR comments, fails the
 #                      workflow on `BLOCK` or missing VERDICT. Branch protection
-#                      requires `review` as a status check.
+#                      requires both `ai-review` and `verdict-gate` as status checks.
 #
 # Manual re-trigger: comment `@claude review` on the PR.
 # Drafts skipped via the if: gate on pull_request.draft.
