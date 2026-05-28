@@ -22,10 +22,13 @@ MODULES = [
     {
         "id": "safety",
         "title": "Safety hooks + bypass lockout",
-        "description": "PreToolUse hooks (block dangerous bash: rm -rf, sudo, curl | sh, force push, hard reset) + scan Write/Edit for secrets. Also sets permissions.disableBypassPermissionsMode='disable' so --dangerously-skip-permissions cannot be used in this project.",
+        "description": "PreToolUse hooks (block dangerous bash: rm -rf, sudo, curl | sh, force push, hard reset; gate apt/brew/dnf/yum/pacman/apk install for packages not in any configured repo) + scan Write/Edit for secrets. Also sets permissions.disableBypassPermissionsMode='disable' so --dangerously-skip-permissions cannot be used in this project.",
         "paths": [
             "safety/hooks/block-dangerous-bash.sh",
             "safety/hooks/scan-secrets.sh",
+            "safety/hooks/check-package-availability.sh",
+            "safety/hooks/_lib/availability_check.sh",
+            "safety/hooks/_lib/detect_tool_versions.sh",
         ],
         "settingsPatch": "safety/settings-patch.json",
         "flags": {
