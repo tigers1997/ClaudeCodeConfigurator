@@ -125,3 +125,13 @@ jobs:
           for t in test/verify-setup/test-*.sh; do
             bash "$t"
           done
+
+      - name: Install jq for availability-check tests
+        run: sudo apt-get install -y jq
+
+      - name: Availability-check hook tests
+        run: |
+          set -e
+          for t in test/availability-check/test-*.sh; do
+            bash "$t"
+          done
