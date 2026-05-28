@@ -147,6 +147,19 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+
+          # Self-bootstrap escape hatch.
+          # GitHub silently skips a workflow's body when the workflow file
+          # itself is being modified by the PR — a security measure that
+          # stops a malicious PR from running a tampered workflow against
+          # itself. Anthropics/claude-code-action detects this and exits
+          # cleanly with no comment posted. Without this hatch, every PR
+          # that touches review.yml would have a permanently-red gate.
+          if gh pr diff "$PR_NUMBER" --name-only | grep -qx '\.github/workflows/review\.yml'; then
+            echo "::warning::This PR modifies .github/workflows/review.yml. GitHub's workflow-modification safety skips the AI review job on this PR; the workflow will activate on subsequent PRs after merge. Soft-passing the gate."
+            exit 0
+          fi
+
           echo "Looking for the latest VERDICT line in PR #$PR_NUMBER comments..."
 
           # Paginate in case the PR has accumulated >30 comments.
