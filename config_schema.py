@@ -413,19 +413,28 @@ CLAUDE_CODE_COMPAT = {
                                 # forms (doc-only in safety/git-workflow patches).
                                 # Five new env vars also schema-validated and
                                 # mention-only in module docs: ANTHROPIC_WORKSPACE_ID,
-                                # CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE,
+                                # CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE (DEPRECATED
+                                # in CC 2.1.154; removed 2026-06-01),
                                 # CLAUDE_CODE_PLUGIN_PREFER_HTTPS,
                                 # CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY,
                                 # CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (safety patch).
                                 # 2.1.147-150 resurvey (2026-05-23): only one new
                                 # configurator-adjacent key (allowAllClaudeAiMcps,
-                                # 2.1.149) — Enterprise managed setting, outside
-                                # configurator territory. /simplify → /code-review
-                                # rename (2.1.146) does not collide with /review.
-                                # Still held for a future schemastore sync PR:
-                                # hook output `terminalSequence` (2.1.147); Stop /
-                                # SubagentStop hook input `background_tasks` +
-                                # `session_crons` fields (2.1.149).
+                                # 2.1.149) - Enterprise managed setting, outside
+                                # configurator territory. /simplify -> /code-review
+                                # rename (2.1.146) does not collide with /review;
+                                # 2.1.154 made /simplify cleanup-only again (still no
+                                # collision).
+                                # Hook-payload fields once parked here are NOT
+                                # SchemaStore-gated (payloads are doc-governed, not
+                                # settings.json) and are doc-cleared/ready to ship:
+                                # hook output `terminalSequence` (CC 2.1.141); Stop /
+                                # SubagentStop input `background_tasks` +
+                                # `session_crons` (CC 2.1.145).
+                                # 2.1.151-154 survey (2026-05-28): no new in-territory
+                                # settings.json keys; SchemaStore sync PR #5723 still
+                                # open, so tested_up_to stays pinned (bump bundles
+                                # with the next release per the no-lone-bumps rule).
 }
 
 

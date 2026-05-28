@@ -63,6 +63,13 @@ jobs:
             bash "$t"
           done
 
+      - name: Safety hook fixture tests
+        run: |
+          set -e
+          for t in test/safety/test-*.sh; do
+            bash "$t"
+          done
+
       - name: Efficiency-placeholder fixture tests
         run: |
           set -e
