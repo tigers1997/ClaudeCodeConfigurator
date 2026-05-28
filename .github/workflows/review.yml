@@ -1,0 +1,157 @@
+name: review
+
+# AI code-review gate for every PR.
+# Two jobs:
+#   1. ai-review     — runs anthropics/claude-code-action with a repo-specific prompt;
+#                      posts the review as a PR comment; the prompt requires the model
+#                      to lead with `VERDICT: PASS|BLOCK|COMMENT-ONLY`.
+#   2. verdict-gate  — parses the latest review comment for that VERDICT line and
+#                      fails the workflow on `VERDICT: BLOCK`, so branch protection
+#                      can require `review` as a status check.
+#
+# Manual re-trigger: comment `@claude review` on the PR.
+# Drafts skipped via the if: gate on pull_request.draft.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
+
+jobs:
+  ai-review:
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      || (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@claude review"
+          claude_args: |
+            --model claude-sonnet-4-6
+            --allowed-tools Read,Grep,Glob,WebFetch
+          prompt: |
+            You are reviewing a PR for ClaudeCodeConfigurator, an AGPL-3.0
+            licensed Python tool that scaffolds Claude Code configurations
+            into target projects.
+
+            Read first: CONTRIBUTING.md (the contributor contract),
+            CHANGELOG.md (project tone and pending changes), and the PR diff.
+
+            ## Output format (REQUIRED)
+
+            Your comment MUST begin with exactly one of these single lines:
+
+              VERDICT: PASS
+              VERDICT: BLOCK
+              VERDICT: COMMENT-ONLY
+
+            A separate workflow job greps for that line and fails the
+            `review` status check on `VERDICT: BLOCK`. Without the line,
+            the gate may misfire.
+
+            After the verdict line, group findings under:
+              ## Blocking
+              ## Advisory
+
+            Cite file paths with line numbers (path:line) where applicable.
+
+            ## Set VERDICT: BLOCK for any of these
+
+            1. Correctness or regression risk — broken validation, broken
+               persona snapshots under `examples/persona-*/`, broken fixture
+               tests under `test/`.
+
+            2. AGPL contamination — third-party code added without a
+               corresponding `NOTICE` entry, or code under an
+               AGPL-3.0-incompatible license (proprietary, GPL-2-only,
+               unknown).
+
+            3. `templates/discipline-skills/` MIT integrity — code added to
+               that subtree that is NOT MIT-or-compatible. The subtree
+               carries its own LICENSE file and must stay MIT-clean.
+
+            4. Missing `CHANGELOG.md` `## Unreleased` entry when the change
+               is user-visible (feat/fix/BREAKING). Docs/chore PRs may skip.
+
+            5. Schema-claim hygiene — if the PR adds keys to a settings.json
+               schema or templates, cross-check against
+               https://github.com/SchemaStore/schemastore. Cite the source.
+
+            6. Scope creep — multiple unrelated changes in one PR. Recommend
+               splitting.
+
+            ## Comment (VERDICT: COMMENT-ONLY) for advisory findings
+
+            Style nits, naming, doc clarity, refactor opportunities,
+            additional test coverage suggestions where the existing tests
+            pass.
+
+            ## Set VERDICT: PASS when
+
+            Nothing blocking, nothing worth commenting on. Be concise — one
+            sentence under the verdict is enough.
+
+  verdict-gate:
+    needs: ai-review
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      || (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude review'))
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Parse latest review comment for VERDICT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "Looking for the latest VERDICT line in PR #$PR_NUMBER comments..."
+
+          # Get the most recent comment that contains a VERDICT: line.
+          # The ai-review job has already completed (we needs: it), so the
+          # newest VERDICT comment is the one from this run.
+          body=$(gh api -X GET \
+            "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select(.body | test("VERDICT:"))] | sort_by(.created_at) | last | .body // ""')
+
+          if [ -z "$body" ]; then
+            echo "::error::No comment with a VERDICT: line found. The ai-review job may have failed to post."
+            echo "Failing the gate — the model must lead its review with VERDICT: PASS|BLOCK|COMMENT-ONLY."
+            exit 1
+          fi
+
+          verdict=$(printf '%s' "$body" | grep -m1 -oE 'VERDICT: (PASS|BLOCK|COMMENT-ONLY)' || true)
+          echo "Detected verdict: $verdict"
+
+          case "$verdict" in
+            "VERDICT: BLOCK")
+              echo "::error::Review verdict is BLOCK — failing the gate."
+              exit 1
+              ;;
+            "VERDICT: PASS"|"VERDICT: COMMENT-ONLY")
+              echo "Review verdict accepted."
+              ;;
+            *)
+              echo "::error::Could not parse VERDICT from latest review comment."
+              echo "Comment body (first 500 chars):"
+              printf '%s' "$body" | head -c 500
+              exit 1
+              ;;
+          esac

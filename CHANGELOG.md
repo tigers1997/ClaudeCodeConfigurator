@@ -17,6 +17,7 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 - `.github/CODEOWNERS` — sensitive-surface map (legal substrate, CI integrity, discipline-skills MIT carve-out, core engine paths).
 - `.github/pull_request_template.md` — checklist mapped 1:1 to required CI checks.
 - `README.md` Contributing section shrunk to a pointer; the substance moved to `CONTRIBUTING.md`.
+- `.github/workflows/review.yml` — AGPL-aware AI code-review gate via `anthropics/claude-code-action@v1` running `claude-sonnet-4-6`. The `ai-review` job posts a verdict-led review comment; the follow-up `verdict-gate` job parses the latest `VERDICT: PASS|BLOCK|COMMENT-ONLY` line and fails the workflow on `BLOCK` so branch protection can require `review` as a status check. Manual re-trigger via `@claude review` PR comment. Drafts skipped. Action v1 input names (no `model`/`allowed_tools` direct inputs — both move under `claude_args`).
 
 ## [2.6.0] — 2026-05-23
 
