@@ -271,7 +271,7 @@ MODULES = [
     {
         "id": "ui",
         "title": "Custom status line + plan output style",
-        "description": "Status line script (project dir | branch | model | context %), an alternative 'last-prompt' status line, and a 'plan' output style.",
+        "description": "Status line script (project dir | branch | model | context % | OS+tool-version chip), an alternative 'last-prompt' status line, and a 'plan' output style.",
         "paths": [
             "ui/statusline.sh",
             "ui/statusline-last-prompt.sh",
@@ -290,6 +290,13 @@ MODULES = [
             # 2026-05-24 because the `// foo` stub keys propagated to user
             # settings.json and triggered schema-validator complaints —
             # see CHANGELOG for the dogfood-driven correction.
+        },
+        "flags": {
+            "no_version_chip": {
+                "default": False,
+                "description": "Omit the OS+tool-version chip from the status line (e.g., for narrow terminals or privacy).",
+                "extraSettingsEnv": {"CC_STATUSLINE_NO_VERSION_CHIP": "1"},
+            },
         },
     },
 ]
