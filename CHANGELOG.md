@@ -12,12 +12,12 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 
-- `CONTRIBUTING.md` — AGPL-aware contributor flow with "Your rights as a contributor" section, license-compatibility checklist, and branch-protection contract.
-- `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1, enforcement contact matches `SECURITY.md`.
-- `.github/CODEOWNERS` — sensitive-surface map (legal substrate, CI integrity, discipline-skills MIT carve-out, core engine paths).
-- `.github/pull_request_template.md` — checklist mapped 1:1 to required CI checks.
-- `README.md` Contributing section shrunk to a pointer; the substance moved to `CONTRIBUTING.md`.
-- `.github/workflows/review.yml` — AGPL-aware AI code-review gate via `anthropics/claude-code-action@v1` running `claude-sonnet-4-6`. The `ai-review` job runs the action in agent mode (`prompt:` set); Claude reads CONTRIBUTING/CHANGELOG + the PR diff via `gh pr diff`, then posts ONE PR conversation comment beginning with `VERDICT: PASS|BLOCK|COMMENT-ONLY` using `gh pr comment`. The follow-up `verdict-gate` job (always() so it runs even if ai-review fails) paginates `repos/$REPO/issues/$PR_NUMBER/comments`, picks the latest `VERDICT:` line, and fails the workflow on `BLOCK` or missing-VERDICT so branch protection can require `review` as a status check. Self-bootstrap escape hatch: when the PR diff modifies `review.yml` itself, `verdict-gate` soft-passes (GitHub's workflow-modification safety skips the action, leaving no comment to parse — without this, every workflow-edit PR would have a permanently-red gate). Manual re-trigger via `@claude review` PR comment. Drafts skipped. Action v1 input shape (no deprecated `model`/`allowed_tools` direct inputs — both moved under `claude_args` as `--model` and `--allowedTools`, camelCase per CLI reference).
+- `CONTRIBUTING.md` — AGPL-aware contributor flow with "Your rights as a contributor" section, license-compatibility checklist, and branch-protection contract. (#64, 96a8d95)
+- `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1, enforcement contact matches `SECURITY.md`. (#64, 96a8d95)
+- `.github/CODEOWNERS` — sensitive-surface map (legal substrate, CI integrity, discipline-skills MIT carve-out, core engine paths). (#64, 96a8d95)
+- `.github/pull_request_template.md` — checklist mapped 1:1 to required CI checks. (#64, 96a8d95)
+- `README.md` Contributing section shrunk to a pointer; the substance moved to `CONTRIBUTING.md`. (#64, 96a8d95)
+- `.github/workflows/review.yml` — AGPL-aware AI code-review gate via `anthropics/claude-code-action@v1` running `claude-sonnet-4-6`. The `ai-review` job runs the action in agent mode (`prompt:` set); Claude reads CONTRIBUTING/CHANGELOG + the PR diff via `gh pr diff`, then posts ONE PR conversation comment beginning with `VERDICT: PASS|BLOCK|COMMENT-ONLY` using `gh pr comment`. The follow-up `verdict-gate` job (always() so it runs even if ai-review fails) paginates `repos/$REPO/issues/$PR_NUMBER/comments`, picks the latest `VERDICT:` line, and fails the workflow on `BLOCK` or missing-VERDICT so branch protection can require `review` as a status check. Self-bootstrap escape hatch: when the PR diff modifies `review.yml` itself, `verdict-gate` soft-passes (GitHub's workflow-modification safety skips the action, leaving no comment to parse — without this, every workflow-edit PR would have a permanently-red gate). Manual re-trigger via `@claude review` PR comment. Drafts skipped. Action v1 input shape (no deprecated `model`/`allowed_tools` direct inputs — both moved under `claude_args` as `--model` and `--allowedTools`, camelCase per CLI reference). (#65, 98b00f5)
 
 ## [2.6.0] — 2026-05-23
 
