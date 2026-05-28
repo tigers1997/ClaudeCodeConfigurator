@@ -25,7 +25,7 @@ Before you add third-party code anywhere:
 
 ## Development setup
 
-Requires Python 3.11+ (CI runs 3.11; locally any 3.11+ works).
+Requires Python 3.8+ (same floor as the runtime; CI runs 3.11).
 
 ```bash
 git clone https://github.com/tigers1997/ClaudeCodeConfigurator.git

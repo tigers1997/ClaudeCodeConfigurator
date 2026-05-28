@@ -12,7 +12,7 @@
 
 ## Scope
 - [ ] One logical change. (Multiple unrelated changes → separate PRs.)
-- Modules affected: <!-- e.g. core, multi-agent, github-actions, mcp, lockdown, ui, experiments-memory, discipline-skills -->
+- Modules affected: <!-- e.g. core, commands, multi-agent, mcp, ui, discipline-skills, git-workflow, safety -->
 - Personas affected: <!-- e.g. solo-newer, solo-experienced, small-team, library-author, custom; or "snapshot unchanged" -->
 
 ## Tests
