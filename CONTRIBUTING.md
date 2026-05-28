@@ -57,7 +57,7 @@ The PR body is auto-populated from `.github/pull_request_template.md`. Fill chec
 1. `check` — static validation + smoke tests + fixture tests + persona snapshots.
 2. `ai-review` — the `anthropics/claude-code-action@v1` run itself. Succeeds when the action completes (including the GitHub workflow-modification skip).
 3. `verdict-gate` — parses the latest review comment for `VERDICT: PASS|BLOCK|COMMENT-ONLY` and fails on `BLOCK` or missing-VERDICT. This is the load-bearing review gate.
-4. `license/cla` — CLA signature confirmation from cla-assistant.io (added to the ruleset after the first PR establishes the exact check name).
+4. `license/cla` — CLA signature confirmation from cla-assistant.io. Source pin is "Any source" because cla-assistant uses the legacy Statuses API rather than the Check Runs API; the requirement still satisfies on exact name match.
 
 ## The review gate
 
@@ -89,7 +89,7 @@ To dispute a finding: reply in the PR thread. The maintainer can re-prompt the a
 The settings below are enforced on `main` via `MainBrnchRuleset` (canonical export in [`docs/governance/branch-protection.json`](docs/governance/branch-protection.json)):
 
 - PR required (no direct push).
-- Required status checks: `check`, `ai-review`, `verdict-gate`, and `license/cla` (added after the first PR establishes the exact check name).
+- Required status checks: `check`, `ai-review`, `verdict-gate`, and `license/cla` (the last pinned "Any source" because cla-assistant.io uses the legacy Statuses API).
 - Required signed commits (GPG or SSH).
 - Required linear history.
 - Required conversation resolution before merge (nested under "Require a pull request before merging" in the GitHub ruleset UI).
