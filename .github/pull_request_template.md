@@ -8,11 +8,11 @@
 - [ ] docs — documentation only
 - [ ] chore — tooling, CI, release plumbing
 - [ ] refactor — no behavioral change
-- [ ] BREAKING — invalidates `.claude-config.json` or rewrites template paths (major bump)
+- [ ] BREAKING — signaled via `!` suffix on the type (e.g. `feat!:`) or a `BREAKING CHANGE:` footer; invalidates `.claude-config.json` or rewrites template paths (major bump)
 
 ## Scope
 - [ ] One logical change. (Multiple unrelated changes → separate PRs.)
-- Modules affected: <!-- e.g. core, commands, multi-agent, mcp, ui, discipline-skills, git-workflow, safety -->
+- Modules affected: <!-- e.g. core, commands, multi-agent, mcp, ui, discipline-skills, git-workflow, safety, token-efficiency, experiments-memory, github-actions, recommend-plugins -->
 - Personas affected: <!-- e.g. solo-newer, solo-experienced, small-team, library-author, custom; or "snapshot unchanged" -->
 
 ## Tests
@@ -41,6 +41,6 @@
      needed beyond clicking the link. -->
 
 ## I understand
-- [ ] An automated AI review will run on this PR. Blocking findings will fail the `review` check.
+- [ ] An automated AI review will run on this PR. Blocking findings (`VERDICT: BLOCK`) will fail the `verdict-gate` check.
 - [ ] No merge is possible while any required check is red, including for the maintainer.
 - [ ] My contribution rights are described in `CONTRIBUTING.md` § "Your rights as a contributor".
