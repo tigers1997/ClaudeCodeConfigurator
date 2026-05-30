@@ -840,9 +840,42 @@ def _find_doc_label_paths(obj, prefix=""):
             yield from _find_doc_label_paths(v, f"{prefix}[{i}]")
 
 
+def _find_duplicate_hook_commands(settings: dict) -> list:
+    """Return (event, matcher, command, count) for hook commands wired more
+    than once under the same (event, matcher) — each wiring fires per matching
+    call, so the command fires count times (the F1 dogfood symptom: a command
+    left in two groups that share a matcher). The SAME command under DIFFERENT
+    matchers is legitimate — it targets different tools — and is not flagged.
+    deep_merge_settings now collapses same-matcher dups on retrofit; this is
+    the render-time / template regression net (and catches stale pre-fix
+    settings.json files). Occurrences are counted per wiring, so a command
+    repeated inside one group's hooks[] is caught too."""
+    dups = []
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return dups
+    for event, groups in hooks.items():
+        if not isinstance(groups, list):
+            continue
+        counts = {}  # (matcher, command) -> total wirings
+        for g in groups:
+            if not isinstance(g, dict):
+                continue
+            matcher = g.get("matcher")
+            for h in g.get("hooks", []):
+                if isinstance(h, dict) and h.get("command"):
+                    key = (matcher, h["command"])
+                    counts[key] = counts.get(key, 0) + 1
+        for (matcher, cmd), n in sorted(counts.items(),
+                                        key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
+            if n > 1:
+                dups.append((event, matcher, cmd, n))
+    return dups
+
+
 def check_settings_validates(settings: dict) -> list:
-    """Catch the two settings-validator complaint classes surfaced by
-    dogfooding cc-configure on a downstream project (2026-05-24):
+    """Catch the settings-validator complaint classes surfaced by
+    dogfooding cc-configure on a downstream project (2026-05-24, 2026-05-30):
 
       1. Top-level `//`-prefixed keys (doc labels / commented stubs) — the
          Claude Code settings schema rejects unknown top-level keys, so
@@ -854,6 +887,9 @@ def check_settings_validates(settings: dict) -> list:
          Earlier versions shipped a top-level string `"name-only"` which the
          current schema rejects. Also: per code.claude.com/docs/en/settings
          the setting does not apply to plugin skills at all.
+      3. Duplicate hook commands — the same hook `command` wired into more
+         than one group under one event, so it fires multiple times per call
+         (the F1 dogfood symptom). See _find_duplicate_hook_commands.
     """
     warnings = []
     valid_overrides = {"on", "name-only", "user-invocable-only", "off"}
@@ -885,6 +921,15 @@ def check_settings_validates(settings: dict) -> list:
                     f"value isn't one of {sorted(valid_overrides)}: "
                     f"{bad[:3]}" + (f" (+{len(bad) - 3} more)" if len(bad) > 3 else "")
                 )
+
+    for event, matcher, cmd, n in _find_duplicate_hook_commands(settings):
+        short = cmd.rsplit("/", 1)[-1]
+        warnings.append(
+            f"settings.json hooks.{event} wires {short} {n}x under matcher "
+            f"{matcher!r} — it fires {n}x per matching call. Likely a stale "
+            "group from a prior scaffold; run cc-configure --retrofit (the "
+            "merge now collapses these) or remove the duplicate group."
+        )
     return warnings
 
 
@@ -1136,6 +1181,75 @@ def _merge_unique_list(existing_list, new_list):
     return out
 
 
+def _hook_commands(group: dict) -> set:
+    """The set of `command` strings in a hook group's hooks[] list."""
+    return {
+        h.get("command")
+        for h in group.get("hooks", [])
+        if isinstance(h, dict) and h.get("command")
+    }
+
+
+def _merge_hook_groups(existing_groups, new_groups):
+    """Merge the configurator's hook groups into a user's existing groups for
+    one event, keyed by `matcher` and unioning inner hooks by `command`.
+    Returns (merged_groups, groups_added, commands_added).
+
+    Why per-command and not whole-group equality (the F1 dogfood fix,
+    2026-05-30): the configurator may move a hook between releases from a
+    standalone matcher group to a bundled one (e.g. a lone `block-dangerous-bash`
+    Bash group -> `[block-dangerous-bash, check-package-availability]`).
+    Whole-group `==` dedup treats those as distinct and keeps both, so the
+    shared command ends up in two groups and fires twice on every matching
+    call. Unioning the new commands into the first existing same-matcher group
+    collapses them to one.
+
+    Preserves user customizations: existing groups are never deleted or
+    rewritten, and a new command is appended only when its `command` is absent
+    from every existing group sharing that matcher. A user's deliberate
+    same-matcher group (different command) or tweaked copy (same command,
+    different timeout) therefore survives untouched. Exact whole-group
+    duplicates left by the pre-fix N+1 retrofit bug are still collapsed
+    (self-heal)."""
+    def _clone(x):
+        return json.loads(json.dumps(x))
+
+    out = []
+    for g in existing_groups:
+        gc = _clone(g)
+        if gc not in out:  # collapse exact whole-group dups (self-heal)
+            out.append(gc)
+
+    groups_added = 0
+    commands_added = 0
+    for ng in new_groups:
+        matcher = ng.get("matcher")
+        targets = [g for g in out if g.get("matcher") == matcher]
+        if not targets:
+            ngc = _clone(ng)
+            if ngc not in out:
+                out.append(ngc)
+                groups_added += 1
+            continue
+        present = set()
+        for g in targets:
+            present |= _hook_commands(g)
+        first = targets[0]
+        # Coerce a malformed (non-list) hooks value to a list before appending,
+        # for parity with _hook_commands / _find_duplicate_hook_commands which
+        # tolerate it. setdefault alone doesn't help when the key is present but
+        # holds a non-list (already schema-invalid, but never crash on it).
+        dest_hooks = first.get("hooks")
+        if not isinstance(dest_hooks, list):
+            dest_hooks = first["hooks"] = []
+        for h in ng.get("hooks", []):
+            if isinstance(h, dict) and h.get("command") and h.get("command") not in present:
+                dest_hooks.append(_clone(h))
+                present.add(h.get("command"))
+                commands_added += 1
+    return out, groups_added, commands_added
+
+
 def deep_merge_settings(existing: dict, new: dict):
     """Merge a user's existing .claude/settings.json with the configurator's
     new version. Returns (merged_dict, summary_str).
@@ -1146,23 +1260,25 @@ def deep_merge_settings(existing: dict, new: dict):
         existing entries first, new entries appended without duplicates.
       - permissions.disableBypassPermissionsMode: ours wins (security default
         the user opted into by selecting safety).
-      - hooks: per-event groups merged via _merge_unique_list (existing
-        first, then ours, structural-equality dedup). Critical for
-        retrofits: without dedup, every cc-configure --retrofit run
-        re-appends the configurator's own hook set against the prior
-        scaffold's identical set, so after N retrofits every hook fires
-        N+1 times. User-customized hook groups (different matcher,
-        different command list, different timeout) are structurally
-        distinct from configurator-shipped ones and survive dedup.
-        Self-heals existing buildup: a user whose settings.json already
-        accumulated N duplicates collapses them to 1 on next retrofit.
+      - hooks: per-event groups merged via _merge_hook_groups — keyed by
+        `matcher`, unioning inner hooks by `command`. Critical for retrofits:
+        a naive append re-adds the configurator's own hook set every run, and
+        whole-group `==` dedup misses the case where a hook moved between a
+        standalone and a bundled group across releases (F1) — so the shared
+        command would fire twice. Unioning by command collapses both the
+        repeat-retrofit and the standalone->bundled cases to one entry.
+        User-authored groups survive: existing entries are never rewritten and
+        a command is only appended when absent from every same-matcher group,
+        so a different command or a tweaked timeout under the same matcher is
+        preserved. Exact whole-group duplicates from the pre-fix N+1 bug are
+        still collapsed (self-heal).
       - env: dict merge with existing keys winning on collision (preserves
         user's deliberate overrides).
       - statusLine, model: preserve existing if set; otherwise use new.
       - Unknown top-level keys: pass through verbatim from existing.
     """
     out = dict(existing)
-    counts = {"perms_added": 0, "hook_groups_added": 0, "env_added": 0}
+    counts = {"perms_added": 0, "hook_groups_added": 0, "hook_cmds_added": 0, "env_added": 0}
 
     if "$schema" in new:
         out["$schema"] = new["$schema"]
@@ -1184,11 +1300,9 @@ def deep_merge_settings(existing: dict, new: dict):
         out_hooks = dict(out.get("hooks", {}))
         for event, new_groups in new["hooks"].items():
             existing_groups = out_hooks.get(event, [])
-            merged = _merge_unique_list(existing_groups, new_groups)
-            # Also collapse any prior-retrofit duplicates already in
-            # existing_groups (self-heal). Reapply unique-list against itself.
-            merged = _merge_unique_list([], merged)
-            counts["hook_groups_added"] += len(merged) - len(existing_groups)
+            merged, g_added, c_added = _merge_hook_groups(existing_groups, new_groups)
+            counts["hook_groups_added"] += g_added
+            counts["hook_cmds_added"] += c_added
             out_hooks[event] = merged
         out["hooks"] = out_hooks
 
@@ -1210,7 +1324,8 @@ def deep_merge_settings(existing: dict, new: dict):
             out[k] = v
 
     msg = (f"preserved existing config; added {counts['perms_added']} permission rule(s), "
-           f"{counts['hook_groups_added']} hook group(s), {counts['env_added']} env var(s)")
+           f"{counts['hook_groups_added']} hook group(s), {counts['hook_cmds_added']} hook command(s), "
+           f"{counts['env_added']} env var(s)")
     return out, msg
 
 
