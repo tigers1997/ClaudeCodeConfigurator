@@ -133,6 +133,20 @@ jobs:
             bash "$t"
           done
 
+      - name: retrofit-hooks fixture tests
+        run: |
+          set -e
+          for t in test/retrofit-hooks/test-*.sh; do
+            bash "$t"
+          done
+
+      - name: schema-hygiene fixture tests
+        run: |
+          set -e
+          for t in test/schema-hygiene/test-*.sh; do
+            bash "$t"
+          done
+
       - name: Install jq for availability-check tests
         run: sudo apt-get install -y jq
 
