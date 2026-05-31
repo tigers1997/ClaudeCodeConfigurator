@@ -106,6 +106,16 @@ When running on an existing project, the relevant flags:
 - `--force` — kill-switch: skip the merge AND the collision strategy; overwrite everything with `*.bak-<ts>`
 - `--dry-run` — see exactly what would happen without writing
 
+## Shortcut: a pristine, version-controlled `.claude/`
+
+The default `skip` + `/retrofit` flow exists to protect *local customizations* you haven't committed. If your `.claude/` is **unmodified configurator output that's committed to git** — clean `git status`, no hand-edits — that protection is just ceremony: every staged "conflict" is really a version bump you'd accept anyway. In that case `overwrite` is the cleaner upgrade:
+
+```bash
+cc-configure --persona <yours> --yes --on-collision overwrite --no-backup
+```
+
+Git is your safety net — `git diff` is the review and `git checkout` is the undo — so there's no `.claude-retrofit/` walk and no `*.bak-<ts>` litter (both are gitignored by the scaffold anyway). The structured assets (`.claude/settings.json`, `.mcp.json`) are still deep-merged, so your settings survive regardless. Stick with the default `skip` flow whenever `.claude/` might hold uncommitted local edits.
+
 ## When to skip the configurator
 
 If your existing `CLAUDE.md` is already well-shaped (~200 lines, scope-focused, no inlined reference material) and your `.claude/` already has the skills/agents/hooks you want, you may not need the configurator at all. The value-add sections it appends are useful but not load-bearing — you can copy them by hand from `templates/core/CLAUDE.md`. The configurator earns its keep when:

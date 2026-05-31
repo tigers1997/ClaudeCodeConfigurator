@@ -1834,6 +1834,24 @@ def apply_files(files, gitignore_lines, target_dir: Path, dry_run=False, backup=
                     fh.write("\n")
                 fh.write("\n" + "\n".join(gitignore_lines) + "\n")
             gi_added = True
+        else:
+            # Block already present from a prior scaffold: append only the
+            # individual rules missing from it (line-level union). Covers users
+            # whose block predates rules added in a later configurator version
+            # — e.g. the F5 retrofit-byproduct ignores (.claude-retrofit/,
+            # *.bak-*) — so an in-place upgrade actually delivers them instead
+            # of silently no-op'ing. Comments aren't re-appended; the user's
+            # own lines are never touched; idempotent when nothing is missing.
+            present = {ln.strip() for ln in existing.splitlines()}
+            missing = [ln for ln in gitignore_lines
+                       if ln.strip() and not ln.lstrip().startswith("#")
+                       and ln.strip() not in present]
+            if missing:
+                with gi_path.open("a", encoding="utf-8") as fh:
+                    if not existing.endswith("\n"):
+                        fh.write("\n")
+                    fh.write("\n".join(missing) + "\n")
+                gi_added = True
 
     return {"written": written, "backed_up": backed_up, "gitignore_added": gi_added}
 
