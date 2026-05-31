@@ -2125,6 +2125,76 @@ LEGACY_MODULE_MAP = {
 }
 
 
+def parse_modules_arg(spec: str, current: set, current_flags: dict) -> tuple:
+    """Parse a --modules value into (selected, flags, deprecations, warnings).
+
+    Mode is chosen by token sigil (the F2 dogfood fix, 2026-05-30):
+      - all BARE tokens (`a,b,c`)  -> REPLACE: selected becomes the given set
+        (legacy-translated) plus required modules. Unchanged historical
+        behavior — preserves script callers.
+      - all SIGNED tokens (`+x,-y`) -> DELTA: start from `current`, union the
+        `+` adds (legacy-translated), discard the `-` removes, re-add required.
+        This is the form the persona-drift NOTICE suggests, so a user can pick
+        up a newly-added module without hand-editing `.claude-config.json` or
+        re-listing their whole module set.
+      - MIXED (`a,+b`) -> ValueError (caller prints [ ERROR ] and exits 2).
+
+    Validation in both modes: unknown ids are warned and skipped; required
+    modules are always kept (a `-core` is warned and ignored). Removes operate
+    on real module ids only — legacy ids map to a module+flag, so `-lockdown`
+    can't express "drop the flag" and is treated as unknown."""
+    known = {m["id"] for m in MODULES}
+    required = {m["id"] for m in MODULES if m.get("required")}
+    tokens = [t.strip() for t in spec.split(",") if t.strip()]
+    signed = [t for t in tokens if t[0] in "+-"]
+    bare = [t for t in tokens if t[0] not in "+-"]
+    if signed and bare:
+        raise ValueError(
+            "--modules cannot mix delta (+x/-y) and replace (x) forms: "
+            f"{spec!r}. Use all-signed (e.g. +discipline-skills,-ui) to adjust "
+            "the saved set, or all-bare (e.g. safety,mcp) to replace it."
+        )
+
+    warnings = []
+    if not signed:
+        # REPLACE mode (legacy behavior).
+        wanted = set(bare)
+        wanted, flags, deprecations = translate_legacy_modules(wanted, current_flags)
+        for u in sorted(wanted - known):
+            warnings.append(f"--modules: unknown module {u!r} ignored")
+        wanted &= known
+        return wanted | required, flags, deprecations, warnings
+
+    # DELTA mode.
+    adds = {t[1:] for t in signed if t[0] == "+" and t[1:]}
+    removes = {t[1:] for t in signed if t[0] == "-" and t[1:]}
+    adds, flags, deprecations = translate_legacy_modules(adds, current_flags)
+    for u in sorted(adds - known):
+        warnings.append(f"--modules: unknown module {u!r} (+) ignored")
+    adds &= known
+
+    out = set(current) | adds
+    for r in sorted(removes):
+        if r not in known:
+            warnings.append(f"--modules: unknown module {r!r} (-) ignored")
+        elif r in required:
+            warnings.append(f"--modules: cannot remove required module {r!r}")
+        else:
+            out.discard(r)
+    return out | required, flags, deprecations, warnings
+
+
+def persona_gained_modules(persona: str, selected) -> list:
+    """Modules the persona now includes that aren't in `selected` (the F2
+    drift signal). Sorted; empty for custom/unknown personas. Caller decides
+    when to surface it — compute against the dependency-resolved selected set
+    so a gained module already pulled in as a dependency isn't falsely flagged."""
+    p = PERSONAS.get(persona)
+    if not p:
+        return []
+    return sorted(set(p.get("modules", [])) - set(selected))
+
+
 def translate_legacy_modules(wanted: set, current_flags: dict) -> tuple:
     """Returns (new_module_set, updated_flags, deprecation_messages).
 
@@ -2296,13 +2366,17 @@ def main():
             "(--preset will be removed in v3.0)".format(args.preset, new_tier)
         )
     if args.modules:
-        wanted = {m.strip() for m in args.modules.split(",") if m.strip()}
-        wanted, initial["module_flags"], deprecations = translate_legacy_modules(
-            wanted, initial.get("module_flags", {})
-        )
-        initial["selected"] = wanted | {m["id"] for m in MODULES if m.get("required")}
-        # Stored here; rendered as [ DEPRECATED ] block in Task 6.
+        try:
+            initial["selected"], initial["module_flags"], deprecations, mod_warnings = \
+                parse_modules_arg(args.modules,
+                                  set(initial.get("selected", set())),
+                                  initial.get("module_flags", {}))
+        except ValueError as e:
+            print(bold(red("[ ERROR ]")), str(e), file=sys.stderr)
+            sys.exit(2)
+        # Stored here; rendered as [ DEPRECATED ] / [ MODULE WARNINGS ] blocks.
         initial.setdefault("_deprecations", []).extend(deprecations)
+        initial.setdefault("_module_arg_warnings", []).extend(mod_warnings)
 
     # --- interactive if needed ---
     # --yes / --config / --modules / --persona / --preset / --save-config-only:
@@ -2376,6 +2450,8 @@ def main():
 
     # Surface module-level prerequisites that can't be fixed by the configurator.
     module_warnings = []
+    for w in initial.get("_module_arg_warnings", []):
+        module_warnings.append(("--modules", w))
     if "github-actions" in config["selected"]:
         for w in check_github_remote(target_dir):
             module_warnings.append(("github-actions", w))
@@ -2421,6 +2497,28 @@ def main():
     for line in applied:
         print(f"  {line}")
 
+    # F2 (dogfood 2026-05-30): a saved config pins an explicit `selected`; when
+    # its persona later gains a module, a --config/--yes replay omits it
+    # silently. Surface a NOTICE naming the gained module(s) + the add command.
+    # We tell, we don't force-install (script-caller behavior stays unchanged).
+    persona_now = initial.get("persona", "custom")
+    drift_eligible = (
+        config is initial  # non-interactive replay path (no interactive deselect)
+        and (bool(args.config) or saved_config_path.exists())
+        and not args.persona  # explicit --persona already replaced the set
+        and not args.modules  # user is actively curating modules
+        and persona_now != "custom"
+    )
+    gained = persona_gained_modules(persona_now, config["selected"]) if drift_eligible else []
+    if gained:
+        plus = ",".join("+" + g for g in gained)
+        print()
+        print(bold(yellow("[ NOTICE ]")),
+              f"persona '{persona_now}' gained {len(gained)} module(s) since this config was saved:")
+        print(f"           {', '.join(gained)}")
+        print(f"           Add with:  cc-configure --modules {plus}")
+        print(dim("           or edit .claude-config.json. (Re-run won't add it automatically.)"))
+
     placeholders = check_placeholders(config["formValues"])
     if placeholders:
         print()
@@ -2446,6 +2544,12 @@ def main():
     if initial.get("_deprecations"):
         next_steps.append(
             "Legacy flags used — see [ DEPRECATED ] above for the v3.0 migration."
+        )
+    if gained:
+        next_steps.append(
+            "Persona gained module(s) since this config was saved — see "
+            "[ NOTICE ] above; add with `cc-configure --modules {}`.".format(
+                ",".join("+" + g for g in gained))
         )
     if next_steps:
         print()
