@@ -94,6 +94,7 @@ Answers persist to `.claude-config.json` in the project; re-runs with `--yes` re
   - `overwrite` — your file is replaced, original backed up to `*.bak-<ts>`.
 - A `[ COLLISIONS ]` block lists what happened, and `.claude-retrofit/REPORT.md` records the full set with diff coordinates.
 - `--force` is a kill-switch: skip the merge AND the collision strategy entirely; just overwrite every existing file with `.bak-<ts>` backups (the pre-Tier-2 behavior).
+- **Pristine + version-controlled?** If your `.claude/` is unmodified configurator output committed to git, `--on-collision overwrite --no-backup` is the cleaner upgrade — `git diff` is your review, `git checkout` your undo, and there's no `.claude-retrofit/` staging tree or `.bak-*` litter (both now gitignored anyway). The structured-asset deep-merge still runs, so settings survive. Stick with the default `skip` whenever `.claude/` may hold uncommitted local edits.
 - `--dry-run` shows the full would-be-written list (`+` for net-new, `~` for merged) without writing anything.
 
 **Resolving staged conflicts.** Two paths after a retrofit run:
