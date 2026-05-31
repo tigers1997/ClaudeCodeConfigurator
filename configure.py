@@ -973,6 +973,26 @@ def extract_first_binaries(typecheck: str = None, lint: str = None, test: str = 
     return out
 
 
+def _configurator_sha():
+    """Short git SHA of the configurator's OWN checkout (REPO_ROOT), or None
+    when unavailable (not a git repo, git missing, timeout, any error).
+
+    Lets the manifest distinguish two scaffolds produced by different
+    between-release builds of the same CC_VERSION — the drift signal F6 needs,
+    since CC_VERSION is static between tags. Read back by `--whats-new`."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if out.returncode == 0:
+            return out.stdout.strip() or None
+    except Exception:
+        pass
+    return None
+
+
 def write_cc_manifest(target_dir: Path, version: str, form_values: dict = None) -> tuple:
     """Snapshot the .mcp.json / stack / check-command baseline into .claude/.cc-manifest.json.
 
@@ -1006,6 +1026,7 @@ def write_cc_manifest(target_dir: Path, version: str, form_values: dict = None) 
         "manifest_version": 2,
         "written_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "written_by": f"cc-configure {version}",
+        "written_by_sha": _configurator_sha(),
         "mcp_servers": mcp_servers,
         "stack_manifests": detect_stack_manifests(target_dir),
         "check_commands": extract_first_binaries(
@@ -2300,7 +2321,105 @@ def parse_args():
                    help="Static validation of templates + MODULES registry (CI-friendly). "
                         "Exits 0 on clean, 1 with a per-issue summary otherwise. "
                         "Skips all other processing — no scaffolding, no prompts.")
+    p.add_argument("--whats-new", action="store_true",
+                   help="Read-only: compare this project's .cc-manifest.json "
+                        "version/SHA against the current configurator build and "
+                        "print the CHANGELOG delta a re-run would bring, then "
+                        "exit. No scaffolding, no writes.")
     return p.parse_args()
+
+
+def _commits_ahead(old_sha, new_sha):
+    """Count commits in old_sha..new_sha within the configurator repo, or None
+    if either SHA is missing/unresolvable (shallow clone, unknown rev, equal)."""
+    if not old_sha or not new_sha or old_sha == new_sha:
+        return None
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "rev-list", "--count", f"{old_sha}..{new_sha}"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if out.returncode == 0:
+            n = out.stdout.strip()
+            return int(n) if n.isdigit() and int(n) > 0 else None
+    except Exception:
+        pass
+    return None
+
+
+def _changelog_unreleased_headlines(repo_root):
+    """The bold headline of each bullet in the CHANGELOG's `## Unreleased`
+    section (the `- **headline**` lead-ins). Empty list if no CHANGELOG or no
+    Unreleased section. Used by `--whats-new` as the human-readable delta."""
+    import re
+    cl = repo_root / "CHANGELOG.md"
+    if not cl.exists():
+        return []
+    text = cl.read_text(encoding="utf-8")
+    m = re.search(r"^## Unreleased\s*\n(.*?)(?=^## )", text, re.DOTALL | re.MULTILINE)
+    if not m:
+        return []
+    heads = []
+    for line in m.group(1).splitlines():
+        bm = re.match(r"\s*-\s+\*\*(.+?)\*\*", line)
+        if bm:
+            heads.append(bm.group(1).strip().rstrip("."))
+    return heads
+
+
+def cmd_whats_new(target_dir):
+    """Read-only (dogfood F7): compare the project's .cc-manifest.json
+    (written_by version + SHA) against this configurator build (CC_VERSION + its
+    git SHA), list the CHANGELOG's Unreleased headlines, and exit. Never writes.
+    Returns a process exit code."""
+    manifest = target_dir / ".claude" / ".cc-manifest.json"
+    if not manifest.exists():
+        print(yellow("No .claude/.cc-manifest.json in this project."))
+        print("  It hasn't been configured by cc-configure (or predates the "
+              "manifest). Run `cc-configure` to set it up.")
+        return 0
+    try:
+        m = json.loads(manifest.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(yellow(f"Couldn't read .claude/.cc-manifest.json: {e}"))
+        return 1
+
+    proj_by = m.get("written_by", "cc-configure (unknown)")
+    proj_sha = m.get("written_by_sha")
+    cur_by = f"cc-configure {CC_VERSION}"
+    cur_sha = _configurator_sha()
+
+    print(bold(blue("[ WHAT'S NEW ]")))
+    print(f"  Configured by : {proj_by}" + (f" ({proj_sha})" if proj_sha else ""))
+    print(f"  Current build : {cur_by}" + (f" ({cur_sha})" if cur_sha else ""))
+
+    if proj_sha and cur_sha and proj_sha == cur_sha:
+        print(green("  Up to date — configured by the current build; nothing to apply."))
+        return 0
+
+    ahead = _commits_ahead(proj_sha, cur_sha)
+    if ahead:
+        print(f"  The configurator advanced {ahead} commit(s) since this project "
+              "was configured.")
+    elif proj_by == cur_by and not proj_sha:
+        print(dim("  This project's manifest predates SHA stamping, so the exact "
+                  "delta can't be computed — re-run to refresh it."))
+
+    heads = _changelog_unreleased_headlines(REPO_ROOT)
+    if heads:
+        print()
+        print("  Unreleased changes a re-run would pick up:")
+        for h in heads:
+            print(f"    {blue('-')} {h}")
+    else:
+        print(dim("  No Unreleased CHANGELOG entries found."))
+
+    print()
+    print("  Apply with:  " + bold("cc-configure --yes") + "  (reuses "
+          ".claude-config.json; non-destructive deep-merge — see "
+          "docs/09-retrofit-guide.md).")
+    return 0
 
 
 def main():
@@ -2308,6 +2427,10 @@ def main():
     # --check short-circuits everything else: no scaffolding, no target dir creation.
     if args.check:
         sys.exit(run_check())
+    # --whats-new is read-only: report the configurator-vs-manifest delta and
+    # exit without creating or touching the target dir.
+    if args.whats_new:
+        sys.exit(cmd_whats_new(Path(args.dir).resolve()))
     target_dir = Path(args.dir).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     saved_config_path = target_dir / ".claude-config.json"
