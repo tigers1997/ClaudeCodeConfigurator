@@ -35,7 +35,7 @@ A subagent is a Markdown file in `.claude/agents/<name>.md` (project) or `~/.cla
 name: code-reviewer           # required, lowercase-hyphens
 description: ...              # required; shapes when Claude auto-invokes
 tools: Read, Grep, Glob, Bash # omit to inherit all; be stingy
-model: inherit                # or sonnet | opus | haiku | full-id
+model: inherit                # or fable (CC 2.1.170+) | sonnet | opus | haiku | full-id
 permissionMode: default       # plan | acceptEdits | auto | dontAsk | bypassPermissions
 color: purple                 # optional UI hint
 isolation: worktree           # optional — run in a temp git worktree

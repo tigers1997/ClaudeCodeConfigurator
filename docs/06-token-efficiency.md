@@ -82,10 +82,10 @@ Do a "context budget review" monthly:
 ## The model-choice lever
 
 - Haiku for cheap, fast, read-only work — great for `Explore`, grep-style research, the `doc-writer` subagent.
-- Sonnet for day-to-day edits and reviews.
-- Opus for high-stakes review, security audits, tricky refactors.
+- Fable 5 (`fable`, CC 2.1.170+) for day-to-day edits and reviews — the scaffolded default. It is the most capable model and the priciest; the rest of this doc's levers (Haiku subagents, narrowing flags, reset rhythm) are what keep that affordable.
+- Opus for high-stakes review and deep refactors on Claude Code older than 2.1.170, or where your org's plan doesn't include Fable 5.
 
-Most sessions can run primarily on Sonnet with Haiku subagents for reads. Opus is a scalpel, not a default.
+Most sessions can run primarily on Fable 5 with Haiku subagents for reads. On older Claude Code the `fable` alias isn't selectable — drop the project back to `sonnet` via `.claude/settings.local.json` (the example file ships the stub).
 
 ### Effort level (Pro/Max only)
 
