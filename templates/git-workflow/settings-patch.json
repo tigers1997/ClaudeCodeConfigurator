@@ -1,6 +1,7 @@
 {
   "//": "Merge into .claude/settings.json hooks.",
   "//2": "Optional opt-ins (prUrlTemplate for non-github.com platforms, CC 2.1.119+) are documented in templates/core/dot-claude/settings.local.json.example with copy-paste-ready stubs. Hook authoring note (CC 2.1.139+): hookCommand entries accept 'args: string[]' for direct-exec form and 'continueOnBlock: boolean' for prompt hooks.",
+  "//3": "Stop-hook payload notes: input carries background_tasks + session_crons arrays (CC 2.1.145+) — stop-run-checks.sh skips its pass while background work is in flight and runs at the real stop instead. Its report shape, hookSpecificOutput.additionalContext, is officially supported output from CC 2.1.163 (feedback that keeps the turn going without a hook-error label).",
   "hooks": {
     "PostToolUse": [
       {
