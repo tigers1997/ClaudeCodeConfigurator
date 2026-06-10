@@ -108,6 +108,13 @@ For fine-grained control on `PreToolUse`:
 
 Values for `permissionDecision`: `allow`, `deny`, `ask`, `defer`. Precedence across hooks: **deny > defer > ask > allow**.
 
+On `Stop`/`SubagentStop`, two payload surfaces matter for the shipped hooks:
+
+- **Input** (stdin JSON) includes `background_tasks` and `session_crons` arrays on Claude Code 2.1.145+ — they distinguish "session is done" from "session is paused waiting for background work". `stop-run-checks.sh` skips its pass while `background_tasks` is non-empty and runs at the real stop instead.
+- **Output** can return `hookSpecificOutput.additionalContext` — feedback injected for Claude's next turn without being labeled a hook error (officially supported on Claude Code 2.1.163+). This is how `stop-run-checks.sh` reports check results.
+
+Hooks have no controlling terminal (`/dev/tty` is unavailable), so a hook that wants to ring a bell or fire a desktop notification returns the escape sequence in the JSON `terminalSequence` field instead (Claude Code 2.1.141+; allowlisted to OSC `0`/`1`/`2`/`9`/`99`/`777` + BEL). `slop-scan.sh` uses an OSC 9 notification this way; set `SLOP_SCAN_PING=0` in the settings `env` block to silence it.
+
 ### Starter hooks
 
 From `templates/`:

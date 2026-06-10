@@ -46,7 +46,7 @@ MODULES = [
             "slop_scan_action": {
                 "default": "warn",
                 "options": ["warn", "block"],
-                "description": "warn = stderr [ SLOP ] block, write proceeds. block = same + non-zero exit.",
+                "description": "warn = [ SLOP ] systemMessage to you, write stands. block = findings fed back to Claude as decision JSON so it fixes them. Both ping via OSC 9 desktop notification (SLOP_SCAN_PING=0 in settings env disables).",
                 "extraSettingsEnv": {"SLOP_SCAN_ACTION": "$VALUE"},
             },
             "slop_scan_density": {

@@ -5,10 +5,19 @@
 # Reads SLOP_SCAN_ACTION from env (default: warn).
 # Reads SLOP_SCAN_DENSITY (default: 0) and SLOP_SCAN_IMPORTS (default: 0)
 # from env to enable opt-in noisier patterns.
+# Reads SLOP_SCAN_PING (default: 1) — set 0 to drop the desktop-notification
+# ping from the output.
 #
-# Output:
-#   warn mode  → [ SLOP ] block on stderr; exit 0 (write proceeds)
-#   block mode → [ SLOP ] block on stderr; exit 1 (tool call rejected)
+# Output (decision JSON on stdout, always exit 0 — docs/03 "Decision JSON"):
+#   warn mode  → {"systemMessage": "[ SLOP ] …"} — the write stands; the
+#                user sees the warning.
+#   block mode → {"decision": "block", "reason": "[ SLOP ] …"} — the write
+#                already happened (PostToolUse can't undo it); the findings
+#                are fed back to Claude as the blocking reason so it fixes
+#                them. (The pre-2026-06 exit-1 form was a non-blocking error
+#                per the exit-code contract: Claude never saw the findings.)
+#   Both modes add "terminalSequence": an OSC 9 desktop notification + BEL,
+#   allowlisted hook output on CC 2.1.141+; older CC ignores the field.
 #
 # Default patterns are intentionally tight (Spec #2 Section 3 tightening) —
 # high confidence, low FP rate. Comment density and hallucinated imports
@@ -128,11 +137,23 @@ if [[ "$IMPORTS_ON" == "1" && -n "$TARGET_PATH" ]]; then
 fi
 
 if [[ -n "$FINDINGS" ]]; then
-    echo "[ SLOP ]" >&2
-    printf '%s' "$FINDINGS" >&2
-    if [[ "$ACTION" == "block" ]]; then
-        exit 1
+    SEQ=""
+    if [[ "${SLOP_SCAN_PING:-1}" != "0" ]]; then
+        N=$(printf '%s' "$FINDINGS" | grep -c .)
+        SEQ="$(printf '\033]9;[ SLOP ] %d finding(s)\007' "$N")"
     fi
+    SLOP_MSG="[ SLOP ]"$'\n'"$FINDINGS" SLOP_SEQ="$SEQ" SLOP_MODE="$ACTION" python3 -c '
+import json, os
+msg = os.environ["SLOP_MSG"]
+if os.environ["SLOP_MODE"] == "block":
+    out = {"decision": "block", "reason": msg}
+else:
+    out = {"systemMessage": msg}
+seq = os.environ["SLOP_SEQ"]
+if seq:
+    out["terminalSequence"] = seq
+print(json.dumps(out))
+'
 fi
 
 exit 0

@@ -1,5 +1,6 @@
 {
   "//": "Registers the slop-scan PostToolUse hook. Applied via safety.flags.slop_scan when set to true. Only the hook registration lives here; the action mode + opt-in flags are exported via extraSettingsEnv (see config_schema.py).",
+  "//2": "Output is decision JSON on stdout (warn → systemMessage; block → decision:block with findings as the reason Claude must act on) plus a terminalSequence OSC 9 desktop notification (CC 2.1.141+; older CC ignores the field). Set SLOP_SCAN_PING=0 in the settings env block to silence the ping.",
   "hooks": {
     "PostToolUse": [
       {
