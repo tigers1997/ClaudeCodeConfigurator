@@ -47,5 +47,5 @@
   },
   "hooks": {},
   "env": {},
-  "model": "sonnet"
+  "model": "fable"
 }

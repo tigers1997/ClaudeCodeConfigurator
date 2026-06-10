@@ -2,6 +2,9 @@
 name: security-auditor
 description: Reviews code for security issues — auth, input validation, secrets, dependencies, injection, SSRF. Read-only. Use proactively before any push that touches auth, user input, or external calls.
 tools: Read, Grep, Glob, Bash
+# Upgrade note: on CC 2.1.170+ with Fable 5 access, `model: fable` is the
+# stronger pick for deep audits. `opus` stays the default so the agent works
+# across the configurator's full supported CC range.
 model: opus
 color: red
 mcpServers:

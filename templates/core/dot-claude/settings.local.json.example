@@ -57,5 +57,8 @@
     "//1": "skillOverrides (CC 2.1.129+) — per-skill visibility overrides. Object map keyed by skill name; values: 'on' | 'name-only' | 'user-invocable-only' | 'off'. Use 'name-only' to hide a skill's description (cuts per-turn context) while keeping the model aware the skill exists.",
     "//2": "Per code.claude.com/docs/en/settings: 'Does not apply to plugin skills, which are managed through /plugin.' So this only affects project-level and user-level skills.",
     "//3": "Add your own skill-name → enum-value entries below. The configurator does not ship default entries because guessing which skills to compress is project-specific."
-  }
+  },
+
+  "// model": "sonnet",
+  "//model-notes": "Per-machine model override. The scaffolded project default is 'fable' (Claude Fable 5 — requires CC 2.1.170+; premium pricing; safety-classifier fallback in cybersecurity/biology domains; unavailable under zero-data-retention). Uncomment to drop THIS machine back to 'sonnet' when its CC predates 2.1.170, Fable 5 isn't in your org's plan, or the cost posture doesn't fit. 'best' is the middle path: resolves to Fable 5 where available, latest Opus otherwise."
 }

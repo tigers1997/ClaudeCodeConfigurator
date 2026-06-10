@@ -20,7 +20,7 @@ These apply on every turn.
 
 ### Subagents
 - Delegate verbose tool output (tests, logs, grep results) to subagents. Only the summary returns to the main thread.
-- Read-only subagents default to `haiku`. Reserve `sonnet` for code writing and `opus` for security audits or deep refactors.
+- Read-only subagents default to `haiku`. Use `fable` (CC 2.1.170+) for code writing and day-to-day work; `opus` covers security audits and deep refactors where Fable 5 isn't available.
 
 ### Inline bash in skills
 - Every `!` substitution in a skill must use a narrowing flag. `!git diff` is a mistake; `!git diff --stat` is correct.

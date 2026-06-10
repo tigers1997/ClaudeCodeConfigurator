@@ -468,6 +468,16 @@ CLAUDE_CODE_COMPAT = {
                                 # block-dangerous-bash fix; no new self-audit gaps
                                 # found in the 2.1.159-170 bugfix lines. Fable 5
                                 # ships in CC 2.1.170 (claude-fable-5).
+                                # Model-default refresh (2026-06-09, maintainer
+                                # decision): scaffolded settings model and the
+                                # test-runner agent now use the `fable` alias and
+                                # own-CI review.yml pins claude-fable-5. The alias
+                                # needs CC >= 2.1.170 (the picker can't select it
+                                # below that), which sits ABOVE tested_up_to - a
+                                # deliberate exception to the envelope rule; the
+                                # settings.local.json.example `// model: sonnet`
+                                # stub is the documented per-machine downgrade for
+                                # older CC / no-Fable plans.
 }
 
 
@@ -823,7 +833,9 @@ FORM_SCHEMA = [
              "type": "select", "options": ["40", "80", "150", "300", "disabled"], "default": "80",
              "help": "Only active if token-efficiency-pro module is selected."},
             {"key": "default_model", "label": "Default model", "type": "select",
-             "options": ["sonnet", "haiku", "opus"], "default": "sonnet"},
+             "options": ["fable", "sonnet", "haiku", "opus"], "default": "fable",
+             "help": "fable = Claude Fable 5, needs Claude Code 2.1.170+; pick "
+                     "sonnet for older CC or tighter cost postures."},
         ],
     },
 ]
