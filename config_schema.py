@@ -435,6 +435,39 @@ CLAUDE_CODE_COMPAT = {
                                 # settings.json keys; SchemaStore sync PR #5723 still
                                 # open, so tested_up_to stays pinned (bump bundles
                                 # with the next release per the no-lone-bumps rule).
+                                # 2.1.155-170 survey (2026-06-09; the 2.1.155-158
+                                # pass of 2026-05-30 had only reached private notes
+                                # and lands in-repo here): still no bump - #5723
+                                # (->2.1.150) remains open/draft although its
+                                # ajv-keywords dep #5728 merged 2026-06-01; watching
+                                # for un-draft or supersession (#5742 = keybindings-
+                                # only, #5756 = targeted single key, neither
+                                # supersedes). New in-territory keys held for a sync
+                                # that includes them: agent (2.1.157), fallbackModel
+                                # (2.1.166), disableBundledSkills + env
+                                # CLAUDE_CODE_DISABLE_BUNDLED_SKILLS (2.1.169).
+                                # sandbox.enabledPlatforms reached the schema via
+                                # targeted #5756 but is "Only honored from managed
+                                # (policy) settings" per its own description ->
+                                # DROPPED, managed-tier (bwrapPath/socatPath
+                                # precedent); requiredMinimum/MaximumVersion
+                                # (2.1.163) likewise managed-tier. Env mention-only:
+                                # CLAUDE_CODE_SAFE_MODE (2.1.169),
+                                # CLAUDE_CODE_ENABLE_AUTO_MODE (2.1.158),
+                                # OTEL_LOG_TOOL_DETAILS (2.1.157),
+                                # API_FORCE_IDLE_TIMEOUT (2.1.169).
+                                # CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE removal
+                                # confirmed (2.1.160; env is a no-op now). Hook
+                                # payload (doc-governed, no SchemaStore gate):
+                                # Stop/SubagentStop output hookSpecificOutput.
+                                # additionalContext is officially supported as of
+                                # 2.1.163 - stop-run-checks.sh already emits that
+                                # shape, so 2.1.163 legitimizes shipped behavior.
+                                # Deny rules on ~/ paths now also match $HOME in
+                                # Bash (2.1.163) - upstream analog of PR #72's
+                                # block-dangerous-bash fix; no new self-audit gaps
+                                # found in the 2.1.159-170 bugfix lines. Fable 5
+                                # ships in CC 2.1.170 (claude-fable-5).
 }
 
 
