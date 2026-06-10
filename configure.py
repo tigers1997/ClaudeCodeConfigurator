@@ -265,7 +265,7 @@ def build_efficiency_rules(v: dict, tier: str = "basic") -> str:
     if v.get("eff_plan_mode"):
         rules.append("- **Plan mode is cheap.** Read-only, no tool-output accumulation. First 2-3 turns of any non-trivial task.")
     if v.get("eff_haiku_first"):
-        rules.append("- **Haiku-first for reads.** Read-only subagents default to haiku. Sonnet for writes; opus only for high-stakes review.")
+        rules.append("- **Haiku-first for reads.** Read-only subagents default to haiku. Fable (CC 2.1.170+) for writes and day-to-day work; opus where Fable 5 isn't available.")
     if v.get("eff_desc_budget"):
         rules.append("- **Description budget.** Keep skill + subagent descriptions under ~500 words total \u2014 they load every turn.")
     cap = v.get("eff_bash_max_lines")

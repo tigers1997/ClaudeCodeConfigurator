@@ -12,3 +12,16 @@ CLAUDE.local.md
 
 # Worktrees (keep outside the repo, but belt-and-suspenders)
 .worktrees/
+
+# Configurator working-state (form answers from cc-configure). Gitignored so
+# re-runs don't clutter diffs. Teams that want to share configurator selections
+# across the repo can remove this line.
+.claude-config.json
+
+# Configurator retrofit byproducts: the staging tree written in
+# --on-collision=skip mode (.claude-retrofit/incoming/ + REPORT.md) and the
+# timestamped backups from overwrite/backup runs (*.bak-<ts>). Both are
+# regenerated each run — committing them clutters the tree, and an accidental
+# `git add -A` mid-retrofit would commit a full duplicate of the staged files.
+.claude-retrofit/
+*.bak-*

@@ -1,13 +1,64 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "//": "Personal settings — gitignored. Override anything from .claude/settings.json here.",
+  "//": "Personal settings — gitignored. Override anything from .claude/settings.json here. Copy this file to .claude/settings.local.json to activate; the .example suffix means Claude Code does not parse this file directly.",
+
+  "// env": "Durable home for env vars including MCP auth tokens — e.g. SONATYPE_TOKEN (security-auditor agent) or GITHUB_TOKEN (mcp_github). Persists across shells, so MCPs keep working even when Claude is launched from a shell that doesn't inherit your tokens. Add entries below alongside EDITOR. CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (CC 2.1.143+, overrides default 8-block cap for consecutive Stop hook blocks) lives here too — add the env var if a safety Stop hook intentionally blocks repeatedly.",
+  "env": {
+    "EDITOR": "code"
+  },
+
   "permissions": {
     "allow": [
       "Bash(op read:*)",
       "Bash(op run:*)"
     ]
   },
-  "env": {
-    "EDITOR": "code"
-  }
+
+  "//opt-ins": "===== OPT-IN STUBS — uncomment by removing the leading `// ` from any block, then drop this `//opt-ins` line. Each block is a documented Claude Code setting the configurator does not ship as an active default but supports users opting into per-project. All schemastore-validated as of 2026-05-23. Inline `//N` keys are explainer notes; the values shown are reasonable defaults you'll likely want to tune.",
+
+  "// sandbox": {
+    "//1": "sandbox.network.deniedDomains (CC 2.1.113+) — data-exfiltration-resistant baseline. Takes effect only when the sandbox is otherwise active for the command. Supports wildcards (*.example.com).",
+    "//2": "sandbox.failIfUnavailable (CC 2.1.143+) — when true, sandbox startup is a hard failure if dependencies are missing (no fall-back to non-sandboxed execution). Fail-closed posture for safety-sensitive projects.",
+    "network": {
+      "deniedDomains": [
+        "pastebin.com",
+        "paste.ee",
+        "hastebin.com",
+        "ix.io",
+        "0x0.st",
+        "bashupload.com",
+        "transfer.sh",
+        "file.io",
+        "anonfiles.com",
+        "uguu.se"
+      ]
+    },
+    "failIfUnavailable": true
+  },
+
+  "// worktree": {
+    "//1": "worktree.baseRef (CC 2.1.133+) — values: 'fresh' (default; new worktrees from origin/HEAD) or 'head' (preserves unpushed local commits).",
+    "//2": "worktree.bgIsolation (CC 2.1.143+) — values: 'worktree' (default; background sessions get their own worktree) or 'none' (background sessions edit the live working copy directly).",
+    "baseRef": "head",
+    "bgIsolation": "worktree"
+  },
+
+  "// prUrlTemplate": "https://gitlab.com/{owner}/{repo}/-/merge_requests/{number}",
+  "//prUrlTemplate-notes": "prUrlTemplate (CC 2.1.119+) — footer PR badge + tool-result summaries follow this URL template instead of github.com. Placeholders: {host}, {owner}, {repo}, {number}. Examples: GitLab as shown above; Bitbucket: https://bitbucket.org/{owner}/{repo}/pull-requests/{number}; GHE: https://gh.example.com/{owner}/{repo}/pull/{number}.",
+
+  "// subagentStatusLine": {
+    "//1": "subagentStatusLine (CC 2.1.143+) — distinct statusline for subagent runs so they're visually separable from the parent session. Requires statusline.sh to handle the --subagent flag (the shipped script does not yet — wrap or fork before uncommenting).",
+    "//2": "Note on the sibling statusLine.hideVimModeIndicator opt-in (CC 2.1.143+): only useful if you wrote a custom statusline.sh that renders its own vim mode display. To enable, copy your full statusLine block from .claude/settings.json (settings.local.json's statusLine REPLACES rather than merges with the base config) and add `\"hideVimModeIndicator\": true` to it.",
+    "type": "command",
+    "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh --subagent"
+  },
+
+  "// skillOverrides": {
+    "//1": "skillOverrides (CC 2.1.129+) — per-skill visibility overrides. Object map keyed by skill name; values: 'on' | 'name-only' | 'user-invocable-only' | 'off'. Use 'name-only' to hide a skill's description (cuts per-turn context) while keeping the model aware the skill exists.",
+    "//2": "Per code.claude.com/docs/en/settings: 'Does not apply to plugin skills, which are managed through /plugin.' So this only affects project-level and user-level skills.",
+    "//3": "Add your own skill-name → enum-value entries below. The configurator does not ship default entries because guessing which skills to compress is project-specific."
+  },
+
+  "// model": "sonnet",
+  "//model-notes": "Per-machine model override. The scaffolded project default is 'fable' (Claude Fable 5 — requires CC 2.1.170+; premium pricing; safety-classifier fallback in cybersecurity/biology domains; unavailable under zero-data-retention). Uncomment to drop THIS machine back to 'sonnet' when its CC predates 2.1.170, Fable 5 isn't in your org's plan, or the cost posture doesn't fit. 'best' is the middle path: resolves to Fable 5 where available, latest Opus otherwise."
 }

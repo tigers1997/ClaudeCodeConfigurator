@@ -1,4 +1,14 @@
 {
+  "schema_version": 2,
+  "persona": "custom",
+  "module_flags": {
+    "token-efficiency": {
+      "tier": "pro"
+    },
+    "commands": {
+      "subset": "full"
+    }
+  },
   "formValues": {
     "project_name": "fastapi-demo",
     "one_line_description": "Example project scaffolded by cc-configure for a Python 3.12 + FastAPI stack using uv.",
@@ -54,18 +64,13 @@
     "eff_effort_minimal": true,
     "eff_desc_budget": true,
     "eff_bash_max_lines": "80",
-    "default_model": "sonnet"
+    "default_model": "fable"
   },
   "selected": [
-    "agents",
-    "commands-core",
+    "commands",
     "core",
     "git-workflow",
     "safety",
-    "token-efficiency",
-    "token-efficiency-pro"
-  ],
-  "schema_version": 2,
-  "persona": "custom",
-  "module_flags": {}
+    "token-efficiency"
+  ]
 }

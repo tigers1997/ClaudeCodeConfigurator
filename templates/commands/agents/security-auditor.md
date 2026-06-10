@@ -2,9 +2,11 @@
 name: security-auditor
 description: Reviews code for security issues — auth, input validation, secrets, dependencies, injection, SSRF. Read-only. Use proactively before any push that touches auth, user input, or external calls.
 tools: Read, Grep, Glob, Bash
-# Upgrade note: on CC 2.1.170+ with Fable 5 access, `model: fable` is the
-# stronger pick for deep audits. `opus` stays the default so the agent works
-# across the configurator's full supported CC range.
+# Deliberately `opus`, NOT `fable`: Fable 5 runs cybersecurity/biology safety
+# classifiers that can flag security-review content — even the repo context on
+# a first request — and reroute the session to Opus anyway (see
+# code.claude.com/docs/en/model-config "Automatic model fallback"). Pinning
+# opus here avoids the bounce; it also keeps the agent working on CC < 2.1.170.
 model: opus
 color: red
 mcpServers:

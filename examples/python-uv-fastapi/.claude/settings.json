@@ -55,6 +55,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous-bash.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-package-availability.sh",
+            "timeout": 10
           }
         ]
       },
@@ -65,6 +70,16 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-secrets.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/microbit-enforcer.sh",
+            "timeout": 5
           }
         ]
       }
@@ -112,10 +127,28 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -f \"$CLAUDE_PROJECT_DIR\"/.claude/.frozen \"$CLAUDE_PROJECT_DIR\"/.claude/.guarded \"$CLAUDE_PROJECT_DIR\"/.claude/.careful || true",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   },
   "env": {
+    "SLOP_SCAN_ACTION": "warn",
     "CLAUDE_BASH_MAX_LINES": "80"
   },
-  "model": "sonnet"
+  "model": "fable",
+  "autoMode": {
+    "hard_deny": [
+      "Running executable files",
+      "Writing to system directories"
+    ]
+  }
 }

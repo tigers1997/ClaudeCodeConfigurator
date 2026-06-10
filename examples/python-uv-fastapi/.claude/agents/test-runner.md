@@ -2,7 +2,7 @@
 name: test-runner
 description: Runs the right tests for the current change, summarizes failures, and proposes fixes. Use after code changes, before commits, or when CI fails.
 tools: Bash, Read, Grep, Glob
-model: sonnet
+model: fable
 color: green
 ---
 

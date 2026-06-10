@@ -66,6 +66,13 @@ over pasted code. Put path-scoped detail in .claude/rules/*.md instead.
 - Before commit: format → lint → typecheck → test. All green.
 - Use `git worktree add ../<name> -b feat/<name>` for parallel experiments.
 
+### Repo bootstrap
+The cc-configure scaffold makes assumptions about what to track vs. ignore. Honor them when first-committing a new project (`git init` + first `git add`) or when restructuring `.gitignore`:
+
+- **Commit:** `CLAUDE.md`, `.claude/` (agents, hooks, skills, rules, settings.json, output-styles), `.mcp*.json`, `claude-ctx` if present, project source.
+- **Gitignore by default:** `.claude/settings.local.json` (machine-local), `.claude/logs/`, `.claude/.frozen` / `.guarded` / `.careful` (transient state cleared by SessionStart), `.claude-config.json` (configurator working-state). cc-configure appends the `# --- Claude Code ---` block to `.gitignore` automatically — if you rewrite or replace `.gitignore`, preserve that block (or rerun `cc-configure --retrofit` to re-append it).
+- **Nested upstream clones** (vendored deps, fork wrappers) should be gitignored and keep their own `.git/` — don't try to nest two repos in one tree. List the subdir in `.gitignore` *above* the Claude Code block.
+
 ## Design features
 
 - **Architecture:** Layered: routes -> services -> repositories.
@@ -124,7 +131,7 @@ These are *how the human should drive*, not rules Claude enforces. Distilled fro
 - **Narrow bash.** `git diff --stat` before `git diff`; `git log -5` before `git log`; `head`/`tail` when peeking.
 - **Reset rhythm.** Task boundary: `/compact "focus hint"`. Task shift: `/clear`. Past 40% context: start fresh with a pasted summary.
 - **Plan mode is cheap.** Read-only, no tool-output accumulation. First 2-3 turns of any non-trivial task.
-- **Haiku-first for reads.** Read-only subagents default to haiku. Sonnet for writes; opus only for high-stakes review.
+- **Haiku-first for reads.** Read-only subagents default to haiku. Fable (CC 2.1.170+) for writes and day-to-day work; opus where Fable 5 isn't available.
 - **Description budget.** Keep skill + subagent descriptions under ~500 words total — they load every turn.
 - **Bash output cap.** Long output truncated past 80 lines; full log goes to `.claude/logs/`. `tail` it if you need the rest.
 
@@ -150,7 +157,7 @@ These apply on every turn.
 
 ### Subagents
 - Delegate verbose tool output (tests, logs, grep results) to subagents. Only the summary returns to the main thread.
-- Read-only subagents default to `haiku`. Reserve `sonnet` for code writing and `opus` for security audits or deep refactors.
+- Read-only subagents default to `haiku`. Use `fable` (CC 2.1.170+) for code writing and day-to-day work; `opus` covers security audits and deep refactors where Fable 5 isn't available.
 
 ### Inline bash in skills
 - Every `!` substitution in a skill must use a narrowing flag. `!git diff` is a mistake; `!git diff --stat` is correct.
