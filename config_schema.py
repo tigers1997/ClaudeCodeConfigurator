@@ -484,6 +484,40 @@ CLAUDE_CODE_COMPAT = {
                                 # settings.local.json.example `// model: sonnet`
                                 # stub is the documented per-machine downgrade for
                                 # older CC / no-Fable plans.
+                                # 2.1.172-175 survey (2026-06-12): no bump; #5723
+                                # still open/draft, untouched since 2026-05-24
+                                # despite its blocker #5728 merging 2026-06-01.
+                                # Supersession clean (the MultiEdit-rule pair
+                                # #5789-closed-unmerged/#5793-open is targeted, not
+                                # a sync). CORRECTION: `agent` (held above as
+                                # schema-blocked) was never blocked - live since at
+                                # least the v2.1.126 sync (#5648, 2026-05-03; the
+                                # key predates that sync's own diff). Evidence:
+                                # properties.agent at line 2596 of claude-code-
+                                # settings.json @ SchemaStore commit 469df85
+                                # (2026-06-12 exact-key pull of both the repo file
+                                # and the published schemastore.org build). The
+                                # 2.1.157 CHANGELOG line extended an existing key,
+                                # it did not introduce one. Docs-verify passes
+                                # (project-level, no managed carve-out) ->
+                                # promotion-ready as a multi-agent opt-in stub;
+                                # NEVER active by default (it rebinds the main
+                                # thread). fallbackModel + disableBundledSkills
+                                # re-verified absent, still held.
+                                # enforceAvailableModels (2.1.175) DROPPED
+                                # managed-tier; wheelScrollAccelerationEnabled
+                                # (2.1.174) out of territory (user-level TUI pref).
+                                # HELD: 2.1.172 CHANGELOG says subagents can now
+                                # nest (<= 5 levels) but the live sub-agents doc
+                                # still says they cannot (fetched 2026-06-12); the
+                                # flat-fanout wording in docs/04 +
+                                # infinite/SKILL.md stays as shipped until the
+                                # docs resolve the scope - design guidance stands
+                                # either way. No-exposure greps clean: no wildcard
+                                # WebFetch(domain:...) rules, no mid-pattern file
+                                # wildcards, no MultiEdit rules, no [1m]-suffixed
+                                # model IDs in shipped templates (2.1.172/173
+                                # fixes). Issue #14920 unchanged.
 }
 
 
