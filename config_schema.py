@@ -485,7 +485,12 @@ CLAUDE_CODE_COMPAT = {
                                 # #5789-closed-unmerged/#5793-open is targeted, not
                                 # a sync). CORRECTION: `agent` (held above as
                                 # schema-blocked) was never blocked - live since at
-                                # least the v2.1.126 sync (#5648, 2026-05-03); the
+                                # least the v2.1.126 sync (#5648, 2026-05-03; the
+                                # key predates that sync's own diff). Evidence:
+                                # properties.agent at line 2596 of claude-code-
+                                # settings.json @ SchemaStore commit 469df85
+                                # (2026-06-12 exact-key pull of both the repo file
+                                # and the published schemastore.org build). The
                                 # 2.1.157 CHANGELOG line extended an existing key,
                                 # it did not introduce one. Docs-verify passes
                                 # (project-level, no managed carve-out) ->
