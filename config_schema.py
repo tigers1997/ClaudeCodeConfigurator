@@ -470,8 +470,14 @@ CLAUDE_CODE_COMPAT = {
                                 # ships in CC 2.1.170 (claude-fable-5).
                                 # Model-default refresh (2026-06-09, maintainer
                                 # decision): scaffolded settings model and the
-                                # test-runner agent now use the `fable` alias and
-                                # own-CI review.yml pins claude-fable-5. The alias
+                                # test-runner agent now use the `fable` alias;
+                                # own-CI review.yml pinned claude-fable-5 from
+                                # 2026-06-09 to 2026-06-12, then repinned to
+                                # claude-sonnet-4-6 (maintainer decision: Fable's
+                                # above-Opus pricing + ~30% tokenizer surcharge +
+                                # always-on thinking is too expensive per review
+                                # run; one Fable review plausibly drained the CI
+                                # key's remaining credits). The alias
                                 # needs CC >= 2.1.170 (the picker can't select it
                                 # below that), which sits ABOVE tested_up_to - a
                                 # deliberate exception to the envelope rule; the
