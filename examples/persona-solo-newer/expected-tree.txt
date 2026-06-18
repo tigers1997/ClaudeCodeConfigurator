@@ -26,9 +26,10 @@
 ./.claude/skills/finishing-a-development-branch/SKILL.md
 ./.claude/skills/plan/SKILL.md
 ./.claude/skills/subagent-driven-development/SKILL.md
-./.claude/skills/subagent-driven-development/code-quality-reviewer-prompt.md
 ./.claude/skills/subagent-driven-development/implementer-prompt.md
-./.claude/skills/subagent-driven-development/spec-reviewer-prompt.md
+./.claude/skills/subagent-driven-development/scripts/review-package
+./.claude/skills/subagent-driven-development/scripts/task-brief
+./.claude/skills/subagent-driven-development/task-reviewer-prompt.md
 ./.claude/skills/using-git-worktrees/SKILL.md
 ./.claude/skills/verification-before-completion/SKILL.md
 ./.claude/skills/verify-setup/SKILL.md
