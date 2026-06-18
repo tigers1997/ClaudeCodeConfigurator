@@ -56,7 +56,7 @@ Only `name` and `description` are required. See `templates/agents/` for four rea
 
 - Each subagent starts with its own system prompt + minimal env info. **No inherited conversation**.
 - Only the subagent's final response returns to the parent. Verbose tool output stays in the subagent's transcript.
-- **Subagents cannot spawn other subagents.** Design around this — use skills or chain through the main thread.
+- **Subagents can spawn other subagents (CC ≥ 2.1.172, capped at 5 nesting levels).** Older CC versions can't. Prefer leaf designs anyway — use skills or chain through the main thread — so the architecture survives older CC and doesn't bury context behind deep subagent transcripts.
 - Parent `bypassPermissions` or `acceptEdits` **overrides** any `permissionMode` set on the subagent.
 
 ### Parallel subagents
@@ -137,7 +137,7 @@ Local Claude Code for interactive work; Claude Code Web for long-running cloud j
 
 - The main thread's context is still finite. Subagents help with verbosity but not with total information you're holding in your head.
 - Parallel subagents that return detailed results still fill the parent. Prefer "ship a summary, not a transcript."
-- Subagents can't spawn subagents. If you need 3 levels, you're designing wrong.
+- Subagent nesting caps at 5 levels (CC ≥ 2.1.172; earlier versions: 0). If you need 3+ levels, the design is usually still wrong — re-shape into a fanout or pipeline through the main thread.
 
 ## Recommendations
 
