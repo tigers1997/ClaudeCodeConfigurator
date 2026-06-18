@@ -518,6 +518,55 @@ CLAUDE_CODE_COMPAT = {
                                 # wildcards, no MultiEdit rules, no [1m]-suffixed
                                 # model IDs in shipped templates (2.1.172/173
                                 # fixes). Issue #14920 unchanged.
+                                # 2.1.176-181 survey (2026-06-17): no bump; #5723
+                                # still open/draft. Surveyed versions present in
+                                # CHANGELOG: 2.1.176, 2.1.178, 2.1.179, 2.1.181
+                                # (2.1.177 and 2.1.180 NOT PRESENT - skipped or
+                                # internal-only per the verbatim-pull discipline).
+                                # New in-territory settings.json keys: none. Out-
+                                # of-territory by existing precedent:
+                                # footerLinksRegexes + language (2.1.176, user-
+                                # level UI prefs); sandbox.allowAppleEvents
+                                # (2.1.181, macOS-only opt-in). HELD constraint
+                                # RESOLVED: the 2.1.172 sub-agent nesting wording
+                                # held above on a CHANGELOG/docs contradiction is
+                                # now reconciled - the live sub-agents doc at
+                                # code.claude.com/docs/en/sub-agents documents
+                                # nested subagents (min-version 2.1.172), and
+                                # 2.1.181 explicitly unifies the foreground+
+                                # background depth cap at 5 levels ("Fixed
+                                # foreground subagents spawning unbounded nested
+                                # chains; they now respect the same 5-level depth
+                                # limit as background subagents"). Shipped
+                                # template wording updated in the same PR (docs/
+                                # 04-subagents-mcp-orchestration.md lines 59 +
+                                # 140, templates/commands/infinite/SKILL.md
+                                # line 65); leaf-design guidance still stands and
+                                # remains the recommended pattern within the
+                                # testing envelope (tested_up_to < 2.1.172 means
+                                # users on the tested band don't have nesting).
+                                # Permission-rule syntax: 2.1.178 adds the
+                                # Tool(param:value) form with `*` wildcard (e.g.
+                                # Agent(model:opus)) - future opt-in stub
+                                # candidate; no shipped template uses the new
+                                # form yet, and SchemaStore acceptance status
+                                # not yet verified. Nested .claude/skills
+                                # collision handling (2.1.178): nested-dir skills
+                                # now load as <dir>:<name> on name clash -
+                                # reinforces the plugin-skill carve-out pattern
+                                # documented in the skillOverrides note above;
+                                # no shipped-template impact. MCP server-level
+                                # specs in subagent disallowedTools (mcp__server,
+                                # mcp__server__*, mcp__*) silently-ignored bug
+                                # fixed in 2.1.178; grep against shipped
+                                # templates clean (no MCP server-level patterns
+                                # in disallowedTools). Auto-mode classifier
+                                # gain (2.1.178) and miscellaneous subagent UX
+                                # fixes (2.1.179/181) require no configurator
+                                # action. SchemaStore #5723 unchanged from prior
+                                # survey - still open/draft, untouched since
+                                # 2026-05-24 despite dep #5728 merged
+                                # 2026-06-01. Issue #14920 unchanged.
 }
 
 

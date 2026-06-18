@@ -62,7 +62,7 @@ Dispatch subagents via the Task tool using the `parallel-generator` subagent. Ea
 4. **diversification_axis** — the axis this iteration should differ on, named explicitly. e.g. "this iteration must use a dark color palette"; "this iteration must favor imperative style over declarative."
 5. **quality_standards** — the must-be-true bullets from Phase 1, verbatim.
 
-**Do not ask subagents to coordinate with each other.** They cannot spawn their own subagents and their contexts don't share. The claimed_slots_manifest + diversification_axis does the coordination for them.
+**Do not ask subagents to coordinate with each other.** Their contexts don't share — even with nested-subagent support (CC ≥ 2.1.172, ≤ 5 levels), a child can't reach a sibling's transcript. The claimed_slots_manifest + diversification_axis does the coordination for them.
 
 ## After each wave
 
