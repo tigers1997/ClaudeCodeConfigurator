@@ -1776,7 +1776,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
             files.append({
                 "target": tgt,
                 "content": content,
-                "executable": rel.endswith(".sh"),
+                "executable": rel.endswith(".sh") or bool(src.stat().st_mode & stat.S_IXUSR),
             })
         # Apply per-flag extraPaths.
         for flag_name, flag_def in m.get("flags", {}).items():
@@ -1796,7 +1796,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
                 files.append({
                     "target": tgt,
                     "content": content,
-                    "executable": rel.endswith(".sh"),
+                    "executable": rel.endswith(".sh") or bool(src.stat().st_mode & stat.S_IXUSR),
                 })
         if m.get("gitignoreSource"):
             gi = (TEMPLATE_DIR / m["gitignoreSource"]).read_text(encoding="utf-8").splitlines()
