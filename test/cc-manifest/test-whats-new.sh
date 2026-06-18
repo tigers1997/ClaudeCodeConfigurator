@@ -23,12 +23,17 @@ echo "$out" | grep -q "No .claude/.cc-manifest.json" \
 [ ! -e "$tmp/b/.claude" ] || { echo "FAIL: B created .claude/ (not read-only)"; exit 1; }
 [ ! -e "$tmp/b/.claude-config.json" ] || { echo "FAIL: B wrote .claude-config.json (not read-only)"; exit 1; }
 
-# C: older-version manifest, no SHA -> lists the Unreleased CHANGELOG headlines.
+# C: older-version manifest, no SHA -> engages the older-version path: either
+# the Unreleased headlines banner, or — right after a release, when the live
+# CHANGELOG's Unreleased section is legitimately empty — the explicit
+# no-entries message. Both are distinct from case A's "Up to date".
 python3 configure.py --persona solo-experienced --yes --dir "$tmp/c" >/dev/null 2>&1
 python3 -c "import json;p='$tmp/c/.claude/.cc-manifest.json';d=json.load(open(p));d['written_by']='cc-configure 2.5.0';d.pop('written_by_sha',None);json.dump(d,open(p,'w'))"
 out=$(python3 configure.py --whats-new --dir "$tmp/c" 2>&1)
-echo "$out" | grep -q "Unreleased changes a re-run would pick up" \
-    || { echo "FAIL: C expected Unreleased headlines"; echo "$out"; exit 1; }
+echo "$out" | grep -qE "Unreleased changes a re-run would pick up|No Unreleased CHANGELOG entries found" \
+    || { echo "FAIL: C expected Unreleased headlines or empty-Unreleased message"; echo "$out"; exit 1; }
+echo "$out" | grep -q "Up to date" \
+    && { echo "FAIL: C must not report 'Up to date' for an older-version manifest"; echo "$out"; exit 1; }
 
 # D: stale (real older) SHA -> reports commits-ahead. Skipped on a shallow
 # checkout where HEAD~1 isn't present (CI default fetch-depth=1).
