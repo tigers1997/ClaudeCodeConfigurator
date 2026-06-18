@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# All 14 files declared in the discipline-skills module's paths list exist
+# All files declared in the discipline-skills module's paths list exist
 # on disk. Catches drift between config_schema.py and the templates dir.
 set -euo pipefail
 
@@ -14,8 +14,9 @@ paths=(
     "templates/discipline-skills/using-git-worktrees/SKILL.md"
     "templates/discipline-skills/subagent-driven-development/SKILL.md"
     "templates/discipline-skills/subagent-driven-development/implementer-prompt.md"
-    "templates/discipline-skills/subagent-driven-development/spec-reviewer-prompt.md"
-    "templates/discipline-skills/subagent-driven-development/code-quality-reviewer-prompt.md"
+    "templates/discipline-skills/subagent-driven-development/task-reviewer-prompt.md"
+    "templates/discipline-skills/subagent-driven-development/scripts/review-package"
+    "templates/discipline-skills/subagent-driven-development/scripts/task-brief"
     "templates/discipline-skills/finishing-a-development-branch/SKILL.md"
     "templates/discipline-skills/hooks/sessionstart-discipline.sh"
 )
