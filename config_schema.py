@@ -568,6 +568,86 @@ CLAUDE_CODE_COMPAT = {
                                 # survey - still open/draft, untouched since
                                 # 2026-05-24 despite dep #5728 merged
                                 # 2026-06-01. Issue #14920 unchanged.
+                                # 2.1.183-191 survey (2026-06-25): no bump.
+                                # Surveyed versions present in CHANGELOG:
+                                # 2.1.183, 2.1.185, 2.1.186, 2.1.187, 2.1.190,
+                                # 2.1.191 (2.1.184/188/189 NOT PRESENT - skipped
+                                # or internal-only per the verbatim-pull
+                                # discipline). SCHEMA WATCH MOVED: SchemaStore
+                                # #5723 (sync->v2.1.150, draft) is still open
+                                # and untouched since 2026-05-24 (32 days
+                                # idle), but a fresh #5814 (sync->v2.1.177,
+                                # 84->134 properties, opened 2026-06-13, NOT
+                                # draft, awaiting code-owner LGTM) supersedes
+                                # it in scope and is the more likely merge
+                                # candidate; the upstream-gate-playbook watch
+                                # target switches to `#5814 OR #5723 OR
+                                # successor`. Two further targeted PRs also
+                                # open and awaiting LGTM: #5822 (seven UI/
+                                # notification keys: theme,
+                                # preferredNotifChannel, autoCompactEnabled,
+                                # skipWorkflowUsageWarning,
+                                # skipAutoPermissionPrompt,
+                                # inputNeededNotifEnabled,
+                                # agentPushNotifEnabled - out of territory by
+                                # UI-pref precedent); #5833 (targeted
+                                # attribution.sessionUrl for CC 2.1.183 - in
+                                # territory). New in-territory settings.json
+                                # keys held for the merge: sandbox.credentials
+                                # (CC 2.1.187, hardening - blocks sandboxed
+                                # commands from reading credential files /
+                                # secret env vars; future stub candidate for
+                                # the existing // sandbox block in safety
+                                # settings-patch); attribution.sessionUrl
+                                # (CC 2.1.183, privacy opt-in - omits the
+                                # claude.ai session link from commit/PR text
+                                # in web + Remote Control sessions; future
+                                # stub candidate for git-workflow settings-
+                                # patch, with #5833 the targeted schema-side
+                                # patch). respondToBashCommands (CC 2.1.186)
+                                # classified out of territory: a per-user
+                                # behavior preference (default-true: `!` bash
+                                # commands auto-prompt Claude), not a
+                                # project-level scaffolded default.
+                                # Permission-rule syntax extension: 2.1.186
+                                # adds Agent(type) deny rules and Agent(x,y)
+                                # allowed-types restrictions for named-
+                                # subagent specs - same Tool(param:value) form
+                                # already parked from 2.1.178; no shipped
+                                # template uses either, parking decision
+                                # stands. No-impact verifications (greps
+                                # clean): hook-matcher comma-separated silent-
+                                # fail (CC 2.1.191, e.g. "Bash,PowerShell") -
+                                # all shipped templates use pipe-separated
+                                # regex (Write|Edit|NotebookEdit), no comma
+                                # form; skill-frontmatter case-insensitivity
+                                # (CC 2.1.186 accepts kebab+snake+camel) -
+                                # shipped skills are kebab-case; auto-mode
+                                # git/iac destructive-command block (CC
+                                # 2.1.183: git reset --hard, checkout -- .,
+                                # clean -fd, stash drop, plus terraform/
+                                # pulumi/cdk destroy unless the specific
+                                # stack is asked) - classifier-tier gate
+                                # orthogonal to the bash-pattern-based
+                                # block-dangerous-bash.sh PreToolUse guard,
+                                # no overlap to harden; subagent depth-
+                                # tracking fix (CC 2.1.187: resumed subagents
+                                # restore original spawn depth, forks count
+                                # toward the depth cap) - further validates
+                                # the 5-level cap surfaced in 2.1.181 and
+                                # lifted into shipped wording in PR #84.
+                                # Env mention-only: CLAUDE_CLIENT_PRESENCE_FILE
+                                # (CC 2.1.181, mobile-push suppression marker
+                                # - missed in the 2.1.176-181 survey),
+                                # CLAUDE_CODE_RETRY_WATCHDOG (CC 2.1.186,
+                                # replaces unbounded retry; CLAUDE_CODE_MAX_-
+                                # RETRIES capped at 15 in the same release),
+                                # CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT (CC 2.1.187,
+                                # overrides the new 5-minute remote-MCP-call
+                                # abort). Issue #14920 unchanged - still open,
+                                # 13 community comments, no Anthropic
+                                # engagement, last update 2026-03-31 (86 days
+                                # stale).
 }
 
 
