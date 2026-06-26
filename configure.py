@@ -1348,6 +1348,32 @@ def _merge_hook_groups(existing_groups, new_groups):
         if gc not in out:  # collapse exact whole-group dups (self-heal)
             out.append(gc)
 
+    # Matcher migration (F1 dogfood, 2026-06-26): a configurator command may
+    # change matcher between releases — e.g. the SessionStart marker-clear that
+    # shipped matcherless is now `startup|clear`. The matcher-keyed dedup below
+    # would then append a 2nd group and leave the stale one firing, re-negating
+    # the fix on `cc-configure --retrofit`. For each configurator command,
+    # collect the matcher(s) the NEW template places it under, then strip that
+    # command from any existing group whose matcher is NOT one of them (a stale
+    # placement). This preserves the deliberate same-command-under-multiple-
+    # matchers pattern (the mcp drift-check ships under both `startup` and
+    # `resume`) and never touches a user's own command (absent from new_groups).
+    new_matchers = {}
+    for ng in new_groups:
+        for c in _hook_commands(ng):
+            new_matchers.setdefault(c, set()).add(ng.get("matcher"))
+    for g in out:
+        gm = g.get("matcher")
+        hooks = g.get("hooks")
+        if isinstance(hooks, list):
+            g["hooks"] = [
+                h for h in hooks
+                if not (isinstance(h, dict)
+                        and h.get("command") in new_matchers
+                        and gm not in new_matchers[h["command"]])
+            ]
+    out = [g for g in out if g.get("hooks")]
+
     groups_added = 0
     commands_added = 0
     for ng in new_groups:
