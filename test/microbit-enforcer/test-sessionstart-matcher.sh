@@ -8,32 +8,21 @@
 # are: startup, resume, clear, compact — the matcher filters on source.
 set -euo pipefail
 
-proj_root=$(pwd)
-
-result=$(python3 -c "
-import sys, json; sys.path.insert(0, '$proj_root')
+python3 - <<'EOF'
+import sys
+sys.path.insert(0, '.')
 from configure import compute_merged_settings
-s = compute_merged_settings({}, {'core', 'commands'}, {'commands': {'subset': 'full'}})
-ss = s.get('hooks', {}).get('SessionStart', [])
+
+s = compute_merged_settings({}, {"core", "commands"}, {"commands": {"subset": "full"}})
+ss = s.get("hooks", {}).get("SessionStart", [])
 # The entry that clears the discipline markers (identified by the .frozen path).
 entry = next((e for e in ss
-              if any('.frozen' in h.get('command', '') for h in e.get('hooks', []))),
-             None)
-print(json.dumps({'found': entry is not None,
-                  'matcher': (entry or {}).get('matcher')}))
-")
+              if any(".frozen" in h.get("command", "") for h in e.get("hooks", []))), None)
 
-found=$(printf '%s' "$result" | python3 -c "import json,sys;print(json.load(sys.stdin)['found'])")
-matcher=$(printf '%s' "$result" | python3 -c "import json,sys;print(json.load(sys.stdin)['matcher'])")
+assert entry is not None, f"no SessionStart marker-clear entry in commands(subset=full): {ss}"
+assert entry.get("matcher") == "startup|clear", (
+    "SessionStart marker-clear matcher must be 'startup|clear' (fresh-slate only, "
+    f"so resume/compact preserve markers); got {entry.get('matcher')!r}")
 
-[ "$found" = "True" ] || {
-  echo "FAIL: no SessionStart marker-clear entry in commands(subset=full); got: $result"
-  exit 1
-}
-[ "$matcher" = "startup|clear" ] || {
-  echo "FAIL: SessionStart marker-clear matcher must be 'startup|clear' (fresh-slate only,"
-  echo "      so resume/compact preserve markers); got: '$matcher'"
-  exit 1
-}
-
-echo "PASS: microbit-enforcer SessionStart marker-clear is scoped to startup|clear (resume/compact preserve markers)"
+print("PASS: microbit-enforcer SessionStart marker-clear is scoped to startup|clear (resume/compact preserve markers)")
+EOF
