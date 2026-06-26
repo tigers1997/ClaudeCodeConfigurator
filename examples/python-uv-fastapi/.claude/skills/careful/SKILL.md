@@ -42,4 +42,4 @@ Currently careful:
 
 ## Lifecycle
 
-Careful patterns persist for the session, cleared on session start.
+Careful patterns persist for the session — cleared on a fresh session (`startup`) or `/clear`, but preserved across `--resume`/`--continue` and compaction.
