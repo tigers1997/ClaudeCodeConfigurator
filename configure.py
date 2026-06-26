@@ -1013,7 +1013,6 @@ def check_stack_reality(target_dir, form_values: dict, which=None) -> list:
     command maps to a known manifest (e.g. bare tsc / pytest / ruff)."""
     fv = form_values or {}
     if which is None:
-        import shutil
         which = shutil.which
 
     # Reuse extract_first_binaries (shlex-guarded) for the three commands the
@@ -1062,11 +1061,18 @@ def check_stack_reality(target_dir, form_values: dict, which=None) -> list:
                 ".claude-config.json or re-run cc-configure.".format(
                     b=bins_str, m=manifest))
 
-    # Container note only when a warned toolchain binary isn't on the host PATH —
-    # then a compose/Dockerfile means it likely lives in the container and the
-    # host-side hooks no-op. If the binary IS on the host (e.g. a monorepo whose
-    # compose file is only for backing services), the hooks run fine.
-    if warnings and any(which(b) is None for b in warned_bins):
+    # Container note only when a warned toolchain binary isn't reachable on the
+    # host — then a compose/Dockerfile means it likely lives in the container and
+    # the host-side hooks no-op. If the binary IS on the host (e.g. a monorepo
+    # whose compose file is only for backing services), the hooks run fine. A
+    # path-like binary (`./gradlew`, `./mvnw`) is never on PATH, so check the file
+    # relative to the project root instead of shutil.which (which always returns
+    # None for it, which would fire the note spuriously).
+    def _off_host(b):
+        if "/" in b:
+            return not (target_dir / b).exists()
+        return which(b) is None
+    if warnings and any(_off_host(b) for b in warned_bins):
         container = next(
             (n for n in ("docker-compose.yml", "docker-compose.yaml",
                          "compose.yml", "compose.yaml", "Dockerfile")

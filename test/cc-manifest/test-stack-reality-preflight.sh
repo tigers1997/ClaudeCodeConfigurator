@@ -87,4 +87,16 @@ out=$(run "$d" "{\"cmd_test\":\"pnpm test --grep 'foo\"}" all)
 echo "$out" | grep -q "no package.json at the project root" \
   || { echo "FAIL: malformed-quote cmd should degrade gracefully and still warn; got: $out"; exit 1; }
 
-echo "PASS: check_stack_reality — root-mismatch warns, names subdirs, container note gated on host-PATH absence, stop-hook-key scope, survives malformed quotes, silent when matched"
+# 8. Path-like binary (./gradlew) present at root -> NOT off-host (it's a local
+#    file, not a PATH binary), so the container note is suppressed even with a
+#    Dockerfile/compose. shutil.which('./gradlew') always returns None; the gate
+#    file-checks path-like binaries instead of trusting PATH. (which-mode is
+#    irrelevant here — the path branch never calls which.)
+d="$tmp/gradlew"; mkdir -p "$d/app"; touch "$d/app/build.gradle" "$d/gradlew" "$d/docker-compose.yml"
+out=$(run "$d" '{"cmd_test":"./gradlew test"}' none)
+echo "$out" | grep -q "no build.gradle at the project root" \
+  || { echo "FAIL: gradlew monorepo should warn about missing root build.gradle; got: $out"; exit 1; }
+echo "$out" | grep -q "docker compose exec" \
+  && { echo "FAIL: container note must be suppressed when ./gradlew exists at root; got: $out"; exit 1; } || true
+
+echo "PASS: check_stack_reality — root-mismatch warns, names subdirs, container note gated on host reachability (incl. path-like ./gradlew), stop-hook-key scope, survives malformed quotes, silent when matched"
