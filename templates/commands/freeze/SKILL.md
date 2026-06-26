@@ -34,8 +34,9 @@ plan, or investigate without code changes happening.
 ## Notes
 
 - Frozen state is per-project (the marker is in `.claude/`).
-- Frozen state does **not** persist across Claude Code session
-  restarts: the `SessionStart` hook clears all microbit markers
-  (.frozen / .guarded / .careful).
+- Frozen state is session-scoped: a fresh session (`startup`) or
+  `/clear` clears all microbit markers (.frozen / .guarded / .careful),
+  but it **survives** `--resume`/`--continue` and compaction — so a long
+  session keeps its freeze. Run `/unfreeze` to lift it deliberately.
 - Read tools (Read, Grep, Glob, Bash with read-only commands) are
   unaffected.

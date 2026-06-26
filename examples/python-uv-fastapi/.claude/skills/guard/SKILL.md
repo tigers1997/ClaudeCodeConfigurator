@@ -38,8 +38,9 @@ Currently guarded:
 
 ## Lifecycle
 
-Guards persist for the session. The configurator clears `.guarded` on
-session start (SessionStart hook). Removing a single guarded pattern
+Guards persist for the session. A fresh session (`startup`) or `/clear`
+clears `.guarded`; it survives `--resume`/`--continue` and compaction.
+Removing a single guarded pattern
 mid-session isn't supported in v2.1 — re-create the guard list by
 clearing it (delete `.claude/.guarded`) and re-running `/guard` for
 the patterns you still want.

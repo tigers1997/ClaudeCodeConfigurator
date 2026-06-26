@@ -12,8 +12,9 @@
 #   .claude/.careful    — newline-separated globs; prompt before match
 #
 # Lifecycle: a SessionStart hook (registered alongside this hook by the
-# configurator's settings-patch) clears all three files. Markers are
-# session-scoped, not persistent.
+# configurator's settings-patch, matcher startup|clear) clears all three
+# files on a fresh session or /clear. Markers are session-scoped but
+# survive --resume and compaction, so a long session keeps its markers.
 
 set -euo pipefail
 

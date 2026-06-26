@@ -130,6 +130,7 @@
     ],
     "SessionStart": [
       {
+        "matcher": "startup|clear",
         "hooks": [
           {
             "type": "command",
