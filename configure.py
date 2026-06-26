@@ -944,6 +944,23 @@ KNOWN_STACK_MANIFESTS = (
 )
 
 
+# Maps a check-command's first binary to the stack manifest that signals
+# "this stack is scaffolded at this directory." Mirrors manifest_for() in
+# templates/git-workflow/hooks/stop-run-checks.sh — keep the two in sync.
+# Values are a subset of KNOWN_STACK_MANIFESTS.
+BINARY_TO_MANIFEST = {
+    "pnpm": "package.json", "npm": "package.json",
+    "yarn": "package.json", "bun": "package.json",
+    "uv": "pyproject.toml", "poetry": "pyproject.toml",
+    "pip": "pyproject.toml", "pip3": "pyproject.toml",
+    "cargo": "Cargo.toml", "rustc": "Cargo.toml",
+    "go": "go.mod",
+    "bundle": "Gemfile", "gem": "Gemfile",
+    "mvn": "pom.xml",
+    "gradle": "build.gradle", "./gradlew": "build.gradle",
+}
+
+
 def detect_stack_manifests(target_dir: Path) -> list:
     """Return sorted list of known stack-manifest filenames present at target_dir.
 
@@ -971,6 +988,82 @@ def extract_first_binaries(typecheck: str = None, lint: str = None, test: str = 
         if parts:
             out[kind] = parts[0]
     return out
+
+
+def check_stack_reality(target_dir, form_values: dict) -> list:
+    """Warn when a configured check command's stack manifest is missing from the
+    project root — the exact condition that makes the Stop hook
+    (stop-run-checks.sh, skip rule 3) silently skip that check at runtime.
+
+    For each missing manifest, note whether it exists one directory level down
+    (monorepo / split frontend-backend layout) so the user knows the toolchain
+    is present but the root-anchored hook won't find it. When the project also
+    looks containerized (a compose file or root Dockerfile is present), append a
+    note that the host-side format/check hooks call host tools and will no-op if
+    the real toolchain lives in the container.
+
+    Warning-only; never blocks scaffolding. Returns a list of strings for the
+    caller to render under a [ STACK WARNINGS ] block. Silent when every
+    configured command's manifest is present at the root, or when no configured
+    command maps to a known manifest (e.g. bare tsc / pytest / ruff)."""
+    import shlex
+    fv = form_values or {}
+    bins = set()
+    for key in ("cmd_typecheck", "cmd_lint", "cmd_test",
+                "cmd_install", "cmd_build", "cmd_dev"):
+        val = fv.get(key)
+        if isinstance(val, str) and val.strip():
+            parts = shlex.split(val)
+            if parts:
+                bins.add(parts[0])
+
+    wanted = {}  # manifest -> set of configured binaries that imply it
+    for b in bins:
+        manifest = BINARY_TO_MANIFEST.get(b)
+        if manifest:
+            wanted.setdefault(manifest, set()).add(b)
+    if not wanted:
+        return []
+
+    try:
+        subdirs = [p for p in target_dir.iterdir()
+                   if p.is_dir() and not p.name.startswith(".")]
+    except OSError:
+        subdirs = []
+
+    warnings = []
+    for manifest in sorted(wanted):
+        if (target_dir / manifest).exists():
+            continue  # configured stack matches the repo root — fine
+        bins_str = "/".join(sorted(wanted[manifest]))
+        found_in = sorted(p.name for p in subdirs if (p / manifest).exists())
+        if found_in:
+            where = ", ".join(d + "/" for d in found_in[:3])
+            warnings.append(
+                "configured `{b}` checks but no {m} at the project root "
+                "(found in {w}). stop-run-checks.sh runs from the root and "
+                "will silently skip these — point your cmd_* values at the "
+                "subdir (e.g. `cd {d} && ...`) or scaffold it separately.".format(
+                    b=bins_str, m=manifest, w=where, d=found_in[0]))
+        else:
+            warnings.append(
+                "configured `{b}` checks but no {m} anywhere in the tree — "
+                "these checks can't run here. Fix the stack in "
+                ".claude-config.json or re-run cc-configure.".format(
+                    b=bins_str, m=manifest))
+
+    if warnings:
+        container = next(
+            (n for n in ("docker-compose.yml", "docker-compose.yaml",
+                         "compose.yml", "compose.yaml", "Dockerfile")
+             if (target_dir / n).exists()), None)
+        if container:
+            warnings.append(
+                "detected {c} — if your toolchain runs in containers, the "
+                "format-on-write and stop-run-checks hooks call host tools and "
+                "will no-op. Point cmd_* at `docker compose exec <svc> ...`.".format(
+                    c=container))
+    return warnings
 
 
 def _configurator_sha():
@@ -2611,6 +2704,17 @@ def main():
         print(bold(yellow("[ ENV WARNINGS ]")))
         for w in env_warnings:
             print(f"  {yellow('!')} {w}")
+
+    # Surface a configured check stack that doesn't exist at the repo root —
+    # the runtime condition that makes stop-run-checks.sh silently self-disable.
+    stack_warnings = check_stack_reality(target_dir, config["formValues"])
+    if stack_warnings:
+        print()
+        print(bold(yellow("[ STACK WARNINGS ]")))
+        for w in stack_warnings:
+            print(f"  {yellow('!')} {w}")
+        print(dim("  stop-run-checks.sh skips any check whose stack manifest is absent at the"))
+        print(dim("  project root, so a mismatched stack disables the typecheck/lint/test loop."))
 
     # Surface pre-existing design docs (typical output of a prior superpowers
     # brainstorming session). Informational, not a warning — the install is

@@ -1,5 +1,5 @@
 {
-  "//": "Auto-installed alongside the freeze/unfreeze/guard/careful microbits when commands.subset is 'full' or 'rigorous'. PreToolUse rejects Write/Edit/NotebookEdit when a marker is present; SessionStart clears markers (session-scoped lifecycle).",
+  "//": "Auto-installed alongside the freeze/unfreeze/guard/careful microbits when commands.subset is 'full' or 'rigorous'. PreToolUse rejects Write/Edit/NotebookEdit when a marker is present; SessionStart (matcher startup|clear) clears markers only on a fresh session or /clear — resume and compaction preserve them so a long session keeps its freezes.",
   "hooks": {
     "PreToolUse": [
       {
@@ -15,6 +15,7 @@
     ],
     "SessionStart": [
       {
+        "matcher": "startup|clear",
         "hooks": [
           {
             "type": "command",
