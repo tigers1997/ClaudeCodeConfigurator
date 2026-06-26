@@ -37,4 +37,14 @@ print(json.dumps(extract_first_binaries(typecheck='   ', lint='ruff check', test
 expected='{"lint": "ruff"}'
 [ "$result" = "$expected" ] || { echo "FAIL: whitespace not skipped: $result != $expected"; exit 1; }
 
-echo "PASS: extract_first_binaries pulls first token, skips empty/None/whitespace"
+# Malformed quote must not crash (B1): degrades to a plain split, first token kept
+result=$(python3 -c "
+import sys; sys.path.insert(0, '$proj_root')
+from configure import extract_first_binaries
+import json
+print(json.dumps(extract_first_binaries(test=\"pnpm test --grep 'foo\")))
+")
+expected='{"test": "pnpm"}'
+[ "$result" = "$expected" ] || { echo "FAIL: malformed quote should degrade, not crash: $result != $expected"; exit 1; }
+
+echo "PASS: extract_first_binaries pulls first token, skips empty/None/whitespace, survives malformed quotes"
