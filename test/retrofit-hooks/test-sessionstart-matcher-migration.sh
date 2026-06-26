@@ -35,8 +35,9 @@ assert ss[0].get("matcher") == "startup|clear", \
 n_clear = sum(1 for g in ss for h in g.get("hooks", []) if ".frozen" in h.get("command", ""))
 assert n_clear == 1, f"marker-clear command should appear exactly once, got {n_clear}: {ss}"
 
-# A matcherless group that ALSO holds a user command is not a pure configurator
-# group (not a subset), so it must be left untouched — user hook preserved.
+# A matcherless group that ALSO holds a user command: the migration is
+# per-command, so the configurator's marker-clear migrates OUT to startup|clear
+# while the user's own hook stays put under the matcherless group.
 existing2 = {"hooks": {"SessionStart": [
     {"hooks": [
         {"type": "command", "command": CLEAR, "timeout": 5},
@@ -45,8 +46,13 @@ existing2 = {"hooks": {"SessionStart": [
 ]}}
 merged2, _ = deep_merge_settings(existing2, new)
 ss2 = merged2["hooks"]["SessionStart"]
-assert any("my-own-hook" in h.get("command", "") for g in ss2 for h in g.get("hooks", [])), \
+matcherless2 = [g for g in ss2 if g.get("matcher") is None]
+assert any("my-own-hook" in h.get("command", "") for g in matcherless2 for h in g.get("hooks", [])), \
     f"a user's own SessionStart hook must be preserved across retrofit: {ss2}"
+assert not any(".frozen" in h.get("command", "") for g in matcherless2 for h in g.get("hooks", [])), \
+    f"the marker-clear must migrate OUT of the matcherless group (not duplicate): {ss2}"
+assert sum(1 for g in ss2 for h in g.get("hooks", []) if ".frozen" in h.get("command", "")) == 1, \
+    f"marker-clear should appear exactly once after migration: {ss2}"
 
 # Deliberate same-command-under-multiple-matchers (the mcp drift-check ships
 # under both startup and resume) must survive — both are valid placements in
