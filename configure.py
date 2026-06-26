@@ -984,7 +984,10 @@ def extract_first_binaries(typecheck: str = None, lint: str = None, test: str = 
     for kind, cmd in (("typecheck", typecheck), ("lint", lint), ("test", test)):
         if not cmd or not cmd.strip():
             continue
-        parts = shlex.split(cmd)
+        try:
+            parts = shlex.split(cmd)
+        except ValueError:
+            parts = cmd.split()  # unbalanced quote etc. — degrade, don't crash
         if parts:
             out[kind] = parts[0]
     return out
@@ -1008,12 +1011,16 @@ def check_stack_reality(target_dir, form_values: dict) -> list:
     command maps to a known manifest (e.g. bare tsc / pytest / ruff)."""
     import shlex
     fv = form_values or {}
+    # Only the three commands the Stop hook (stop-run-checks.sh) actually runs —
+    # naming install/build/dev here would misattribute the runtime skip to it.
     bins = set()
-    for key in ("cmd_typecheck", "cmd_lint", "cmd_test",
-                "cmd_install", "cmd_build", "cmd_dev"):
+    for key in ("cmd_typecheck", "cmd_lint", "cmd_test"):
         val = fv.get(key)
         if isinstance(val, str) and val.strip():
-            parts = shlex.split(val)
+            try:
+                parts = shlex.split(val)
+            except ValueError:
+                parts = val.split()  # unbalanced quote etc. — degrade, don't crash
             if parts:
                 bins.add(parts[0])
 

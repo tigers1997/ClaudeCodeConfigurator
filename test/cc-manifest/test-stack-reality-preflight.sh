@@ -55,4 +55,17 @@ out=$(run "$d" '{"cmd_test":"cargo test"}')
 echo "$out" | grep -q "anywhere in the tree" \
   || { echo "FAIL: fully-absent manifest should warn can't-run; got: $out"; exit 1; }
 
-echo "PASS: check_stack_reality warns on root-manifest mismatch, names subdirs, flags containers, silent when matched"
+# 6. cmd_install/build/dev are NOT scanned (A1: stop-run-checks.sh runs only
+#    typecheck/lint/test) — a missing manifest for install alone stays silent.
+d="$tmp/installonly"; mkdir -p "$d"
+out=$(run "$d" '{"cmd_install":"pnpm install"}')
+[ "$out" = "[]" ] || { echo "FAIL: cmd_install alone must not warn (stop-run-checks never runs it); got: $out"; exit 1; }
+
+# 7. Malformed quote in a check command must NOT crash (B1: shlex guard) —
+#    it degrades to a plain split and still extracts the first binary.
+d="$tmp/badquote"; mkdir -p "$d/frontend"; touch "$d/frontend/package.json"
+out=$(run "$d" "{\"cmd_test\":\"pnpm test --grep 'foo\"}")
+echo "$out" | grep -q "no package.json at the project root" \
+  || { echo "FAIL: malformed-quote cmd should degrade gracefully and still warn; got: $out"; exit 1; }
+
+echo "PASS: check_stack_reality warns on root-manifest mismatch, names subdirs, flags containers, scopes to stop-hook keys, survives malformed quotes, silent when matched"
