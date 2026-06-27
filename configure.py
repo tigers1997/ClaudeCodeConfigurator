@@ -1079,9 +1079,12 @@ def check_stack_reality(target_dir, form_values: dict, which=None) -> list:
              if (target_dir / n).exists()), None)
         if container:
             warnings.append(
-                "detected {c} — if your toolchain runs in containers, the "
-                "format-on-write and stop-run-checks hooks call host tools and "
-                "will no-op. Point cmd_* at `docker compose exec <svc> ...`.".format(
+                "detected {c} — if your toolchain runs in containers, host-side "
+                "hooks no-op. Run checks in the container: add the service as a "
+                "3rd field on the matching CHECKS entry in "
+                ".claude/hooks/stop-run-checks.sh (e.g. `test|pytest|backend`), "
+                "which runs `docker compose exec`/`run`. format-on-write stays "
+                "host-side — install the formatter (ruff/prettier).".format(
                     c=container))
     return warnings
 

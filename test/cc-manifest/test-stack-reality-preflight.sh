@@ -60,6 +60,8 @@ touch "$d/frontend/package.json" "$d/docker-compose.yml"
 out=$(run "$d" '{"cmd_typecheck":"pnpm typecheck","cmd_lint":"pnpm lint","cmd_test":"pnpm test"}' none)
 echo "$out" | grep -q "docker compose exec" \
   || { echo "FAIL: containerized + toolchain-off-host should get the container note; got: $out"; exit 1; }
+echo "$out" | grep -q "CHECKS entry" \
+  || { echo "FAIL: container note should point at the CHECKS service field in stop-run-checks.sh; got: $out"; exit 1; }
 
 # 4b. A1: same layout but toolchain IS on host (which=all) -> subdir warn, NO container note
 out=$(run "$d" '{"cmd_typecheck":"pnpm typecheck","cmd_lint":"pnpm lint","cmd_test":"pnpm test"}' all)

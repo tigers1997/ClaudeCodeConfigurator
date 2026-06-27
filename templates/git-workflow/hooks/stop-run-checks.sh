@@ -46,8 +46,15 @@ except Exception:
 ' 2>/dev/null || echo 0)"
 if [ "$BG_COUNT" -gt 0 ]; then exit 0; fi
 
-# label|command — labels are display-only, commands come from cc-configure.
-# Leave a value empty after the `|` to skip that check entirely.
+# label|command  or  label|command|service
+#  - labels are display-only; commands come from cc-configure.
+#  - leave the command empty (label|) to skip a check entirely.
+#  - add a docker-compose service as a 3rd field to run that check INSIDE the
+#    container (reuses your existing service): runs `docker compose exec -T
+#    <service> <command>` if it's up, else `docker compose run --rm <service>
+#    <command>`; skips silently if docker/compose or the service is absent.
+#    Service names are single tokens; a containerized command can't contain `|`.
+#    Example:  "test|pytest|backend"   "typecheck|pnpm typecheck|frontend"
 CHECKS=(
   "typecheck|{{cmd_typecheck}}"
   "lint|{{cmd_lint}}"
@@ -71,24 +78,64 @@ manifest_for() {
   esac
 }
 
+# Echo a working `docker compose` invocation, or return non-zero when the
+# docker compose v2 CLI isn't usable here (so container checks skip, fail-open).
+compose() {
+  command -v docker >/dev/null 2>&1 || return 1
+  docker compose version >/dev/null 2>&1 || return 1
+  echo "docker compose"
+}
+
+# Probe the compose CLI once (it's a daemon round-trip); container-bound checks
+# below reuse $CC. Empty string ⇒ compose unusable ⇒ those checks skip.
+CC="$(compose)" || CC=""
+
 REPORT=""
 for entry in "${CHECKS[@]}"; do
   label="${entry%%|*}"
-  cmd="${entry#*|}"
+  rest="${entry#*|}"
+
+  # Optional 3rd field = compose service. An entry is container-bound iff it
+  # has >=2 pipes AND its final field is a bare token (compose service names
+  # match [A-Za-z0-9._-]+). Otherwise it's a host command — `cmd` is everything
+  # after the first pipe, so host commands may still contain a literal `|`.
+  pipes="$(printf '%s' "$entry" | tr -cd '|' | wc -c | tr -d ' ')"
+  last="${entry##*|}"
+  if [ "$pipes" -ge 2 ] && printf '%s' "$last" | grep -qxE '[A-Za-z0-9._-]+'; then
+    service="$last"
+    cmd="${rest%|*}"
+  else
+    service=""
+    cmd="$rest"
+  fi
 
   # Skip empty (user opted out of this check during intake).
   [ -z "$cmd" ] && continue
 
-  # Skip if the first binary in the command isn't on PATH.
-  first="$(printf '%s' "$cmd" | awk '{print $1}')"
-  if ! command -v "$first" >/dev/null 2>&1; then continue; fi
+  if [ -z "$service" ]; then
+    # --- HOST branch (unchanged) ---
+    first="$(printf '%s' "$cmd" | awk '{print $1}')"
+    if ! command -v "$first" >/dev/null 2>&1; then continue; fi
+    manifest="$(manifest_for "$first")"
+    if [ -n "$manifest" ] && [ ! -f "$manifest" ]; then continue; fi
+    run_cmd="$cmd"
+  else
+    # --- CONTAINER branch ---
+    [ -z "$CC" ] && { echo "[stop-check] ${label}: docker compose unavailable; skipping container check" >&2; continue; }
+    if ! $CC config --services 2>/dev/null | grep -qxF "$service"; then
+      echo "[stop-check] ${label}: compose service '${service}' not defined; skipping" >&2
+      continue
+    fi
+    # -T on both: hooks run non-interactively, so disable PTY allocation (else
+    # compose < v2.2.0 prints "input device is not a TTY" into the report).
+    if $CC ps --status running --services 2>/dev/null | grep -qxF "$service"; then
+      run_cmd="$CC exec -T ${service} ${cmd}"
+    else
+      run_cmd="$CC run --rm -T ${service} ${cmd}"
+    fi
+  fi
 
-  # Skip if the stack manifest hasn't landed yet. Project-relative path —
-  # the cd above pins us to CLAUDE_PROJECT_DIR.
-  manifest="$(manifest_for "$first")"
-  if [ -n "$manifest" ] && [ ! -f "$manifest" ]; then continue; fi
-
-  out=$(eval "$cmd" 2>&1) && status=0 || status=$?
+  out=$(eval "$run_cmd" 2>&1) && status=0 || status=$?
   if [ $status -eq 0 ]; then
     REPORT="${REPORT}[stop-check] ${label}: OK"$'\n'
   else
