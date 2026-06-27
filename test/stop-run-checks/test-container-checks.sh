@@ -46,13 +46,14 @@ chmod +x "$fakebin/docker"
 export DOCKER_LOG="$tmp/docker.log" DOCKER_MARKER="$tmp/docker.marker"
 run_hook() {  # extra env as KEY=VAL args; prints the hook's stdout (the report)
   rm -f "$DOCKER_LOG" "$DOCKER_MARKER"
+  touch "$DOCKER_LOG"  # always exists so a skip yields FAIL X, not a grep error
   env "$@" CLAUDE_PROJECT_DIR="$tmp" PATH="$fakebin:$PATH" bash "$hook" </dev/null 2>/dev/null || true
 }
 
-# A: service defined + NOT running -> docker compose run --rm backend
+# A: service defined + NOT running -> docker compose run --rm -T backend
 run_hook FAKE_SERVICES="backend frontend" FAKE_RUNNING="" >/dev/null
-grep -q "run --rm backend" "$DOCKER_LOG" \
-  || { echo "FAIL A: expected 'run --rm backend'; log: $(cat "$DOCKER_LOG" 2>/dev/null)"; exit 1; }
+grep -q "run --rm -T backend" "$DOCKER_LOG" \
+  || { echo "FAIL A: expected 'run --rm -T backend'; log: $(cat "$DOCKER_LOG" 2>/dev/null)"; exit 1; }
 
 # B: service running -> docker compose exec -T backend
 run_hook FAKE_SERVICES="backend frontend" FAKE_RUNNING="backend" >/dev/null

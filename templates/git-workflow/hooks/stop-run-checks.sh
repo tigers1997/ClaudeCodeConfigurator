@@ -86,6 +86,10 @@ compose() {
   echo "docker compose"
 }
 
+# Probe the compose CLI once (it's a daemon round-trip); container-bound checks
+# below reuse $CC. Empty string ⇒ compose unusable ⇒ those checks skip.
+CC="$(compose)" || CC=""
+
 REPORT=""
 for entry in "${CHECKS[@]}"; do
   label="${entry%%|*}"
@@ -117,15 +121,17 @@ for entry in "${CHECKS[@]}"; do
     run_cmd="$cmd"
   else
     # --- CONTAINER branch ---
-    cc="$(compose)" || { echo "[stop-check] ${label}: docker compose unavailable; skipping container check" >&2; continue; }
-    if ! $cc config --services 2>/dev/null | grep -qxF "$service"; then
+    [ -z "$CC" ] && { echo "[stop-check] ${label}: docker compose unavailable; skipping container check" >&2; continue; }
+    if ! $CC config --services 2>/dev/null | grep -qxF "$service"; then
       echo "[stop-check] ${label}: compose service '${service}' not defined; skipping" >&2
       continue
     fi
-    if $cc ps --status running --services 2>/dev/null | grep -qxF "$service"; then
-      run_cmd="$cc exec -T ${service} ${cmd}"
+    # -T on both: hooks run non-interactively, so disable PTY allocation (else
+    # compose < v2.2.0 prints "input device is not a TTY" into the report).
+    if $CC ps --status running --services 2>/dev/null | grep -qxF "$service"; then
+      run_cmd="$CC exec -T ${service} ${cmd}"
     else
-      run_cmd="$cc run --rm ${service} ${cmd}"
+      run_cmd="$CC run --rm -T ${service} ${cmd}"
     fi
   fi
 
