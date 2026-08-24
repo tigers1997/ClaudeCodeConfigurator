@@ -49,8 +49,8 @@ Great for injecting live repo state into the prompt. The `/review` and `/commit`
 
 ### Starter kit
 
-- `/plan` — forces a structured plan before edits.
-- `/review` — code review against main.
+- `/plan` — forces a structured plan before edits. Shadows Claude Code's built-in `/plan` (the plan-mode shortcut) — a project skill wins by name; Shift+Tab still enters plan mode.
+- `/review` — code review against main via the `code-reviewer` agent. Shadows the bundled `/review` alias that CC 2.1.223 added for `/code-review` (verified on 2.1.241) — type `/code-review` for the built-in multi-agent review.
 - `/commit` — Conventional Commits from staged diff.
 - `/ship` — full pre-push gauntlet.
 - `/sync-docs` — update `CLAUDE.md` / rules from recent work.
@@ -63,11 +63,11 @@ Hooks are scripts that run on Claude Code lifecycle events. They're deterministi
 
 ### The event surface
 
-Claude Code 2026 fires 27+ events. The ones that matter most day-to-day:
+Claude Code fires 31 documented events (`code.claude.com/docs/en/hooks`). The ones that matter most day-to-day:
 
 | Event | When it fires | Common use |
 |---|---|---|
-| `SessionStart` | Session begins or resumes | Inject current git status, prune logs |
+| `SessionStart` | Session starts; `matcher` filters on the source: `startup`, `resume`, `clear`, `compact`, `fork` (2.1.214+ — forks used to report `resume`) | Inject current git status, prune logs |
 | `UserPromptSubmit` | User presses Enter | Log prompts, reject disallowed patterns |
 | `PreToolUse` | Before any tool call | Block dangerous bash, scan for secrets |
 | `PostToolUse` | After a tool call succeeds | Format files, run fast checks |
@@ -76,6 +76,7 @@ Claude Code 2026 fires 27+ events. The ones that matter most day-to-day:
 | `SessionEnd` | Session terminates | Flush logs, send a summary |
 | `InstructionsLoaded` | When CLAUDE.md loads | Debug which files are in context |
 | `WorktreeCreate` | Before worktree creation | Abort if conditions wrong (only event where nonzero exit code blocks) |
+| `DirectoryAdded` | After `/add-dir` registers another working directory (2.1.219+) | Re-run drift/stack checks for the new tree |
 
 ### Handler types
 
@@ -134,6 +135,7 @@ From `templates/`:
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous-bash.sh",
             "timeout": 10
           }
@@ -146,12 +148,18 @@ From `templates/`:
 
 The `$CLAUDE_PROJECT_DIR` env var is always set to the project root — use it instead of relative paths. Quote it for Windows compatibility.
 
+### Matcher semantics (changed in 2026)
+
+- Matchers are exact-match sets separated by `|`. Hyphenated names (`code-reviewer`, `mcp__brave-search`) exact-match since 2.1.195; before that they were unanchored regexes (`code-reviewer` also fired for `senior-code-reviewer` — anchor as `^code-reviewer$` on older versions).
+- Comma-separated matchers (`"Bash,PowerShell"`) work since 2.1.191; on earlier versions they silently never fired. The shipped templates use `|`.
+- A hook `if:` condition with a single-segment directory pattern (`Edit(src/**)`) matches only `<cwd>/src` since 2.1.214; write `Edit(**/src/**)` for any depth. `deny`/`ask` permission rules keep their any-depth match.
+
 ### Defaults and caps
 
 - Default timeouts: 600s command, 30s prompt, 60s agent.
 - Injected context (additionalContext, systemMessage, stdout) capped at 10,000 chars.
 - Multiple hooks per event run in parallel. Identical commands are deduplicated.
-- Windows: set `"shell": "powershell"` on command hooks.
+- `shell`: every shipped command hook declares `"shell": "bash"` (CC 2.1.81+; the key is in the settings schema). Without it, a Windows session with no Git Bash defaults hooks to PowerShell and the `.sh` entrypoint dies on a parser error; with it, Claude Code resolves Git for Windows directly and prompts to install it when missing. Translate a hook to PowerShell and set `"shell": "powershell"` only when you want to drop the bash dependency.
 
 ### Debugging hooks
 
