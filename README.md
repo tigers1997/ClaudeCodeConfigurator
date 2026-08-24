@@ -15,8 +15,8 @@ Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.c
 
 **Generated projects need, depending on which modules you enable:**
 - **`ui`** — `python3` + `git` (used by `statusline.sh` and the last-prompt variant)
-- **`git-workflow`** — whichever formatters/checkers you've selected: typically `prettier`, `ruff`, `gofmt`, `rustfmt`, `tsc`, or `eslint`. The format-on-write hook auto-detects which to invoke based on file extension; missing tools fail silently for that file type.
-- **`safety`** — standard POSIX tools (`grep`, `tr`, etc.)
+- **`git-workflow`** — whichever formatters/checkers you've selected: typically `prettier`, `ruff`, `gofmt`, `rustfmt`, `tsc`, or `eslint`. The format-on-write hook auto-detects which to invoke based on file extension; missing tools fail silently for that file type. The Stop hook additionally needs **`jq` *or* `python3`** to hand its check report to Claude — it prefers jq, falls back to python3, and says so on stderr if neither is installed rather than dropping the report.
+- **`safety`** — standard POSIX tools (`grep`, `tr`, etc.). The package-availability gate also uses **`jq`**, and bounds each probe with `timeout` (GNU coreutils) or `gtimeout` where present — without a timeout binary the probe simply runs unbounded, and without `jq` the gate stands down rather than guessing.
 - **`token-efficiency-pro`** — standard POSIX tools (`awk`, `tail`, `wc`)
 - **`mcp`** — `npx` (Node) or `uvx` (Python) depending on which MCP servers you enable; `./claude-ctx` wrapper needs `bash` and the `claude` CLI on PATH
 
@@ -25,8 +25,8 @@ Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.c
 | Platform | Status |
 | --- | --- |
 | **Linux** (Debian/Ubuntu/Arch/Fedora/…) | Primary target. Everything works out of the box. |
-| **macOS** (12+) | Works. Bash 3.2 from the system is sufficient; scripts use POSIX-safe flags. |
-| **Windows** | Claude Code 2.1.120+ runs natively on Windows — when Git Bash is absent, Claude Code falls back to PowerShell as its shell tool. The `.sh` hook scripts this project ships still need a bash interpreter, so every shipped hook entry declares `"shell": "bash"` (honored by Claude Code 2.1.81+): with Git for Windows installed the hooks run under Git Bash even when Claude Code's own shell tool fell back to PowerShell, and without it Claude Code prompts to install Git Bash instead of failing silently. Alternatives: use WSL, or translate a hook to PowerShell and set `"shell": "powershell"` on its entry. The template directory uses `dot-claude/` (rewritten to `.claude/` at install) so the templates browse and sync cleanly on filesystems and tools that special-case dotfiles. |
+| **macOS** (12+) | Works, and exercised in CI (`portability (macos-latest)`). Bash 3.2 from the system is sufficient — no shipped script uses a bash 4+ construct. GNU `timeout` isn't present by default, so the `safety` package-availability gate runs its probes unbounded unless you have coreutils (`brew install coreutils` gives `gtimeout`, which the hook also accepts). |
+| **Windows** | Claude Code 2.1.120+ runs natively on Windows — when Git Bash is absent, Claude Code falls back to PowerShell as its shell tool. The `.sh` hook scripts this project ships still need a bash interpreter, so every shipped hook entry declares `"shell": "bash"` (honored by Claude Code 2.1.81+): with Git for Windows installed the hooks run under Git Bash even when Claude Code's own shell tool fell back to PowerShell, and without it Claude Code prompts to install Git Bash instead of failing silently. Alternatives: use WSL, or translate a hook to PowerShell and set `"shell": "powershell"` on its entry. The template directory uses `dot-claude/` (rewritten to `.claude/` at install) so the templates browse and sync cleanly on filesystems and tools that special-case dotfiles. Scaffolding from Windows is exercised in CI (`portability (windows-latest)`): generated files are written with LF on every platform and the scaffold appends a `.gitattributes` block pinning it, so a Windows-authored `.claude/` still runs on a teammate's Linux/macOS checkout. Git can't carry the executable bit the same way — after your first `git add`, run `git update-index --chmod=+x claude-ctx` (the generated `CLAUDE.md` says so too). |
 
 ## Install
 

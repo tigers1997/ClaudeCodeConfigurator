@@ -145,7 +145,20 @@ for entry in "${CHECKS[@]}"; do
 done
 
 # Emit decision JSON so Claude sees the report on the next turn.
+# jq is not preinstalled on macOS, Windows, or most Linux distros, and the
+# unguarded `jq -n` this used to be dropped the entire report when it was
+# missing: the checks ran, the hook exited 0, and Claude never learned that
+# anything failed. Fall back to python3 (already required by the ui module),
+# then to stderr — never silently.
 if [ -n "$REPORT" ]; then
-  jq -n --arg ctx "$REPORT" '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":$ctx}}'
+  if command -v jq >/dev/null 2>&1; then
+    jq -n --arg ctx "$REPORT" '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":$ctx}}'
+  elif command -v python3 >/dev/null 2>&1; then
+    CC_STOP_REPORT="$REPORT" python3 -c 'import json, os
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "Stop",
+                  "additionalContext": os.environ["CC_STOP_REPORT"]}}))'
+  else
+    printf '[stop-run-checks] neither jq nor python3 found; the check report below is NOT reaching Claude.\n%s\n' "$REPORT" >&2
+  fi
 fi
 exit 0
