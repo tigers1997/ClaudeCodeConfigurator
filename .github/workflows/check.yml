@@ -147,6 +147,13 @@ jobs:
             bash "$t"
           done
 
+      - name: Portability fixture tests
+        run: |
+          set -e
+          for t in test/portability/test-*.sh; do
+            bash "$t"
+          done
+
       - name: Install jq for availability-check tests
         run: sudo apt-get install -y jq
 
@@ -155,4 +162,77 @@ jobs:
           set -e
           for t in test/availability-check/test-*.sh; do
             bash "$t"
+          done
+
+  # Second leg: the platforms the README claims to support but nothing exercised.
+  # Everything here was found by hand on a Windows box — CRLF in every generated
+  # hook, a UnicodeEncodeError in `--check`, jq/timeout assumptions — precisely
+  # because CI only ever ran on Linux.
+  #
+  # Deliberately NOT named `check`: branch protection pins the required contexts
+  # by name (`check`, `verdict-gate`, `license/cla`), so making the existing job
+  # a matrix would rename its context and wedge the gate. This job is
+  # informational until the maintainer adds it to MainBrnchRuleset and
+  # docs/governance/branch-protection.json.
+  portability:
+    name: portability (${{ matrix.os }})
+    needs: check          # don't spend macOS/Windows minutes when Linux is already red
+    strategy:
+      fail-fast: false    # a Windows-only failure must not hide a macOS-only one
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash       # Git Bash on the Windows runner; the fixtures are bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          # Left at the runner default (core.autocrlf=true on Windows), because
+          # a CRLF working tree is exactly the condition that produced CRLF
+          # scaffold output. Normalizing here would hide the bug.
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Provide a python3 shim (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # python.org/Windows installs expose `python`, not `python3`, and the
+          # shipped hooks + fixtures all invoke `python3`.
+          if ! command -v python3 >/dev/null 2>&1; then
+            mkdir -p "$HOME/bin"
+            printf '#!/usr/bin/env bash\nexec python "$@"\n' > "$HOME/bin/python3"
+            chmod +x "$HOME/bin/python3"
+            echo "$HOME/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Static validation (configure.py --check)
+        run: python3 configure.py --check
+
+      - name: Smoke-test scaffold
+        run: |
+          target=$(mktemp -d)
+          python3 configure.py --persona small-team --yes --dir "$target"
+
+      - name: Portability fixture tests
+        run: |
+          set -e
+          for t in test/portability/test-*.sh; do
+            bash "$t"
+          done
+
+      - name: Persona snapshot tests
+        run: |
+          set -e
+          for p in solo-newer solo-experienced small-team library-author custom; do
+            target=$(mktemp -d)
+            python3 configure.py --persona "$p" --yes --dir "$target" >/dev/null
+            actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
+            diff <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
+              || { echo "snapshot drift for persona=$p on ${{ matrix.os }}"; exit 1; }
           done
