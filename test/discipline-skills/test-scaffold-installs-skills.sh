@@ -38,14 +38,15 @@ jq -e '.hooks.SessionStart[] | .hooks[] | select(.command | contains("sessionsta
     || { echo "FAIL: missing brainstorming/spec-document-reviewer-prompt.md"; exit 1; }
 [ -f "$tmp/.claude/skills/writing-plans/plan-document-reviewer-prompt.md" ] \
     || { echo "FAIL: missing writing-plans/plan-document-reviewer-prompt.md"; exit 1; }
-for sub in implementer-prompt.md task-reviewer-prompt.md; do
+for sub in implementer-prompt.md task-reviewer-prompt.md re-review-prompt.md; do
     [ -f "$tmp/.claude/skills/subagent-driven-development/$sub" ] \
         || { echo "FAIL: missing subagent-driven-development/$sub"; exit 1; }
 done
 
-# v6.0.0 added bash scripts (no .sh extension) used by SDD's file-handoff flow.
-# Both must ship executable so the implementer/reviewer can invoke them directly.
-for script in review-package task-brief; do
+# v6.0.0 added bash scripts (no .sh extension) used by SDD's file-handoff flow;
+# v6.0.3 added sdd-workspace (the shared workspace resolver both call).
+# All must ship executable so the controller can invoke them directly.
+for script in review-package task-brief sdd-workspace; do
     [ -f "$tmp/.claude/skills/subagent-driven-development/scripts/$script" ] \
         || { echo "FAIL: missing subagent-driven-development/scripts/$script"; exit 1; }
     [ -x "$tmp/.claude/skills/subagent-driven-development/scripts/$script" ] \

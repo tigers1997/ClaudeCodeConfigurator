@@ -45,7 +45,9 @@
 ./.claude/skills/ship/SKILL.md
 ./.claude/skills/subagent-driven-development/SKILL.md
 ./.claude/skills/subagent-driven-development/implementer-prompt.md
+./.claude/skills/subagent-driven-development/re-review-prompt.md
 ./.claude/skills/subagent-driven-development/scripts/review-package
+./.claude/skills/subagent-driven-development/scripts/sdd-workspace
 ./.claude/skills/subagent-driven-development/scripts/task-brief
 ./.claude/skills/subagent-driven-development/task-reviewer-prompt.md
 ./.claude/skills/sync-docs/SKILL.md

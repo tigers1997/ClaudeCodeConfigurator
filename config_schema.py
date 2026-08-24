@@ -236,7 +236,7 @@ MODULES = [
     {
         "id": "discipline-skills",
         "title": "Curated discipline skills (brainstorming, planning, verification, worktrees)",
-        "description": "Seven discipline skills forked from the MIT-licensed obra/superpowers v6.0.2 plugin: brainstorming, writing-plans, executing-plans, verification-before-completion, using-git-worktrees, subagent-driven-development, finishing-a-development-branch. Ships as project-level .claude/skills/ so it costs ~930 fewer SessionStart tokens than installing the full upstream plugin (no using-superpowers injection, no descriptions for the 7 unused upstream skills). Includes a slim SessionStart bootstrap that auto-suppresses when the upstream `superpowers` plugin is also installed. See docs/10-plugin-ecosystem.md and templates/discipline-skills/SYNC.md for the curation rationale and upstream-sync workflow.",
+        "description": "Seven discipline skills forked from the MIT-licensed obra/superpowers v6.3.0 plugin: brainstorming, writing-plans, executing-plans, verification-before-completion, using-git-worktrees, subagent-driven-development, finishing-a-development-branch. Ships as project-level .claude/skills/ so it costs ~930 fewer SessionStart tokens than installing the full upstream plugin (no using-superpowers injection, no descriptions for the 7 unused upstream skills). Includes a slim SessionStart bootstrap that auto-suppresses when the upstream `superpowers` plugin is also installed. See docs/10-plugin-ecosystem.md and templates/discipline-skills/SYNC.md for the curation rationale and upstream-sync workflow.",
         "paths": [
             "discipline-skills/LICENSE",
             "discipline-skills/brainstorming/SKILL.md",
@@ -249,8 +249,10 @@ MODULES = [
             "discipline-skills/subagent-driven-development/SKILL.md",
             "discipline-skills/subagent-driven-development/implementer-prompt.md",
             "discipline-skills/subagent-driven-development/task-reviewer-prompt.md",
+            "discipline-skills/subagent-driven-development/re-review-prompt.md",
             "discipline-skills/subagent-driven-development/scripts/review-package",
             "discipline-skills/subagent-driven-development/scripts/task-brief",
+            "discipline-skills/subagent-driven-development/scripts/sdd-workspace",
             "discipline-skills/finishing-a-development-branch/SKILL.md",
             "discipline-skills/hooks/sessionstart-discipline.sh",
         ],

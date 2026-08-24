@@ -9,7 +9,7 @@ version 3 (AGPL-3.0). See LICENSE for the full text.
 Bundled third-party code under different (compatible) licenses:
 
 * templates/discipline-skills/
-    Forked from obra/superpowers v5.1.0
+    Forked from obra/superpowers v6.3.0
     (https://github.com/obra/superpowers)
     Copyright (c) 2025 Jesse Vincent
     Licensed under the MIT License
