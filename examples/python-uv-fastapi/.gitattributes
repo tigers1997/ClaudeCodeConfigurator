@@ -1,0 +1,14 @@
+
+# --- Claude Code ---
+# Claude Code hooks and wrappers are bash scripts, and a CR in the shebang makes
+# them unrunnable on Linux/macOS ("bad interpreter: /usr/bin/env bash^M"). The
+# configurator writes LF on every platform; these rules stop a Windows checkout
+# (core.autocrlf=true) or a CRLF-saving editor from reintroducing CRs into the
+# committed copies your teammates get.
+*.sh text eol=lf
+claude-ctx text eol=lf
+.claude/skills/**/scripts/* text eol=lf
+# Git cannot record the executable bit through .gitattributes. If you commit
+# from Windows (core.filemode=false drops it), run once after the first add:
+#   git update-index --chmod=+x claude-ctx
+# and the same for any .claude/skills/**/scripts/* files.

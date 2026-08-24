@@ -28,6 +28,7 @@
 ./.claude/skills/sync-docs/SKILL.md
 ./.claude/skills/unfreeze/SKILL.md
 ./.claude/skills/verify-setup/SKILL.md
+./.gitattributes
 ./.github/workflows/claude.yml
 ./.gitignore
 ./CLAUDE.md

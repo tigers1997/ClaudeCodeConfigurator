@@ -57,6 +57,7 @@
 ./.claude/skills/verify-setup/SKILL.md
 ./.claude/skills/writing-plans/SKILL.md
 ./.claude/skills/writing-plans/plan-document-reviewer-prompt.md
+./.gitattributes
 ./.gitignore
 ./.mcp.frontend.json
 ./.mcp.json

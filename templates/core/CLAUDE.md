@@ -68,6 +68,7 @@ The cc-configure scaffold makes assumptions about what to track vs. ignore. Hono
 - **Commit:** `CLAUDE.md`, `.claude/` (agents, hooks, skills, rules, settings.json, output-styles), `.mcp*.json`, `claude-ctx` if present, project source.
 - **Gitignore by default:** `.claude/settings.local.json` (machine-local), `.claude/logs/`, `.claude/.frozen` / `.guarded` / `.careful` (transient session state), `.claude-config.json` (configurator working-state). cc-configure appends the `# --- Claude Code ---` block to `.gitignore` automatically — if you rewrite or replace `.gitignore`, preserve that block (or rerun `cc-configure --retrofit` to re-append it).
 - **Nested upstream clones** (vendored deps, fork wrappers) should be gitignored and keep their own `.git/` — don't try to nest two repos in one tree. List the subdir in `.gitignore` *above* the Claude Code block.
+- **Committing from Windows:** cc-configure appends a `.gitattributes` block pinning `eol=lf` for the hook scripts, so CRLF can't reach a teammate's checkout. Git can't record the *executable* bit that way, though, and `core.filemode=false` (the Windows default) drops it — a teammate on Linux/macOS then hits "Permission denied" on `./claude-ctx`. After the first `git add`, run `git update-index --chmod=+x claude-ctx` (and the same for any `.claude/skills/**/scripts/*`).
 
 ## Design features
 

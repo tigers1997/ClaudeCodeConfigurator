@@ -37,6 +37,21 @@ except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
     sys.exit(2)
 
+# Windows defaults stdout/stderr to a legacy code page (cp1252 on en-US), which
+# cannot encode the arrows, em-dashes and check marks this CLI prints: the encode
+# raises UnicodeEncodeError and takes the whole run down. Python already uses
+# UTF-8 for a *real* Windows console, so this bites hardest when output is piped
+# or redirected — CI logs, `cc-configure > setup.log`, an editor terminal pane,
+# and `python3 configure.py --check`, the command CONTRIBUTING hands new
+# contributors. Retag both streams where the runtime allows it; errors="replace"
+# keeps a console that still cannot render a glyph from killing the process.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
 TEMPLATE_DIR = REPO_ROOT / "templates"
 BASE_SETTINGS_PATH = TEMPLATE_DIR / "core" / "dot-claude" / "settings.json"
 
@@ -227,14 +242,63 @@ def load_config(path: Path) -> dict:
     return out
 
 
+def write_text_lf(path: Path, content: str):
+    """Write text with LF line endings on every platform.
+
+    Path.write_text() opens in text mode with newline=None, which translates
+    "\n" to os.linesep — so scaffolding from Windows wrote CRLF into every
+    generated file. That is harmless *on* Windows (Git Bash strips the CR), but
+    the shebang then carries one, and the moment that .claude/ is committed and
+    cloned on Linux or macOS every hook dies with
+    "bad interpreter: /usr/bin/env bash^M". Templates are read with universal
+    newlines, so `content` is already LF-normalized by the time it lands here.
+
+    (Path.write_text only gained a `newline` parameter in 3.10; this project's
+    floor is 3.8, hence the explicit open().)
+    """
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(content)
+
+
+def _append_managed_block(path: Path, lines: list, marker: str) -> bool:
+    """Append a configurator-managed block to a plain-text list file
+    (.gitignore, .gitattributes), or line-level-union it in when a block from a
+    prior scaffold is already present. Returns True if anything was written.
+
+    Comments are not re-appended and the user's own lines are never touched, so
+    an in-place upgrade delivers rules added by a later configurator version
+    instead of silently no-op'ing or duplicating the whole block.
+    """
+    if not lines:
+        return False
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if marker not in existing:
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            if existing and not existing.endswith("\n"):
+                fh.write("\n")
+            fh.write("\n" + "\n".join(lines) + "\n")
+        return True
+    present = {ln.strip() for ln in existing.splitlines()}
+    missing = [ln for ln in lines
+               if ln.strip() and not ln.lstrip().startswith("#")
+               and ln.strip() not in present]
+    if missing:
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            if not existing.endswith("\n"):
+                fh.write("\n")
+            fh.write("\n".join(missing) + "\n")
+        return True
+    return False
+
+
 def save_config(config: dict, path: Path):
-    path.write_text(json.dumps({
+    write_text_lf(path, json.dumps({
         "schema_version": 2,
         "persona": config.get("persona", "custom"),
         "module_flags": config.get("module_flags", {}),
         "formValues": config["formValues"],
         "selected": sorted(config["selected"]),
-    }, indent=2) + "\n", encoding="utf-8")
+    }, indent=2) + "\n")
 
 
 # -----------------------------------------------------------------------------
@@ -647,12 +711,11 @@ def run_check() -> int:
             abs_patch = TEMPLATE_DIR / patch
             if not abs_patch.exists():
                 err(f"MODULES[{mid}]", f"settingsPatch missing: templates/{patch}")
-        # gitignoreSource exists.
-        gi = m.get("gitignoreSource")
-        if gi:
-            abs_gi = TEMPLATE_DIR / gi
-            if not abs_gi.exists():
-                err(f"MODULES[{mid}]", f"gitignoreSource missing: templates/{gi}")
+        # gitignoreSource / gitattributesSource exist.
+        for key in ("gitignoreSource", "gitattributesSource"):
+            src = m.get(key)
+            if src and not (TEMPLATE_DIR / src).exists():
+                err(f"MODULES[{mid}]", f"{key} missing: templates/{src}")
         # dependsOn references valid module IDs.
         for dep in m.get("dependsOn", []) or []:
             if dep not in module_ids:
@@ -1204,7 +1267,7 @@ def write_cc_manifest(target_dir: Path, version: str, form_values: dict = None) 
     claude_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = claude_dir / ".cc-manifest.json"
     tmp = manifest_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_text_lf(tmp, json.dumps(payload, indent=2) + "\n")
     tmp.replace(manifest_path)
     return (True, None)
 
@@ -1736,7 +1799,7 @@ def apply_claudemd_strategy(files, target_dir, strategy):
         elif strategy == "skip":
             staged = target_dir / ".claude-retrofit" / "incoming" / "CLAUDE.md"
             staged.parent.mkdir(parents=True, exist_ok=True)
-            staged.write_text(f["content"], encoding="utf-8")
+            write_text_lf(staged, f["content"])
             collision_entry = {
                 "target": "CLAUDE.md",
                 "action": "skip",
@@ -1806,7 +1869,7 @@ def apply_file_collision_strategy(files, target_dir, strategy):
         if strategy == "skip":
             staged = incoming_dir / target
             staged.parent.mkdir(parents=True, exist_ok=True)
-            staged.write_text(f["content"], encoding="utf-8")
+            write_text_lf(staged, f["content"])
             if f.get("executable"):
                 staged.chmod(staged.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH)
             try:
@@ -1919,7 +1982,7 @@ def write_retrofit_report(target_dir, structured_merges, collision_report):
         lines.append(f"{'4' if skipped else '1'}. The renamed entries are usable immediately. If you decide you want ours as the canonical, rename the existing file out of the way and rename the `-cc` version into place.")
     lines.append("")
     lines.append("Run `claude` in this project and invoke `/retrofit` to walk this report interactively — the skill ships under `.claude/skills/retrofit/` (or staged at `.claude-retrofit/incoming/.claude/skills/retrofit/SKILL.md` if it collided).")
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text_lf(path, "\n".join(lines))
     return ".claude-retrofit/REPORT.md"
 
 
@@ -1990,6 +2053,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
         module_flags = {}
     files = []
     gitignore_lines = []
+    gitattributes_lines = []
     placeholders = compute_placeholders(form_values, selected, module_flags)
 
     for m in MODULES:
@@ -2045,6 +2109,9 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
         if m.get("gitignoreSource"):
             gi = (TEMPLATE_DIR / m["gitignoreSource"]).read_text(encoding="utf-8").splitlines()
             gitignore_lines.extend(gi)
+        if m.get("gitattributesSource"):
+            ga = (TEMPLATE_DIR / m["gitattributesSource"]).read_text(encoding="utf-8").splitlines()
+            gitattributes_lines.extend(ga)
 
     files.append({
         "target": ".claude/settings.json",
@@ -2057,13 +2124,14 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
             "content": compute_mcp_json(form_values),
             "executable": False,
         })
-    return files, gitignore_lines
+    return files, gitignore_lines, gitattributes_lines
 
 
 # -----------------------------------------------------------------------------
 # File application (actual writes to target directory)
 # -----------------------------------------------------------------------------
-def apply_files(files, gitignore_lines, target_dir: Path, dry_run=False, backup=True):
+def apply_files(files, gitignore_lines, gitattributes_lines, target_dir: Path,
+                dry_run=False, backup=True):
     target_dir = target_dir.resolve()
     if not target_dir.exists():
         target_dir.mkdir(parents=True)
@@ -2083,42 +2151,24 @@ def apply_files(files, gitignore_lines, target_dir: Path, dry_run=False, backup=
             shutil.copy2(dest, bak)
             backed_up.append(str(bak.relative_to(target_dir)))
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(f["content"], encoding="utf-8")
+        write_text_lf(dest, f["content"])
         if f["executable"]:
             mode = dest.stat().st_mode
             dest.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         written.append(f["target"])
 
     gi_added = False
-    if gitignore_lines and not dry_run:
-        gi_path = target_dir / ".gitignore"
-        existing = gi_path.read_text(encoding="utf-8") if gi_path.exists() else ""
-        if "# --- Claude Code ---" not in existing:
-            with gi_path.open("a", encoding="utf-8") as fh:
-                if existing and not existing.endswith("\n"):
-                    fh.write("\n")
-                fh.write("\n" + "\n".join(gitignore_lines) + "\n")
-            gi_added = True
-        else:
-            # Block already present from a prior scaffold: append only the
-            # individual rules missing from it (line-level union). Covers users
-            # whose block predates rules added in a later configurator version
-            # — e.g. the F5 retrofit-byproduct ignores (.claude-retrofit/,
-            # *.bak-*) — so an in-place upgrade actually delivers them instead
-            # of silently no-op'ing. Comments aren't re-appended; the user's
-            # own lines are never touched; idempotent when nothing is missing.
-            present = {ln.strip() for ln in existing.splitlines()}
-            missing = [ln for ln in gitignore_lines
-                       if ln.strip() and not ln.lstrip().startswith("#")
-                       and ln.strip() not in present]
-            if missing:
-                with gi_path.open("a", encoding="utf-8") as fh:
-                    if not existing.endswith("\n"):
-                        fh.write("\n")
-                    fh.write("\n".join(missing) + "\n")
-                gi_added = True
+    # Both list files go through the same managed-block append: write the block
+    # when absent, otherwise union in only the rules a prior scaffold missed.
+    ga_added = False
+    if not dry_run:
+        gi_added = _append_managed_block(
+            target_dir / ".gitignore", gitignore_lines, "# --- Claude Code ---")
+        ga_added = _append_managed_block(
+            target_dir / ".gitattributes", gitattributes_lines, "# --- Claude Code ---")
 
-    return {"written": written, "backed_up": backed_up, "gitignore_added": gi_added}
+    return {"written": written, "backed_up": backed_up,
+            "gitignore_added": gi_added, "gitattributes_added": ga_added}
 
 
 # -----------------------------------------------------------------------------
@@ -2796,7 +2846,8 @@ def main():
     # regardless of whether the user came in via --yes / --persona / --quick.
     normalize_conditional_placeholders(config["formValues"])
 
-    files, gitignore_lines = collect_files(config["formValues"], config["selected"], config.get("module_flags", {}))
+    files, gitignore_lines, gitattributes_lines = collect_files(
+        config["formValues"], config["selected"], config.get("module_flags", {}))
 
     # Pre-flight: surface version mismatches, schema drift, heavy hooks,
     # and module prerequisites before writing any files.
@@ -3043,7 +3094,7 @@ def main():
         return
 
     print()
-    result = apply_files(files, gitignore_lines, target_dir,
+    result = apply_files(files, gitignore_lines, gitattributes_lines, target_dir,
                         dry_run=False, backup=not args.no_backup)
     # Write the retrofit report up-front so its path joins the wrote group
     # rather than landing between backed-up and saved-config lines.
@@ -3066,6 +3117,8 @@ def main():
         print(f"    {yellow('backed up')} {p}")
     if result["gitignore_added"]:
         print(f"    {green('+')} .gitignore (Claude Code block appended)")
+    if result["gitattributes_added"]:
+        print(f"    {green('+')} .gitattributes (LF pinned for hook scripts)")
 
     save_config(config, saved_config_path)
     print(dim(f"    saved config to {saved_config_path.relative_to(target_dir)}"))

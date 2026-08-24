@@ -18,6 +18,7 @@ MODULES = [
             "core/dot-claude/settings.local.json.example",
         ],
         "gitignoreSource": "core/.gitignore.append",
+        "gitattributesSource": "core/.gitattributes.append",
     },
     {
         "id": "safety",
