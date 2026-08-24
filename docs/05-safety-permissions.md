@@ -36,7 +36,7 @@ In `.claude/settings.json`:
   "permissions": {
     "allow": ["Read", "Grep", "Bash(git status)", "Bash(npm test:*)"],
     "ask":   ["Bash(git push:*)", "Bash(rm:*)"],
-    "deny":  ["Write(.env)", "Bash(sudo:*)", "Bash(curl * | sh:*)"]
+    "deny":  ["Edit(.env)", "Bash(sudo:*)", "Bash(curl * | sh:*)"]
   }
 }
 ```
@@ -49,10 +49,24 @@ Rules of thumb:
 ### Patterns that matter
 
 - `Bash(git push:*)` — matches any `git push …`. The colon-star is the prefix match.
-- `Write(.env*)` — any Write whose path starts with `.env`.
+- `Edit(.env.*)` — any edit whose path starts with `.env.`. `Edit(path)` rules cover the Write and NotebookEdit tools too; `Write(path)`, `NotebookEdit(path)` and `Glob(path)` rules are never consulted and Claude Code 2.1.210+ warns about them at startup — write `Edit()` / `Read()` rules only (a `Read` deny also blocks edits on the same path).
 - `Bash(rm -rf /:*)` — specific dangerous commands.
 
 The starter settings in `templates/core/dot-claude/settings.json` are a balanced baseline.
+
+### Auto-mode rules live in user scope
+
+Auto mode (the classifier that reviews actions instead of prompting; the starting mode on Pro/Max/Team since CC 2.1.207) reads its `autoMode` customizations only from `~/.claude/settings.json` or managed settings. It deliberately ignores `.claude/settings.json` and `.claude/settings.local.json` — both live in the repo, so a checked-in file could inject its own allow rules (`code.claude.com/docs/en/auto-mode-config`). Configurator releases before v2.8.0 shipped an `autoMode.hard_deny` block in project settings; that block has been dead since 2.1.207, so the safety module no longer writes it, a retrofit removes the exact shipped block, and `[ SETTINGS WARNINGS ]` flags any other project-scope `autoMode`. To keep the old defaults, add them to `~/.claude/settings.json`:
+
+```json
+{
+  "autoMode": {
+    "hard_deny": ["$defaults", "Running executable files", "Writing to system directories"]
+  }
+}
+```
+
+`"$defaults"` keeps the built-in rules; `soft_deny`, `allow` and `environment` follow the same shape. Two related keys *are* honored from project settings: `useAutoModeDuringPlan: false` (prompt instead of classify during plan mode) and `disableAutoMode: "disable"` (remove auto mode from the Shift+Tab cycle).
 
 ## Layer 2: Hooks
 

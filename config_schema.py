@@ -89,6 +89,7 @@ MODULES = [
                     "hooks": [
                         {
                             "type": "command",
+                            "shell": "bash",
                             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-compact-snapshot.sh",
                             "timeout": 15,
                         }
@@ -215,6 +216,7 @@ MODULES = [
                     "hooks": [
                         {
                             "type": "command",
+                            "shell": "bash",
                             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sessionstart-drift-check.sh",
                             "timeout": 5,
                         }
@@ -225,6 +227,7 @@ MODULES = [
                     "hooks": [
                         {
                             "type": "command",
+                            "shell": "bash",
                             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sessionstart-drift-check.sh",
                             "timeout": 5,
                         }
@@ -263,6 +266,7 @@ MODULES = [
                     "hooks": [
                         {
                             "type": "command",
+                            "shell": "bash",
                             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sessionstart-discipline.sh",
                             "timeout": 5,
                         }
@@ -404,7 +408,11 @@ PERSONAS = {
 #                configurator against. Newer is likely fine but unverified.
 CLAUDE_CODE_COMPAT = {
     "min_version": "2.1.116",   # agent mcpServers http (2.1.116/117)
-    "tested_up_to": "2.1.150",  # SchemaStore PR #5706 merged 2026-05-23 (sync to
+    "tested_up_to": "2.1.220",  # SchemaStore sync PR #6131 merged 2026-07-27
+                                # (v2.1.220). Surveyed through 2.1.241 on
+                                # 2026-08-24 - see the LAST paragraph of this
+                                # block. History follows, oldest first:
+                                # 2.1.150 bump - SchemaStore PR #5706 merged 2026-05-23 (sync to
                                 # v2.1.143), unblocking nine settings.json keys for
                                 # opt-in templating: skillOverrides (token-
                                 # efficiency-pro tier-pro patch), worktree.baseRef
@@ -570,6 +578,117 @@ CLAUDE_CODE_COMPAT = {
                                 # survey - still open/draft, untouched since
                                 # 2026-05-24 despite dep #5728 merged
                                 # 2026-06-01. Issue #14920 unchanged.
+                                # 2.1.183-2.1.241 survey (2026-08-24; installed CC
+                                # 2.1.241): tested_up_to 2.1.150 -> 2.1.220. The
+                                # no-lone-bumps gate cleared: #5723 (->2.1.150) was
+                                # closed unmerged, but #5867 (->2.1.195, merged
+                                # 2026-07-03) and #6131 (->2.1.220, merged
+                                # 2026-07-27; #6127 then dropped a stray
+                                # leftArrowOpensAgents key, 2026-08-03) landed, so the
+                                # held keys fallbackModel + disableBundledSkills are
+                                # schema-validated - as are agent, claudeMdExcludes,
+                                # skillListingBudgetFraction/MaxDescChars,
+                                # sandbox.credentials (deny form; mask is user/
+                                # managed-only) and worktree.symlinkDirectories -
+                                # all promoted to doc-only opt-in stubs in
+                                # settings.local.json.example (2026-07-27 stamp).
+                                # Versions absent from the upstream CHANGELOG
+                                # (skipped/internal): 2.1.182, 184, 188, 189, 192,
+                                # 194, 213, 230.
+                                # TEMPLATE-AFFECTING (acted on):
+                                # (1) 2.1.207 - the classifier no longer reads
+                                # autoMode from repo-resident settings; the live
+                                # auto-mode-config doc says neither
+                                # .claude/settings.json nor settings.local.json is
+                                # read -> the safety patch's active
+                                # autoMode.hard_deny default (v2.6.0 promotion) was
+                                # dead config. Removed; documented as a
+                                # ~/.claude/settings.json opt-in (docs/05); a
+                                # retrofit strips the exact shipped block and
+                                # [ SETTINGS WARNINGS ] flags any other project-
+                                # scope autoMode.
+                                # (2) 2.1.210 - startup warning for Write(path)/
+                                # NotebookEdit(path)/Glob(path) rules (never
+                                # consulted; Edit()/Read() cover them) -> dropped
+                                # Write(.env) + Write(.env.*) from the core deny
+                                # list (Edit(.env*) stays); retrofit strips those
+                                # two shipped strings; preflight flags others.
+                                # (3) 2.1.223 - /review is now the bundled alias
+                                # of /code-review (the collision the 2.1.146 note
+                                # above watched for). Project skills win by name:
+                                # the skills doc says a same-named skill overrides
+                                # a bundled skill, and a headless check on 2.1.241
+                                # (project skill `review` -> `claude -p /review`)
+                                # ran the project skill; same result for `plan`
+                                # vs the built-in /plan shortcut. No rename;
+                                # documented as shadowing (README, docs/03,
+                                # review/SKILL.md description).
+                                # (4) 2.1.217/2.1.219 - nesting default 1 then 3
+                                # (was 5 since 2.1.172), env
+                                # CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH; 20-
+                                # concurrent cap (CLAUDE_CODE_MAX_CONCURRENT_
+                                # SUBAGENTS, 2.1.217); a 200/session spawn cap
+                                # came (2.1.212) and went (2.1.224) -> docs/04,
+                                # infinite/SKILL.md and multi-agent-guardrails.md
+                                # reworded.
+                                # (5) 2.1.198/2.1.232 - subagents background by
+                                # default, `fork` subagent type on by default,
+                                # Explore inherits the session model (capped at
+                                # Opus, was Haiku); Task tool `mode` param
+                                # deprecated (2.1.212) -> docs/04 + docs/06.
+                                # (6) 2.1.214 - SessionStart source `fork`
+                                # (forks used to report `resume`) -> microbit
+                                # marker-clear stays `startup|clear` (markers
+                                # persist across forks - correct); the mcp
+                                # drift-check stays `startup|resume` (a fork is
+                                # a live copy, closer to compact than to a cold
+                                # resume). Comments/docs list the new source.
+                                # (7) hook-matcher semantics: hyphenated names
+                                # exact-match (2.1.195), comma separators work
+                                # (2.1.191), single-segment `if:` dir patterns
+                                # cwd-anchored (2.1.214) - shipped matchers are
+                                # pipe-joined tool names, unaffected; docs/03.
+                                # (8) 2.1.233 - TodoWrite/Task* tools withdrawn
+                                # on Fable 5 / Opus 4.8+ / Sonnet 5
+                                # (CLAUDE_CODE_ENABLE_TODO_TOOLS=1 restores);
+                                # shipped templates never named them; docs/06.
+                                # (9) hookCommand `shell` (schema enum
+                                # bash|powershell, CC 2.1.81+): adopted on every
+                                # shipped command hook after upstream superpowers
+                                # v6.2.0 fixed its Windows SessionStart hook the
+                                # same way; retrofit backfills it on configurator-
+                                # owned entries; README Windows row rewritten.
+                                # (10) 2.1.239 - BOM-prefixed skill/agent .md
+                                # files were silently ignored before -> --check
+                                # now rejects a BOM in any shipped frontmatter
+                                # file.
+                                # Model landscape: Sonnet 5 (2.1.197, CC's default
+                                # model) and Opus 5 (2.1.219, default Opus, 1M);
+                                # scaffold default stays `fable`.
+                                # OUT OF TERRITORY / HELD: sandbox.network.
+                                # strictAllowlist (2.1.219), sandbox.filesystem.
+                                # disabled (2.1.216), dialogExpiry (2.1.224) -
+                                # user/managed-only per settings-reference;
+                                # crossSessionInbound (2.1.224; any file, stricter
+                                # project value honored) - not in SchemaStore yet
+                                # (sync stops at 2.1.220), HELD; keybindingFlavor,
+                                # spellcheck, emojiCompletionEnabled,
+                                # axScreenReader, vimInsertModeRemaps,
+                                # respondToBashCommands, awaySummaryEnabled - UI
+                                # prefs; marketplace aliases / archive + command
+                                # plugin sources / self-hosted runners / gateway
+                                # keys - enterprise or plugin territory. Env
+                                # mention-only: ANTHROPIC_DEFAULT_MODEL (2.1.236),
+                                # CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION +
+                                # CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS (2.1.212),
+                                # CLAUDE_CODE_TOOL_MEMORY_LIMIT +
+                                # CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS (2.1.233),
+                                # CLAUDE_CODE_GOAL_CHECKIN_MINUTES +
+                                # CLAUDE_CODE_PROJECT_DIR_NAME (2.1.234). New hook
+                                # event in window: DirectoryAdded (2.1.219).
+                                # `/agents` wizard removed (2.1.198; no template
+                                # referenced it). Issue #14920 (disable individual
+                                # plugin skills) still open.
 }
 
 

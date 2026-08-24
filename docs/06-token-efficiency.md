@@ -81,15 +81,16 @@ Do a "context budget review" monthly:
 
 ## The model-choice lever
 
-- Haiku for cheap, fast, read-only work — great for `Explore`, grep-style research, the `doc-writer` subagent.
+- Haiku for cheap, fast, read-only work — grep-style research, the `doc-writer` subagent. Since CC 2.1.198 the built-in `Explore` agent inherits the session model (capped at Opus) instead of running on Haiku; define a project `Explore` agent with `model: haiku` to keep exploration cheap.
 - Fable 5 (`fable`, CC 2.1.170+) for day-to-day edits and reviews — the scaffolded default. It is the most capable model and premium-priced (check the platform pricing page for current rates); the rest of this doc's levers (Haiku subagents, narrowing flags, reset rhythm) are what keep that affordable.
-- Opus for high-stakes review and deep refactors on Claude Code older than 2.1.170, or where your org's plan doesn't include Fable 5.
+- Opus (Claude Opus 5 on CC 2.1.219+) for high-stakes review and deep refactors on Claude Code older than 2.1.170, or where your org's plan doesn't include Fable 5. Sonnet (Claude Sonnet 5 on CC 2.1.197+, Claude Code's own default model) is the cost-balanced middle for day-to-day edits when Fable's pricing doesn't fit.
+- Task-tracking tools (`TodoWrite`, `TaskCreate`/`TaskUpdate`/…) are withdrawn on Fable 5, Opus 4.8+/5 and Sonnet 5 as of CC 2.1.233 — the shipped skills never named them, so nothing breaks, but set `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` if a custom skill of yours depends on them.
 
 Most sessions can run primarily on Fable 5 with Haiku subagents for reads. On older Claude Code the `fable` alias isn't selectable — drop the project back to `sonnet` via `.claude/settings.local.json` (the example file ships the stub).
 
 ### Effort level (Pro/Max only)
 
-Since Claude Code 2.1.117, Pro/Max subscribers on Opus 4.6 and Sonnet 4.6 default to `effort: high` (was `medium`). The default is already tuned — do **not** manually downgrade to `medium` thinking you're saving tokens. You're not; you're getting a less capable response for the same budget. If you want cheaper, drop to Haiku or use a lighter model. Reserve `effort: minimal` for skills that are mechanical (e.g. `/sync-docs`, `/check-context`, `/session-retro` — the `eff_effort_minimal` toggle stamps this automatically on those skills' frontmatter).
+Since Claude Code 2.1.117, Pro/Max subscribers on Opus 4.6 and Sonnet 4.6 default to `effort: high` (was `medium`); on Fable 5, Opus 4.7+ and Sonnet 5 Claude Code's own default is `xhigh`. The default is already tuned — do **not** manually downgrade to `medium` thinking you're saving tokens. You're not; you're getting a less capable response for the same budget. If you want cheaper, drop to Haiku or use a lighter model. Reserve `effort: minimal` for skills that are mechanical (e.g. `/sync-docs`, `/check-context`, `/session-retro` — the `eff_effort_minimal` toggle stamps this automatically on those skills' frontmatter).
 
 ## When you hit the context wall mid-session
 

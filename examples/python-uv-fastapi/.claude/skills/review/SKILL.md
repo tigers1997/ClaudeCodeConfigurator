@@ -1,6 +1,6 @@
 ---
 name: review
-description: Code-review the current branch's changes against main. Use before committing or pushing.
+description: Code-review the current branch's changes against main with the code-reviewer agent. Use before committing or pushing. Distinct from Claude Code's built-in /code-review.
 argument-hint: "[optional focus area]"
 allowed-tools: Read Grep Glob Bash(git diff:*) Bash(git log:*) Bash(git status)
 context: fork

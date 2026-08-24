@@ -10,6 +10,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/truncate-bash-output.sh",
             "timeout": 10
           }
