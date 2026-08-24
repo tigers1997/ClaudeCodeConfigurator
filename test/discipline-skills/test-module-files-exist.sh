@@ -15,8 +15,10 @@ paths=(
     "templates/discipline-skills/subagent-driven-development/SKILL.md"
     "templates/discipline-skills/subagent-driven-development/implementer-prompt.md"
     "templates/discipline-skills/subagent-driven-development/task-reviewer-prompt.md"
+    "templates/discipline-skills/subagent-driven-development/re-review-prompt.md"
     "templates/discipline-skills/subagent-driven-development/scripts/review-package"
     "templates/discipline-skills/subagent-driven-development/scripts/task-brief"
+    "templates/discipline-skills/subagent-driven-development/scripts/sdd-workspace"
     "templates/discipline-skills/finishing-a-development-branch/SKILL.md"
     "templates/discipline-skills/hooks/sessionstart-discipline.sh"
 )

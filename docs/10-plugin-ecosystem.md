@@ -86,7 +86,7 @@ You're trading "deterministic, fork-able templates I control" for "Anthropic-mai
 
 ## Discipline skills: bundled vs. upstream plugin
 
-The configurator ships a `discipline-skills` module — a curated 7-skill subset forked from the MIT-licensed `obra/superpowers` v5.1.0 plugin: `brainstorming`, `writing-plans`, `executing-plans`, `verification-before-completion`, `using-git-worktrees`, `subagent-driven-development`, `finishing-a-development-branch`. They land at project-level `.claude/skills/<name>/SKILL.md`. A slim SessionStart hook (`sessionstart-discipline.sh`) primes the model with a terse seven-skill bootstrap.
+The configurator ships a `discipline-skills` module — a curated 7-skill subset forked from the MIT-licensed `obra/superpowers` v6.3.0 plugin: `brainstorming`, `writing-plans`, `executing-plans`, `verification-before-completion`, `using-git-worktrees`, `subagent-driven-development`, `finishing-a-development-branch`. They land at project-level `.claude/skills/<name>/SKILL.md`. A slim SessionStart hook (`sessionstart-discipline.sh`) primes the model with a terse seven-skill bootstrap.
 
 **Why ship a fork instead of just recommending the upstream plugin:**
 
