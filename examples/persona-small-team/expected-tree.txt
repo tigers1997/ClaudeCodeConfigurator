@@ -61,6 +61,7 @@
 ./.claude/skills/verify-setup/SKILL.md
 ./.claude/skills/writing-plans/SKILL.md
 ./.claude/skills/writing-plans/plan-document-reviewer-prompt.md
+./.claude/workflows/spec-fanout.js
 ./.gitattributes
 ./.github/workflows/claude.yml
 ./.gitignore

@@ -202,6 +202,8 @@ All five preflight checks are silent on a clean default scaffold; informational 
 --force                 Kill-switch: skip the deep-merge AND the collision
                         strategy. Every existing file is overwritten with .bak-<ts>
                         (the pre-Tier-2 behavior). Implies --on-collision=overwrite.
+--write-index           Regenerate templates/INDEX.md from MODULES (maintainer
+                        tool; --check fails when the committed index is stale).
 --save-config FILE      Save answers to FILE (plus scaffolding)
 --save-config-only FILE Save answers only, no scaffolding
 --check                 Static validation of templates + MODULES (CI gate);

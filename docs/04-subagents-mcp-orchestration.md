@@ -165,6 +165,57 @@ Main session edits; `code-reviewer` subagent runs in parallel after every commit
 ### Desktop + cloud
 Local Claude Code for interactive work; Claude Code Web for long-running cloud jobs. Worktrees bridge the two. Useful for "run this large refactor while I go do something else." After both branches converge, use `/merge-worktrees` (ships in `multi-agent`) to integrate safely via a disposable branch.
 
+### Five ways to run work in parallel
+
+Claude Code grew several parallelism primitives, and they are not
+interchangeable. The difference is **who holds the plan** and **where
+intermediate results live**:
+
+| Primitive | Who decides what runs next | Results live in | Reach for it when |
+|---|---|---|---|
+| **Subagent** | Claude, turn by turn | Claude's context | A few delegated tasks inside one turn |
+| **Skill** | Claude, following the prompt | Claude's context | The procedure is the same every time |
+| **Agent team** | A lead agent supervising peer sessions | A shared task list | A handful of long-running peers that outlive a turn |
+| **Workflow** | The script | Script variables | Dozens to hundreds of agents; you want the orchestration itself repeatable |
+| **Worktree session** | You | Separate checkouts | Genuinely independent branches of work |
+
+The configurator ships templates for the first two and for worktrees
+(`/merge-worktrees`), plus one starter workflow (below). It ships nothing for
+agent teams, channels, or routines — deliberately, and the reasons are worth
+knowing:
+
+- **Agent teams** are spawned in conversation and live for a session. There is
+  no project-level file that defines a team, so there is nothing to commit. The
+  one knob worth setting is `teammateMode` (how teammates are displayed: split
+  panes under tmux/iTerm2, or in-process), and it's a per-machine terminal
+  preference — stubbed in `.claude/settings.local.json.example`, not in the
+  committed settings.
+- **Channels** push external events (CI results, chat messages, alerts) into a
+  running session through an MCP server. Their gate keys — `channelsEnabled`
+  and `allowedChannelPlugins` — are **managed-settings only**, so a project
+  cannot turn them on for you; your administrator does. Once enabled, a channel
+  is an MCP server like any other and belongs in `.mcp.json`.
+- **Routines** are scheduled cloud agents (`/schedule`). They run on Anthropic's
+  infrastructure against a repo, not from your checkout, so a committed template
+  would have nothing to bind to. If you want a recurring local check, a `Stop`
+  or `SessionStart` hook is the project-scoped equivalent — and the
+  `git-workflow` module already ships one.
+
+### The starter workflow
+
+The `multi-agent` module scaffolds `.claude/workflows/spec-fanout.js`, which
+runs as `/spec-fanout`. It generates N variants of one spec into disjoint output
+slots, then screens each variant against the spec and the diversification axis
+before reporting. It is the workflow-native successor to the `/infinite` skill
+in the same module: same job, but the runtime holds the loop and the
+intermediate results, the run is resumable, and the screening pass is a real
+gate. Workflows saved under `.claude/workflows/` are shared with everyone who
+clones the repo.
+
+Set `workflowSizeGuideline` (stubbed in `.claude/settings.local.json.example`,
+honored from any settings file) if you want the workflows Claude writes for this
+repo to stay small.
+
 ### When to reach for a workflow instead
 
 Dynamic workflows (`/workflows`) run a script Claude writes over many agents,

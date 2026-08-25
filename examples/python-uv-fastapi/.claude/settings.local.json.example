@@ -60,6 +60,12 @@
     "symlinkDirectories": ["node_modules"]
   },
 
+  "// workflowSizeGuideline": "medium",
+  "//workflowSizeGuideline-notes": "workflowSizeGuideline (CC 2.1.219+) — how many agents Claude aims for in a dynamic workflow it writes: unrestricted | small (<5) | medium (<15) | large (<50). Advice to the model, not an enforced cap; the runtime's own limits (16 concurrent, 1,000 per run) still apply. A settings value takes precedence over the /config row and hides it. Honored from any settings file, so it can be a project default — useful when a repo's workflows should stay small. The sibling `disableWorkflows: true` turns dynamic workflows and the bundled workflow commands off entirely.",
+
+  "// teammateMode": "auto",
+  "//teammateMode-notes": "teammateMode — how agent-team teammates are displayed: auto (split panes under tmux/iTerm2, in-process otherwise) | in-process | tmux | iterm2. A machine-and-terminal preference, which is why it belongs in this file rather than the committed settings.json; a tmux value on a machine without tmux just degrades. Agent teams are session-scoped and spawned in conversation, so there is nothing for the configurator to scaffold beyond this knob — see docs/04-subagents-mcp-orchestration.md.",
+
   "// agent": "code-reviewer",
   "//agent-notes": "agent — name of a subagent (built-in or .claude/agents/<name>.md) whose system prompt, tool restrictions and model the MAIN thread takes on for every session in this project (same as `claude --agent <name>`; the choice persists on resume). Never a configurator default: it replaces the default Claude Code system prompt entirely. Useful for a review-only checkout or a docs-only worktree.",
 
