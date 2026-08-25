@@ -11,11 +11,11 @@ Run `/context` first (the built-in) and read the breakdown it prints. Then analy
 
 ## Budget guardrails
 
-A fresh Claude Code session with 4 MCP servers loaded already burns ~49% of a 100k window before the user types anything — system prompt ~2.2k, system tool descriptions ~12k, MCP tool descriptions ~37k. That's the baseline to compare against.
+Before the user types anything a session already carries the system prompt, built-in tool descriptions, CLAUDE.md, path-scoped rules and the skill listing. Measured on Claude Code 2.1.245 that floor was ~26.7k tokens with no MCP servers configured at all — that's the baseline to compare against, and no MCP profile changes it. MCP tool schemas are deferred by tool search unless a server sets `alwaysLoad: true`, so they should be a thin slice (~14 tokens/tool, versus ~298 when eagerly loaded).
 
 Flag the following:
 
-- **MCP tool descriptions > 10%** of the window → too many MCP servers for this task. Recommend the user split per-task `.mcp.json.<profile>` files and run `claude --mcp-config <path> --strict-mcp-config`.
+- **MCP tool descriptions > 10%** of the window → with deferral on this is nearly impossible, so suspect a server with `alwaysLoad: true` (or a build predating tool search). Recommend dropping `alwaysLoad` first. Per-task `.mcp.<profile>.json` files with `claude --mcp-config <path> --strict-mcp-config` (or `./claude-ctx <profile>`) remain the right move when the goal is *fewer connected servers* — startup time, auth prompts, blast radius — rather than fewer tokens.
 - **Custom tools / skills > 5%** of the window → some skill descriptions are too verbose or too many user-invocable skills are loaded. Recommend auditing `allowed-tools`, `when_to_use`, and trimming descriptions.
 - **Memory (CLAUDE.md + @imports) > 10%** → CLAUDE.md has bloated. Propose moving path-scoped content into `.claude/rules/*.md` with `paths:` frontmatter so it only loads when relevant.
 - **Total before first turn > 40%** → the session will autocompact early. Combination of the above.
