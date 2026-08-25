@@ -603,6 +603,7 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
     # Final pass: strip any `//`-prefixed keys at any nesting depth. Catches
     # nested doc labels / stubs that escape the shallow per-merge filters.
     settings = _strip_doc_labels(settings)
+
     return settings
 
 
@@ -677,6 +678,139 @@ def _frontmatter_block(text: str) -> str:
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
             return "\n".join(lines[1:i])
+    return ""
+
+
+INDEX_PATH = TEMPLATE_DIR / "INDEX.md"
+
+INDEX_FOOTER = """## How settings merge works
+
+Several modules contribute `hooks` entries, and they all land in one
+`.claude/settings.json`. The CLI merges them (see `deep_merge_settings` and
+`_merge_hook_groups` in `configure.py`): groups are keyed by `matcher`, inner
+hooks are unioned by `command`, and a user's own entries are never rewritten.
+If you're hand-copying instead, the shape is:
+
+```json
+{
+  "hooks": {
+    "PreToolUse":  [ ...all matchers from all modules... ],
+    "PostToolUse": [ ... ],
+    "Stop":        [ ... ]
+  }
+}
+```
+
+Within one event, hooks from different modules concatenate; Claude Code runs
+every matching entry.
+
+## Path rewrites
+
+- `*/dot-claude/*` -> `.claude/*` and `*/dot-github/*` -> `.github/*`. The
+  template tree avoids real dotfolders so it browses and syncs cleanly on
+  tools that special-case them.
+- `mcp/mcp.json` -> `.mcp.json`; `mcp/profiles/mcp.<name>.json` ->
+  `.mcp.<name>.json` at the repo root; `mcp/servers-cookbook.md` ->
+  `docs/mcp-servers.md`; `mcp/claude-ctx.sh` -> `claude-ctx` (executable).
+- Hook scripts are written executable, and with LF endings on every platform.
+"""
+
+
+def render_template_index() -> str:
+    """Render templates/INDEX.md from MODULES — the same source the CLI
+    scaffolds from, so the index cannot drift from what actually ships.
+
+    The hand-maintained version went stale (it still referenced a
+    `configurator.html` that no longer exists and was missing half the
+    modules); `--check` now fails when this output and the file disagree.
+    Regenerate with `python3 configure.py --write-index`.
+    """
+    lines = [
+        "# Template library index",
+        "",
+        "**Generated — do not edit by hand.** Produced from `MODULES` in",
+        "`config_schema.py` by `python3 configure.py --write-index`, and verified",
+        "by `python3 configure.py --check`.",
+        "",
+        "Every module contributes drop-in files for a target project. `cc-configure`",
+        "composes the selected modules; you can also copy any file directly.",
+        "",
+    ]
+    for m in MODULES:
+        flags = m.get("flags") or {}
+        lines.append(f"## `{m['id']}`" + ("  *(required)*" if m.get("required") else ""))
+        lines.append("")
+        desc = (m.get("description") or "").strip()
+        if desc:
+            lines.append(desc.split(". ")[0].rstrip(".") + ".")
+            lines.append("")
+        paths = m.get("paths") or []
+        if paths:
+            lines.append("| Template | Installs to |")
+            lines.append("|---|---|")
+            for p in paths:
+                try:
+                    target = target_path_for(p)
+                except Exception:
+                    target = "(computed at scaffold time)"
+                lines.append(f"| `{p}` | `{target}` |")
+            lines.append("")
+        extras = []
+        if m.get("settingsPatch"):
+            extras.append(f"`{m['settingsPatch']}` merges into `.claude/settings.json`")
+        if m.get("extraSettingsHook"):
+            extras.append("registers hook entries in `.claude/settings.json`")
+        if m.get("gitignoreSource"):
+            extras.append(f"`{m['gitignoreSource']}` appends to `.gitignore`")
+        if m.get("gitattributesSource"):
+            extras.append(f"`{m['gitattributesSource']}` appends to `.gitattributes`")
+        if m.get("dependsOn"):
+            extras.append("depends on " + ", ".join(f"`{d}`" for d in m["dependsOn"]))
+        for name, spec in flags.items():
+            opts = spec.get("options")
+            extras.append(
+                f"flag `{name}`" + (f" ({' | '.join(map(str, opts))}" +
+                                    f", default `{spec.get('default')}`)" if opts else "")
+            )
+        for e in extras:
+            lines.append(f"- {e}")
+        if extras:
+            lines.append("")
+    lines.append(INDEX_FOOTER.rstrip("\n"))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _js_meta_block(text: str) -> str:
+    """Return the `export const meta = { ... }` object literal, brace-matched.
+
+    Deliberately not `text.split("}", 1)[0]`: a `meta` block legitimately nests
+    objects — `phases: [{ title, detail }]` — so splitting on the first `}`
+    truncates it and would miss a `name:`/`description:` written after `phases:`.
+    String literals are skipped so a brace inside a description can't unbalance
+    the scan. Returns "" when there is no terminated literal.
+    """
+    i = text.find("export const meta")
+    if i == -1:
+        return ""
+    start = text.find("{", i)
+    if start == -1:
+        return ""
+    depth, j, n = 0, start, len(text)
+    while j < n:
+        c = text[j]
+        if c in "'\"`":
+            quote = c
+            j += 1
+            while j < n and text[j] != quote:
+                j += 2 if text[j] == "\\" else 1
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:j + 1]
+        j += 1
     return ""
 
 
@@ -914,6 +1048,38 @@ def run_check() -> int:
         for pat in required:
             if f"include {pat}" not in text:
                 err(f"templates/{skill_rel}", f"missing required pattern include: {pat}")
+
+    # --- 4b. Dynamic-workflow scripts declare a usable meta block ---
+    # The runtime rejects a script whose `meta` isn't a pure literal with name +
+    # description, and a broken workflow fails at invocation time rather than at
+    # scaffold time — so catch it here instead of in the user's project.
+    for f in sorted(TEMPLATE_DIR.rglob("workflows/*.js")):
+        rel = f.relative_to(TEMPLATE_DIR)
+        text = f.read_text(encoding="utf-8")
+        if "export const meta" not in text:
+            err(f"templates/{rel}", "workflow script has no `export const meta` block")
+            continue
+        meta_block = _js_meta_block(text)
+        if not meta_block:
+            err(f"templates/{rel}",
+                "workflow `meta` is not a terminated object literal")
+            continue
+        for field in ("name:", "description:"):
+            if field not in meta_block:
+                err(f"templates/{rel}", f"workflow `meta` is missing `{field}`")
+        # Static `import` on ANY line, not only the first: the runtime rejects
+        # a mid-file `import x from "y"` just as hard as one at the top.
+        if re.search(r"(?m)^\s*import\s", text) or re.search(r"(?<![\w$])import\s*\(", text):
+            err(f"templates/{rel}",
+                "workflow scripts cannot use import()/import — the runtime rejects them")
+
+    # --- 5. Generated index is current ---
+    if INDEX_PATH.exists():
+        if INDEX_PATH.read_text(encoding="utf-8").replace("\r\n", "\n") != render_template_index():
+            err("templates/INDEX.md",
+                "out of date — regenerate with `python3 configure.py --write-index`")
+    else:
+        err("templates/INDEX.md", "missing — generate with `python3 configure.py --write-index`")
 
     # --- Report ---
     errors = [i for i in issues if i[0] == "ERR"]
@@ -2677,6 +2843,9 @@ def parse_args():
                    help="Static validation of templates + MODULES registry (CI-friendly). "
                         "Exits 0 on clean, 1 with a per-issue summary otherwise. "
                         "Skips all other processing — no scaffolding, no prompts.")
+    p.add_argument("--write-index", action="store_true",
+                   help="Regenerate templates/INDEX.md from MODULES (maintainer tool). "
+                        "--check fails when the committed index and this output disagree.")
     p.add_argument("--whats-new", action="store_true",
                    help="Read-only: compare this project's .cc-manifest.json "
                         "version/SHA against the current configurator build and "
@@ -2781,6 +2950,10 @@ def cmd_whats_new(target_dir):
 def main():
     args = parse_args()
     # --check short-circuits everything else: no scaffolding, no target dir creation.
+    if args.write_index:
+        write_text_lf(INDEX_PATH, render_template_index())
+        print(green(f"wrote {INDEX_PATH.relative_to(REPO_ROOT)}"))
+        return
     if args.check:
         sys.exit(run_check())
     # --whats-new is read-only: report the configurator-vs-manifest delta and
