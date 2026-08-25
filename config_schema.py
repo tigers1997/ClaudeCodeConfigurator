@@ -184,6 +184,7 @@ MODULES = [
         "paths": [
             "multi-agent/dot-claude/rules/multi-agent-guardrails.md",
             "multi-agent/dot-claude/agents/parallel-generator.md",
+            "multi-agent/dot-claude/workflows/spec-fanout.js",
             "commands/merge-worktrees/SKILL.md",
             "commands/infinite/SKILL.md",
         ],
@@ -1100,10 +1101,11 @@ def target_path_for(template_rel: str):
         if rest_path.startswith("agents/"):
             agent_name = rest_path[len("agents/"):]
             return f".claude/agents/{agent_name}"
-        # microbit-enforcer.sh routes to .claude/hooks/, not .claude/skills/.
+        # microbit-enforcer.sh / .ps1 route to .claude/hooks/, not .claude/skills/.
         # The directory's settings-patch.json is consumed via extraSettingsPatch
         # and never copied as a file (so no special-case skip needed).
-        if rest_path.startswith("microbit-enforcer/") and rest_path.endswith(".sh"):
+        if (rest_path.startswith("microbit-enforcer/")
+                and rest_path.endswith((".sh", ".ps1"))):
             fname = rest_path[len("microbit-enforcer/"):]
             return f".claude/hooks/{fname}"
         return f".claude/skills/{rest_path}"
