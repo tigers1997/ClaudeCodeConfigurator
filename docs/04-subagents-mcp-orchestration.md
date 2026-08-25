@@ -106,20 +106,50 @@ Situationally valuable:
 - **playwright** — any frontend project.
 - **context7** — live library docs lookup. Stops hallucinated APIs.
 
-Usually skip: "kitchen sink" servers exposing dozens of tools you won't use. Every tool definition costs tokens on every session start.
+Usually skip: "kitchen sink" servers exposing dozens of tools you won't use — not because of tokens (see below) but because every extra server is another process, another auth prompt, and more surface for the model to reach for the wrong tool.
 
-### Context bloat is real
+### What MCP actually costs
 
-Every MCP tool is a chunk of JSON schema loaded at session start. A heavy `.mcp.json` can burn thousands of tokens before you type anything — a fresh session with 4 MCP servers loaded typically costs ~37k tokens of tool descriptions alone, ~49% of a 100k window. Mitigations:
+**Tool search changed this, and older advice (including earlier versions of this
+page) is now wrong.** Claude Code defers MCP tool schemas by default and pulls
+them in on demand, so a heavy `.mcp.json` no longer front-loads its schemas into
+every prompt. `alwaysLoad: true` opts a server out of that deferral — it is the
+setting that brings the old cost back.
 
-1. **Only enable what you'll actually use this week.**
-2. **Per-task profiles** — ship `.mcp.<profile>.json` files at repo root and run `claude --mcp-config <path> --strict-mcp-config` (or `./claude-ctx <profile>` using the wrapper the `mcp` module ships). `--strict-mcp-config` ignores the default hierarchy entirely. Real demo: context usage drops from 18.8% to 2.4% when scoped.
-3. **Scope to subagents** — put MCP servers in a subagent's frontmatter (`mcpServers:`) so they only load for that agent.
-4. **Wrap heavy servers in narrow slash commands** — if a server exposes 30 tools and you use 3, write a skill that calls those 3.
+Measured on Claude Code 2.1.245 (Opus 5, one-turn session, four local stdio
+servers advertising twelve tools each — 48 tools total):
+
+| Session | Prompt tokens | MCP's share |
+|---|---|---|
+| No MCP servers | 26,665 | — |
+| 4 servers, default (deferred) | 27,361 | +696 (~14 tokens/tool) |
+| 4 servers with `alwaysLoad: true` | 40,993 | +14,328 (~298 tokens/tool) |
+
+Deferral removes ~95% of the schema cost. Two consequences:
+
+1. **Adding a server is cheap. Loading it eagerly is not.** Reach for
+   `alwaysLoad` only when a server's tools are used in nearly every turn.
+2. **Per-task profiles are no longer primarily a token lever.** What they still
+   buy is real: fewer processes and auth prompts at startup, faster cold start,
+   and a smaller blast radius — `--strict-mcp-config` means only the listed
+   servers exist for that session. Choose a profile for those reasons.
+
+Still worth doing regardless of tokens:
+
+- **Only enable what you'll actually use this week.** Fewer servers, fewer ways
+  for a turn to go sideways.
+- **Scope to subagents** — put MCP servers in a subagent's frontmatter
+  (`mcpServers:`) so they're only live while that agent runs.
+- **Wrap heavy servers in narrow skills** — if a server exposes 30 tools and you
+  use 3, a skill that calls those 3 is easier for the model to aim.
 
 ### Checking the cost
 
-`/context` in an active session shows what's loaded. `/cost` shows spend. Use both.
+`/context` in an active session shows what's loaded, and it is the number to
+trust for your own project — the table above is one synthetic shape, not a law.
+The dominant line is the baseline itself (~26.7k tokens of system prompt and
+built-in tools before any MCP server exists); no profile changes that. `/cost`
+shows spend.
 
 ## Orchestration patterns
 
@@ -134,6 +164,16 @@ Main session edits; `code-reviewer` subagent runs in parallel after every commit
 
 ### Desktop + cloud
 Local Claude Code for interactive work; Claude Code Web for long-running cloud jobs. Worktrees bridge the two. Useful for "run this large refactor while I go do something else." After both branches converge, use `/merge-worktrees` (ships in `multi-agent`) to integrate safely via a disposable branch.
+
+### When to reach for a workflow instead
+
+Dynamic workflows (`/workflows`) run a script Claude writes over many agents,
+with control flow, structured output between stages, a token budget, resume
+after failure, and a progress view. Prefer them for staged pipelines
+(find → verify → synthesize), for fan-out whose results need merging or scoring,
+and for anything that should survive an interruption. Hand-rolled batching —
+including the `/infinite` skill the `multi-agent` module ships — is the right
+shape only for N independent variants of one spec written to disjoint slots.
 
 ### Limits
 

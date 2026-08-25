@@ -5,11 +5,16 @@
 # MCP hierarchy (user/project/local). Profiles live at .mcp.<profile>.json in
 # the project root.
 #
-# WHY this exists: a fresh session with 4 MCP servers loaded burns ~49% of a
-# 100k context window before you type anything (system prompt ~2.2k +
-# system tool descriptions ~12k + MCP tool descriptions ~37k). Scoping per
-# task with --strict-mcp-config drops that cost to near-zero for tasks that
-# don't need those servers.
+# WHY this exists: --strict-mcp-config makes the listed servers the ONLY ones
+# that exist for the session, so a profile controls which servers actually
+# connect: fewer processes and auth prompts at startup, a faster cold start,
+# and a smaller blast radius for a task that has no business touching them.
+#
+# Note on tokens: this used to be pitched as a context saving, and it no longer
+# is. Tool search defers MCP tool schemas by default — measured on Claude Code
+# 2.1.245, four servers advertising 48 tools between them cost +696 tokens
+# deferred versus +14,328 with alwaysLoad: true. Use profiles for connection
+# control; use `/context` if you want to see where the tokens really went.
 #
 # Usage:
 #   ./claude-ctx research                    # loads only .mcp.research.json
