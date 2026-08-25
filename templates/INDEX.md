@@ -215,3 +215,15 @@ every matching entry.
   `.mcp.<name>.json` at the repo root; `mcp/servers-cookbook.md` ->
   `docs/mcp-servers.md`; `mcp/claude-ctx.sh` -> `claude-ctx` (executable).
 - Hook scripts are written executable, and with LF endings on every platform.
+
+## PowerShell hook variants
+
+Six hooks ship a `.ps1` sibling next to the `.sh`:
+`block-dangerous-bash`, `scan-secrets`, `format-on-write`, `stop-run-checks`,
+`pre-compact-snapshot` and `microbit-enforcer`. They are not listed above
+because they are not separate module paths: `--hook-shell powershell` swaps a
+`.sh` for its `.ps1` sibling by name at scaffold time and sets
+`"shell": "powershell"` on those hook entries only. Hooks with no sibling stay
+bash. Shipped `.ps1` files must be ASCII and BOM-free -- PowerShell 5.1 reads
+them as ANSI, so a stray em-dash can terminate a string and break parsing.
+`--check` enforces both that and the `.sh` pairing.
