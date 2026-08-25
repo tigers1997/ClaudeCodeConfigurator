@@ -838,7 +838,7 @@ def run_check() -> int:
             "_patterns/confidence-gate.md",
             "_patterns/independent-verification.md",
         ],
-        "commands/review/SKILL.md": [
+        "commands/review-branch/SKILL.md": [
             "_patterns/confidence-gate.md",
             "_patterns/independent-verification.md",
             "_patterns/ai-slop-detection.md",

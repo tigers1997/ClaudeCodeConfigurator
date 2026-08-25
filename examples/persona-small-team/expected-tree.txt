@@ -44,7 +44,7 @@
 ./.claude/skills/plan-eng-review/SKILL.md
 ./.claude/skills/plan/SKILL.md
 ./.claude/skills/retrofit/SKILL.md
-./.claude/skills/review/SKILL.md
+./.claude/skills/review-branch/SKILL.md
 ./.claude/skills/session-retro/SKILL.md
 ./.claude/skills/ship/SKILL.md
 ./.claude/skills/subagent-driven-development/SKILL.md

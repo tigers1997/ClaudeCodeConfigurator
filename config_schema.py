@@ -111,10 +111,10 @@ MODULES = [
     {
         "id": "commands",
         "title": "Slash commands + subagents",
-        "description": "Bundled commands (plan/review/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit) + 4 subagents (code-reviewer/test-runner/doc-writer/security-auditor).",
+        "description": "Bundled commands (plan/review-branch/commit/ship/sync-docs/check-context/session-retro/verify-setup/retrofit) + 4 subagents (code-reviewer/test-runner/doc-writer/security-auditor).",
         "paths": [
             "commands/plan/SKILL.md",
-            "commands/review/SKILL.md",
+            "commands/review-branch/SKILL.md",
             "commands/commit/SKILL.md",
             "commands/ship/SKILL.md",
             "commands/sync-docs/SKILL.md",

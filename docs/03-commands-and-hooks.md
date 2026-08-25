@@ -45,12 +45,12 @@ Frontmatter fields worth knowing:
 
 Inline: `` !`git diff --staged` `` — runs at skill-expansion time, output replaces the placeholder before Claude sees the prompt. Multi-line: fenced block ```` ```! ````.
 
-Great for injecting live repo state into the prompt. The `/review` and `/commit` skills in the template library use this.
+Great for injecting live repo state into the prompt. The `/review-branch` and `/commit` skills in the template library use this.
 
 ### Starter kit
 
 - `/plan` — forces a structured plan before edits. Shadows Claude Code's built-in `/plan` (the plan-mode shortcut) — a project skill wins by name; Shift+Tab still enters plan mode.
-- `/review` — code review against main via the `code-reviewer` agent. Shadows the bundled `/review` alias that CC 2.1.223 added for `/code-review` (verified on 2.1.241) — type `/code-review` for the built-in multi-agent review.
+- `/review-branch` — code review against main via the `code-reviewer` agent. Named `review-branch`, not `review`, on purpose: CC 2.1.223 made `/review` the alias of the bundled `/code-review`, and a project skill of that name wins it (verified on 2.1.241), which would hide Claude Code's multi-agent reviewer behind this simpler one. Both are available now — `/code-review` for the deep pass, `/review-branch` for the quick one.
 - `/commit` — Conventional Commits from staged diff.
 - `/ship` — full pre-push gauntlet.
 - `/sync-docs` — update `CLAUDE.md` / rules from recent work.
