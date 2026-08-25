@@ -781,6 +781,39 @@ def render_template_index() -> str:
     return "\n".join(lines)
 
 
+def _js_meta_block(text: str) -> str:
+    """Return the `export const meta = { ... }` object literal, brace-matched.
+
+    Deliberately not `text.split("}", 1)[0]`: a `meta` block legitimately nests
+    objects — `phases: [{ title, detail }]` — so splitting on the first `}`
+    truncates it and would miss a `name:`/`description:` written after `phases:`.
+    String literals are skipped so a brace inside a description can't unbalance
+    the scan. Returns "" when there is no terminated literal.
+    """
+    i = text.find("export const meta")
+    if i == -1:
+        return ""
+    start = text.find("{", i)
+    if start == -1:
+        return ""
+    depth, j, n = 0, start, len(text)
+    while j < n:
+        c = text[j]
+        if c in "'\"`":
+            quote = c
+            j += 1
+            while j < n and text[j] != quote:
+                j += 2 if text[j] == "\\" else 1
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:j + 1]
+        j += 1
+    return ""
+
+
 def _find_bash():
     """Return a bash that can actually execute, or None.
 
@@ -1026,10 +1059,17 @@ def run_check() -> int:
         if "export const meta" not in text:
             err(f"templates/{rel}", "workflow script has no `export const meta` block")
             continue
+        meta_block = _js_meta_block(text)
+        if not meta_block:
+            err(f"templates/{rel}",
+                "workflow `meta` is not a terminated object literal")
+            continue
         for field in ("name:", "description:"):
-            if field not in text.split("}", 1)[0]:
+            if field not in meta_block:
                 err(f"templates/{rel}", f"workflow `meta` is missing `{field}`")
-        if "import(" in text or text.lstrip().startswith("import "):
+        # Static `import` on ANY line, not only the first: the runtime rejects
+        # a mid-file `import x from "y"` just as hard as one at the top.
+        if re.search(r"(?m)^\s*import\s", text) or re.search(r"(?<![\w$])import\s*\(", text):
             err(f"templates/{rel}",
                 "workflow scripts cannot use import()/import — the runtime rejects them")
 
