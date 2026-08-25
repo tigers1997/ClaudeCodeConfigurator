@@ -44,7 +44,11 @@ jobs:
             target=$(mktemp -d)
             python3 configure.py --persona "$p" --yes --dir "$target" >/dev/null
             actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
-            diff <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
+            # --strip-trailing-cr: the snapshots are LF in the repo, but Git for
+            # Windows checks them out CRLF (core.autocrlf=true is its install
+            # default and the runner keeps it) while `find` emits LF -- a raw
+            # diff then reports every line as changed.
+            diff --strip-trailing-cr <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
               || { echo "snapshot drift for persona=$p"; exit 1; }
           done
           echo "all 5 persona snapshots match"
@@ -233,6 +237,10 @@ jobs:
             target=$(mktemp -d)
             python3 configure.py --persona "$p" --yes --dir "$target" >/dev/null
             actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
-            diff <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
+            # --strip-trailing-cr: the snapshots are LF in the repo, but Git for
+            # Windows checks them out CRLF (core.autocrlf=true is its install
+            # default and the runner keeps it) while `find` emits LF -- a raw
+            # diff then reports every line as changed.
+            diff --strip-trailing-cr <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
               || { echo "snapshot drift for persona=$p on ${{ matrix.os }}"; exit 1; }
           done
