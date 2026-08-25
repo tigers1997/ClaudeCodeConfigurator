@@ -680,6 +680,44 @@ def _frontmatter_block(text: str) -> str:
     return ""
 
 
+def _find_bash():
+    """Return a bash that can actually execute, or None.
+
+    shutil.which("bash") is not enough on Windows. The GitHub windows-latest
+    image ships the WSL launcher (System32/bash.exe) ahead of Git Bash on PATH,
+    and with no distro installed it exits non-zero writing *nothing* to stderr.
+    `bash -n` then reported every shipped .sh as a syntax error with a blank
+    message, while passing on a dev box where Git Bash wins PATH. So each
+    candidate is validated by actually running it, with Git Bash's own binary as
+    the fallback. Forward slashes throughout: Windows accepts them, and they keep
+    this list free of escaping. CC_BASH overrides the search.
+    """
+    import subprocess
+
+    candidates = []
+    override = os.environ.get("CC_BASH")
+    if override:
+        candidates.append(override)
+    found = shutil.which("bash")
+    if found:
+        candidates.append(found)
+    if os.name == "nt":
+        candidates += [
+            "C:/Program Files/Git/bin/bash.exe",
+            "C:/Program Files/Git/usr/bin/bash.exe",
+            "C:/Program Files (x86)/Git/bin/bash.exe",
+        ]
+    for cand in candidates:
+        try:
+            probe = subprocess.run([cand, "-c", "exit 0"],
+                                   capture_output=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0:
+            return cand
+    return None
+
+
 def run_check() -> int:
     """Static validation of the shipped templates + MODULES registry.
     Exit 0 if everything is fine, 1 with a per-issue summary otherwise.
@@ -692,6 +730,11 @@ def run_check() -> int:
 
     def err(source, msg):
         issues.append(("ERR", source, msg))
+
+    def warn(source, msg):
+        """Non-fatal: printed, but does not fail the check. Used when a
+        validation could not run at all, which is different from failing."""
+        issues.append(("WARN", source, msg))
 
     # --- 1. MODULES registry integrity ---
     for m in MODULES:
@@ -761,11 +804,18 @@ def run_check() -> int:
                 err(f"PERSONAS[{pname}]", f"module_flags references unknown module: {flag_module}")
 
     # --- 3. Static file checks: walk templates/ once ---
+    bash_bin = _find_bash()
+    if bash_bin is None:
+        warn("templates/**/*.sh",
+             "no working bash found — shell syntax validation skipped. "
+             "Set CC_BASH to a bash binary to enable it.")
     for f in sorted(TEMPLATE_DIR.rglob("*")):
         if not f.is_file():
             continue
         rel = f.relative_to(TEMPLATE_DIR)
-        src = f"templates/{rel}"
+        # as_posix(): keep --check output identical on every platform,
+        # instead of "templates/safety\hooks\x.sh" on Windows.
+        src = f"templates/{rel.as_posix()}"
 
         if f.suffix == ".json":
             try:
@@ -776,10 +826,18 @@ def run_check() -> int:
                 err(src, f"invalid JSON: {e}")
 
         elif f.suffix == ".sh":
+            if bash_bin is None:
+                continue  # already reported once, above
             try:
-                result = sp.run(["bash", "-n", str(f)], capture_output=True, text=True, timeout=5)
+                result = sp.run([bash_bin, "-n", str(f)], capture_output=True, text=True, timeout=5)
                 if result.returncode != 0:
-                    err(src, f"bash syntax error: {result.stderr.strip()}")
+                    detail = result.stderr.strip()
+                    # bash prefixes each diagnostic with the path we handed it.
+                    # `src` already names the file, and on Windows that echo is a
+                    # noisy absolute path — strip it so output matches everywhere.
+                    for form in (str(f), f.as_posix()):
+                        detail = detail.replace(form + ": ", "")
+                    err(src, f"bash syntax error: {detail}")
             except (FileNotFoundError, sp.TimeoutExpired) as e:
                 err(src, f"could not run bash -n: {e}")
 
@@ -858,7 +916,11 @@ def run_check() -> int:
                 err(f"templates/{skill_rel}", f"missing required pattern include: {pat}")
 
     # --- Report ---
-    if not issues:
+    errors = [i for i in issues if i[0] == "ERR"]
+    for _sev, _src, _msg in issues:
+        if _sev == "WARN":
+            print(f"  {yellow(_sev)} {_src}: {_msg}")
+    if not errors:
         print(green("✓ all checks passed"))
         print(dim(f"  modules: {len(MODULES)}"))
         print(dim(f"  scanned: {sum(1 for _ in TEMPLATE_DIR.rglob('*') if _.is_file())} files under templates/"))
@@ -866,8 +928,8 @@ def run_check() -> int:
                   f"–{CLAUDE_CODE_COMPAT['tested_up_to']}"))
         return 0
 
-    print(red(f"✗ {len(issues)} issue(s) found"))
-    for sev, src, msg in issues:
+    print(red(f"✗ {len(errors)} issue(s) found"))
+    for sev, src, msg in errors:
         print(f"  {red(sev)} {src}: {msg}")
     return 1
 
