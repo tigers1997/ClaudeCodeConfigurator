@@ -159,7 +159,10 @@ The `$CLAUDE_PROJECT_DIR` env var is always set to the project root — use it i
 - Default timeouts: 600s command, 30s prompt, 60s agent.
 - Injected context (additionalContext, systemMessage, stdout) capped at 10,000 chars.
 - Multiple hooks per event run in parallel. Identical commands are deduplicated.
-- `shell`: every shipped command hook declares `"shell": "bash"` (CC 2.1.81+; the key is in the settings schema). Without it, a Windows session with no Git Bash defaults hooks to PowerShell and the `.sh` entrypoint dies on a parser error; with it, Claude Code resolves Git for Windows directly and prompts to install it when missing. Translate a hook to PowerShell and set `"shell": "powershell"` only when you want to drop the bash dependency.
+- `shell`: every shipped command hook declares `"shell": "bash"` (CC 2.1.81+; the key is in the settings schema). Without it, a Windows session with no Git Bash defaults hooks to PowerShell and the `.sh` entrypoint dies on a parser error; with it, Claude Code resolves Git for Windows directly and prompts to install it when missing. To drop the bash dependency entirely, scaffold with `--hook-shell powershell`: the six hooks that ship a `.ps1` sibling install as PowerShell and get `"shell": "powershell"` on their own entries, while the rest stay bash. Two Windows details the generated command handles, both found by running it on a stock box:
+
+- Windows ships execution policy `Restricted`, so naming a `.ps1` directly fails with *"running scripts is disabled on this system"*. The command spawns PowerShell with `-ExecutionPolicy Bypass`, which applies only to that child process — it doesn't change machine policy. Prefer `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once and simplify the command if you'd rather not pay the extra process on `PreToolUse`.
+- A wrapping `powershell -Command` collapses any non-zero child exit to `1`, which would turn a `PreToolUse` **block** (exit 2) into a mere non-blocking error. The command ends with `; exit $LASTEXITCODE` to preserve it.
 
 ### Debugging hooks
 

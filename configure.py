@@ -603,6 +603,10 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
     # Final pass: strip any `//`-prefixed keys at any nesting depth. Catches
     # nested doc labels / stubs that escape the shallow per-merge filters.
     settings = _strip_doc_labels(settings)
+    # Point hook entries at the .ps1 variants when the project opted into
+    # PowerShell hooks. Per-entry, so hooks with no .ps1 sibling keep bash.
+    settings = apply_hook_shell_to_settings(
+        settings, (form_values or {}).get("hook_shell", "bash"))
 
     return settings
 
@@ -713,6 +717,18 @@ every matching entry.
   `.mcp.<name>.json` at the repo root; `mcp/servers-cookbook.md` ->
   `docs/mcp-servers.md`; `mcp/claude-ctx.sh` -> `claude-ctx` (executable).
 - Hook scripts are written executable, and with LF endings on every platform.
+
+## PowerShell hook variants
+
+Six hooks ship a `.ps1` sibling next to the `.sh`:
+`block-dangerous-bash`, `scan-secrets`, `format-on-write`, `stop-run-checks`,
+`pre-compact-snapshot` and `microbit-enforcer`. They are not listed above
+because they are not separate module paths: `--hook-shell powershell` swaps a
+`.sh` for its `.ps1` sibling by name at scaffold time and sets
+`"shell": "powershell"` on those hook entries only. Hooks with no sibling stay
+bash. Shipped `.ps1` files must be ASCII and BOM-free -- PowerShell 5.1 reads
+them as ANSI, so a stray em-dash can terminate a string and break parsing.
+`--check` enforces both that and the `.sh` pairing.
 """
 
 
@@ -1048,6 +1064,31 @@ def run_check() -> int:
         for pat in required:
             if f"include {pat}" not in text:
                 err(f"templates/{skill_rel}", f"missing required pattern include: {pat}")
+
+    # --- 4a. PowerShell hooks stay ASCII, and pair with a .sh sibling ---
+    # Windows PowerShell 5.1 — still the default on Windows — reads .ps1 as the
+    # system ANSI code page unless the file has a BOM. A UTF-8 em-dash then
+    # decodes to a cp1252 smart quote, which PowerShell accepts as a string
+    # delimiter: the string terminates mid-line and the file fails to parse.
+    # Cheaper to stay ASCII than to ship BOMs, so this is enforced rather than
+    # remembered. (Caught the hard way while porting microbit-enforcer.)
+    for f in sorted(TEMPLATE_DIR.rglob("*.ps1")):
+        rel = f.relative_to(TEMPLATE_DIR)
+        blob = f.read_bytes()
+        if blob.startswith(b"\xef\xbb\xbf"):
+            err(f"templates/{rel}", "PowerShell script starts with a UTF-8 BOM — "
+                                    "keep shipped .ps1 ASCII and BOM-free")
+        non_ascii = sorted({b for b in blob if b > 127})
+        if non_ascii:
+            err(f"templates/{rel}",
+                "PowerShell script contains non-ASCII bytes "
+                f"({', '.join(hex(b) for b in non_ascii[:6])}) — PowerShell 5.1 reads "
+                ".ps1 as ANSI, so these can silently break parsing")
+        sibling = f.with_suffix(".sh")
+        if not sibling.exists():
+            err(f"templates/{rel}",
+                "PowerShell hook has no .sh sibling — --hook-shell swaps .sh for "
+                ".ps1 by name, so an orphan .ps1 is never installed")
 
     # --- 4b. Dynamic-workflow scripts declare a usable meta block ---
     # The runtime rejects a script whose `meta` isn't a pure literal with name +
@@ -2276,9 +2317,110 @@ def compute_mcp_json(form_values: dict) -> str:
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
+# --- PowerShell hook variants -------------------------------------------------
+# A handful of hooks ship a .ps1 sibling next to the .sh, for Windows machines
+# with no Git Bash (where `shell: "bash"` has nothing to resolve to). Selected
+# with --hook-shell powershell; hooks without a sibling stay bash and are listed
+# in the README as such, because they are Linux/macOS-shaped anyway
+# (apt/brew probing, jq-driven drift diffing).
+#
+# The SessionStart marker-clear isn't a script — it's an inline `rm -f ... ||
+# true`, which is not valid PowerShell — so it gets an explicit translation.
+POWERSHELL_INLINE_COMMANDS = {
+    'rm -f "$CLAUDE_PROJECT_DIR"/.claude/.frozen "$CLAUDE_PROJECT_DIR"/.claude/.guarded '
+    '"$CLAUDE_PROJECT_DIR"/.claude/.careful || true':
+        'Remove-Item -Force -ErrorAction SilentlyContinue '
+        '"$env:CLAUDE_PROJECT_DIR\\.claude\\.frozen",'
+        '"$env:CLAUDE_PROJECT_DIR\\.claude\\.guarded",'
+        '"$env:CLAUDE_PROJECT_DIR\\.claude\\.careful"',
+}
+
+
+def powershell_hook_stems() -> set:
+    """Basenames of hooks that ship a .ps1 sibling."""
+    return {p.stem for p in TEMPLATE_DIR.rglob("*.ps1")}
+
+
+def swap_hook_shell(rel: str, hook_shell: str) -> str:
+    """Return the template path to actually install for `rel`.
+
+    Under --hook-shell powershell, a .sh with a .ps1 sibling installs the .ps1;
+    everything else is unchanged.
+    """
+    if hook_shell != "powershell" or not rel.endswith(".sh"):
+        return rel
+    candidate = rel[:-3] + ".ps1"
+    return candidate if (TEMPLATE_DIR / candidate).exists() else rel
+
+
+def apply_hook_shell_to_settings(settings: dict, hook_shell: str) -> dict:
+    """Point hook entries at the .ps1 variants and flip `shell` to powershell.
+
+    Only touches commands whose hook has a .ps1 sibling (plus the inline
+    marker-clear), so a mixed project keeps `shell: "bash"` on the hooks that
+    are still bash — Claude Code honors the key per entry.
+    """
+    if hook_shell != "powershell":
+        return settings
+    stems = powershell_hook_stems()
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return settings
+    for groups in hooks.values():
+        if not isinstance(groups, list):
+            continue
+        for group in groups:
+            for h in (group.get("hooks") or []):
+                if not isinstance(h, dict):
+                    continue
+                cmd = h.get("command")
+                if not isinstance(cmd, str):
+                    continue
+                if cmd in POWERSHELL_INLINE_COMMANDS:
+                    h["command"] = POWERSHELL_INLINE_COMMANDS[cmd]
+                    h["shell"] = "powershell"
+                    continue
+                if not cmd.endswith(".sh"):
+                    continue
+                stem = cmd.rsplit("/", 1)[-1][:-3]
+                if stem in stems:
+                    h["command"] = powershell_hook_command(stem)
+                    h["shell"] = "powershell"
+    return settings
+
+
+def powershell_hook_command(stem: str) -> str:
+    """Build the command string for a .ps1 hook.
+
+    Windows ships with the execution policy set to Restricted for scripts, so
+    naming the .ps1 directly fails with "running scripts is disabled on this
+    system" — a silent, machine-dependent break of exactly the kind this hook
+    set exists to avoid. Spawning a child PowerShell with -ExecutionPolicy
+    Bypass makes the hook work on a default Windows box without changing the
+    machine's policy: the bypass applies only to this process running a script
+    the user installed deliberately.
+
+    Costs one extra process per invocation. A user who would rather not pay
+    that on PreToolUse can run
+
+        Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+    once and simplify the command to the bare path.
+    """
+    # `; exit $LASTEXITCODE` is load-bearing: a wrapping `powershell -Command`
+    # collapses any non-zero child exit to 1, which would turn a PreToolUse
+    # BLOCK (exit 2) into a mere non-blocking error. Measured on Windows:
+    # without it the block signal is lost; with it, exit 2 survives both a
+    # direct -File invocation and a -Command wrapper.
+    return ('powershell -NoProfile -ExecutionPolicy Bypass -File '
+            f'"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\{stem}.ps1"'
+            '; exit $LASTEXITCODE')
+
+
 def collect_files(form_values: dict, selected: set, module_flags: dict = None) -> tuple:
     if module_flags is None:
         module_flags = {}
+    hook_shell = (form_values or {}).get("hook_shell", "bash")
     files = []
     gitignore_lines = []
     gitattributes_lines = []
@@ -2296,6 +2438,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
             if fp is not None:
                 filter_for_module = set(fp)
         for rel in m["paths"]:
+            rel = swap_hook_shell(rel, hook_shell)
             if filter_for_module is not None and rel not in filter_for_module:
                 continue
             tgt = target_path_for(rel)
@@ -2318,6 +2461,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
         for flag_name, flag_def in m.get("flags", {}).items():
             selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
             for rel in flag_def.get("extraPaths", {}).get(selected_value, []):
+                rel = swap_hook_shell(rel, hook_shell)
                 tgt = target_path_for(rel)
                 if not tgt:
                     continue
@@ -2843,6 +2987,12 @@ def parse_args():
                    help="Static validation of templates + MODULES registry (CI-friendly). "
                         "Exits 0 on clean, 1 with a per-issue summary otherwise. "
                         "Skips all other processing — no scaffolding, no prompts.")
+    p.add_argument("--hook-shell", choices=["bash", "powershell"], default=None,
+                   help="Language for the scaffolded hook scripts. Default bash. "
+                        "powershell installs the .ps1 variants (and sets "
+                        "shell: \"powershell\" on those entries) for Windows "
+                        "machines without Git Bash; hooks with no .ps1 sibling "
+                        "stay bash.")
     p.add_argument("--write-index", action="store_true",
                    help="Regenerate templates/INDEX.md from MODULES (maintainer tool). "
                         "--check fails when the committed index and this output disagree.")
@@ -3047,6 +3197,11 @@ def main():
         # Stored here; rendered as [ DEPRECATED ] / [ MODULE WARNINGS ] blocks.
         initial.setdefault("_deprecations", []).extend(deprecations)
         initial.setdefault("_module_arg_warnings", []).extend(mod_warnings)
+
+    # --hook-shell is a scaffold-shaping answer, so it lives in formValues and
+    # persists to .claude-config.json like the rest of the intake.
+    if args.hook_shell:
+        initial.setdefault("formValues", {})["hook_shell"] = args.hook_shell
 
     # --- interactive if needed ---
     # --yes / --config / --modules / --persona / --preset / --save-config-only:
