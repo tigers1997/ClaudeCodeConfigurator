@@ -10,7 +10,7 @@ Every session starts with:
 2. **CLAUDE.md** (+ concatenated nested ones) — your doing. **Main lever.**
 3. **Imported files via `@path`** — expand at launch. Same cost as if inlined.
 4. **Auto-memory** — first 200 lines / 25 KB of MEMORY.md. Toggleable.
-5. **MCP tool definitions** — every enabled server's tool schemas. **Hidden fat.**
+5. **MCP tool definitions** — every enabled server's tool schemas. Mostly *not* fat any more: tool search defers them by default (~14 tokens/tool instead of ~298 — see [doc 04](04-subagents-mcp-orchestration.md#what-mcp-actually-costs)). It becomes fat again for any server you set `alwaysLoad: true` on.
 6. **Available subagents' descriptions** — short, but they add up if you have many.
 7. **Skills with `disable-model-invocation: false`** — descriptions only, not bodies.
 
@@ -32,7 +32,7 @@ After that, each turn adds:
 Path-scoped rules only load when Claude reads matching files. Zero cost otherwise. Move anything domain-specific here (frontend rules, test rules, DB rules). See `templates/token-efficiency/dot-claude/rules/` for starters.
 
 ### 3. Audit MCP servers quarterly
-Run `/context` in a session. Count the tokens eaten by MCP tool definitions. If a server exposes 30 tools and you use 3, either:
+Run `/context` in a session. Count the tokens eaten by MCP tool definitions — with deferral on (the default) this should be small, and a large number means something is set to `alwaysLoad`. If a server exposes 30 tools and you use 3, either:
 - Remove it and call those 3 as Bash commands.
 - Scope it to a subagent that needs it.
 - Replace it with a targeted skill.
@@ -53,7 +53,7 @@ Teach Claude (in CLAUDE.md rules) to prefer `grep` / structured search over `cat
 
 Common causes:
 
-- **Over-general MCP config.** A broad server with many tools burns tokens every session whether you use it or not.
+- **Over-general MCP config.** A broad server costs little while its tools stay deferred, but it still adds a process, an auth prompt, and more ways for the model to pick the wrong tool — and it burns tokens every session if you set `alwaysLoad: true`.
 - **Fat CLAUDE.md.** Every subdirectory loads its nested CLAUDE.md too when Claude reads files there. If every subdir has a 300-line CLAUDE.md, you're spending hugely.
 - **Eager skills with `disable-model-invocation: false`.** Claude scans skill descriptions at every turn to decide whether to invoke. Many skills with long descriptions = real token cost.
 - **Auto-memory gone wild.** `/memory` shows what's been saved. If MEMORY.md has years of stale notes, prune it or disable auto-memory.
@@ -103,7 +103,7 @@ Since Claude Code 2.1.117, Pro/Max subscribers on Opus 4.6 and Sonnet 4.6 defaul
 
 - [ ] CLAUDE.md is under 200 lines.
 - [ ] Path-scoped rules handle all per-domain guidance.
-- [ ] `/context` shows MCP tool definitions under ~3k tokens.
+- [ ] `/context` shows MCP tool definitions under ~3k tokens (easy with deferral on; if it's far above, check for `alwaysLoad`).
 - [ ] No subagent descriptions over ~50 words.
 - [ ] `PreCompact` hook snapshots session state.
 - [ ] `/cost` and `/context` checked at least weekly.

@@ -16,6 +16,17 @@ Delta: ~33.4k tokens reclaimed. Session context at first turn went from 49% → 
 ## Conclusion
 Hypothesis held. The `--strict-mcp-config` flag is the key — without it the scoped file merges with the default hierarchy and the savings disappear. Codified as: default working mode for research/debugging sessions is now `./claude-ctx research`, not plain `claude`. `claude` without a profile is reserved for sessions that genuinely need filesystem+git+github simultaneously.
 
+## Addendum (2026-08-25) — superseded by tool search
+
+Claude Code now defers MCP tool schemas by default (`alwaysLoad: true` opts a
+server out), so the control condition this experiment measured no longer
+happens on a current build. Re-measured with four servers advertising 48 tools
+on CC 2.1.245: +696 tokens deferred versus +14,328 eagerly loaded, against a
+~26.7k baseline with no servers at all. The conclusion below still holds for
+`alwaysLoad` servers and for builds predating tool search; the headline saving
+does not generalize. Left in place deliberately — an experiment log records what
+was true when it ran, and the addendum is where the update belongs.
+
 ## Follow-ups
 - Measure the `minimal` profile the same way — expected ~0 tokens for MCP, but is there overhead from the empty `mcpServers: {}` itself?
 - Try the `frontend` profile on a real UI bug to see if playwright alone is enough or if filesystem access is needed too.

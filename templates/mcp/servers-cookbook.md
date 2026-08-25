@@ -92,7 +92,7 @@ For everything else, leave `alwaysLoad` unset and let the model pull tools in as
 
 ## Per-task profiles with `claude-ctx`
 
-A fresh session with 4 MCP servers loaded burns ~49% of a 100k context window before you type anything (system prompt ~2.2k + system tools ~12k + MCP tool descriptions ~37k). For tasks that don't need those servers, scope per-task instead of loading the full default set.
+Profiles decide **which servers connect**, not how many tokens you spend. With tool search deferring schemas (see the `alwaysLoad` section above), four servers advertising 48 tools between them measured +696 tokens on Claude Code 2.1.245, versus +14,328 with `alwaysLoad: true`. What scoping still buys: fewer processes and auth prompts at startup, a faster cold start, and a session that physically cannot reach a server the task has no business touching — `--strict-mcp-config` ignores the default hierarchy entirely.
 
 Profiles live at `.mcp.<name>.json` in the project root. Three are shipped by default:
 

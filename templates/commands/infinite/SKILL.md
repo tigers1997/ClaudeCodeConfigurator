@@ -7,7 +7,28 @@ allowed-tools: Read Grep Glob Bash(ls:*) Bash(mkdir:*) Bash(test:*)
 
 # Parallel spec expansion: `$ARGUMENTS`
 
-Before anything touches disk, confirm **this is a parallelizable fanout task.** If the spec asks for sequential work, coupled features, or exploratory problem-solving, **refuse** and point at `.claude/rules/multi-agent-guardrails.md`. Parallel agents are a fanout multiplier, not a general speedup.
+## First: is this the right tool?
+
+Claude Code ships **dynamic workflows** (`/workflows`, or asking for one in the
+prompt), which orchestrate agents from a script Claude writes: real control
+flow, structured output between stages, a token budget, resumability after a
+failure, and a live progress view. For most fan-out work that is now the better
+instrument, and this skill should not compete with it.
+
+| Situation | Use |
+|---|---|
+| N variants of **one spec**, each written to its own slot, no coordination | **this skill** |
+| Stages that feed each other (find → verify → synthesize) | a dynamic workflow |
+| Fan-out where results must be merged, deduped, or scored | a dynamic workflow |
+| The run must survive an interruption and resume | a dynamic workflow |
+| More agents than you want to hand-batch | a dynamic workflow |
+
+What this skill still does well is the narrow case it was written for: identical
+task shape, disjoint output slots, deliberate diversification along one named
+axis, and no dependency between iterations. If the work doesn't look like that,
+stop and reach for a workflow instead.
+
+Then confirm **this is a parallelizable fanout task.** If the spec asks for sequential work, coupled features, or exploratory problem-solving, **refuse** and point at `.claude/rules/multi-agent-guardrails.md`. Parallel agents are a fanout multiplier, not a general speedup.
 
 ## Parse
 
