@@ -39,8 +39,6 @@
       "Bash(curl * | sh:*)",
       "Bash(curl * | bash:*)",
       "Bash(wget * | sh:*)",
-      "Write(.env)",
-      "Write(.env.*)",
       "Edit(.env)",
       "Edit(.env.*)"
     ],
@@ -53,11 +51,13 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous-bash.sh",
             "timeout": 10
           },
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-package-availability.sh",
             "timeout": 10
           }
@@ -68,6 +68,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-secrets.sh",
             "timeout": 10
           }
@@ -78,6 +79,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/microbit-enforcer.sh",
             "timeout": 5
           }
@@ -90,6 +92,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-write.sh",
             "timeout": 30
           }
@@ -100,6 +103,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/truncate-bash-output.sh",
             "timeout": 10
           }
@@ -111,6 +115,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-run-checks.sh",
             "timeout": 120
           }
@@ -122,6 +127,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-compact-snapshot.sh",
             "timeout": 15
           }
@@ -134,6 +140,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "rm -f \"$CLAUDE_PROJECT_DIR\"/.claude/.frozen \"$CLAUDE_PROJECT_DIR\"/.claude/.guarded \"$CLAUDE_PROJECT_DIR\"/.claude/.careful || true",
             "timeout": 5
           }
@@ -145,11 +152,5 @@
     "SLOP_SCAN_ACTION": "warn",
     "CLAUDE_BASH_MAX_LINES": "80"
   },
-  "model": "fable",
-  "autoMode": {
-    "hard_deny": [
-      "Running executable files",
-      "Writing to system directories"
-    ]
-  }
+  "model": "fable"
 }

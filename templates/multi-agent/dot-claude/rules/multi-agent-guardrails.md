@@ -34,6 +34,13 @@ Ask all five; a "no" on any of them means stop and rethink.
 - [ ] **Cleanup plan?** Worktrees and merged branches get removed after a successful integration.
 - [ ] **Escape hatch?** A clear path to abort and reset if one agent goes sideways — without losing the work of the others.
 
+## Runtime caps to design around (Claude Code ≥ 2.1.217)
+
+- At most 20 subagents run concurrently per session (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); the 21st spawn fails and the error tells Claude not to retry — size waves accordingly.
+- Nesting is capped at 3 levels below the main thread by default (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, since 2.1.219); at the cap the Agent tool is withheld, so a worker that "needs" helpers is a design smell, not a config problem.
+- Subagents run in the background by default with a narrower tool set; a fork (`subagent_type: "fork"`) inherits the whole conversation — the opposite of isolation.
+- For fan-outs beyond a handful of workers, Claude Code's dynamic Workflows (`ultracode`, or "use a workflow") give you a scripted, resumable pipeline; `/infinite` stays the right tool for N variants of one spec.
+
 ## Rule of thumb
 
 **Solo Claude is the default.** Reach for multi-agent when the work is truly parallelizable: N variants of the same spec, N independent audits, N isolated files to process. Everything else, do sequential.

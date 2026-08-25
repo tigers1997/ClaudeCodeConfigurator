@@ -733,7 +733,11 @@ def run_check() -> int:
             and rel.parts[2] == "agents"
             and f.suffix == ".md"
         ):
-            fm = _frontmatter_block(f.read_text(encoding="utf-8"))
+            text = f.read_text(encoding="utf-8")
+            if text.startswith("\ufeff"):
+                err(src, "file starts with a UTF-8 BOM — Claude Code before 2.1.239 "
+                         "silently ignores BOM-prefixed skills/agents; save without BOM")
+            fm = _frontmatter_block(text)
             if not fm:
                 err(src, "missing YAML frontmatter (--- block at top of file)")
                 continue
@@ -890,6 +894,12 @@ def check_settings_validates(settings: dict) -> list:
       3. Duplicate hook commands — the same hook `command` wired into more
          than one group under one event, so it fires multiple times per call
          (the F1 dogfood symptom). See _find_duplicate_hook_commands.
+      4. `autoMode` in project settings — Claude Code >= 2.1.207 reads the
+         key only from ~/.claude/settings.json or managed settings, so a
+         project-scope block is silently ignored (v2.8.0).
+      5. `Write(path)` / `NotebookEdit(path)` / `Glob(path)` / `MultiEdit(path)`
+         permission rules — never consulted; CC >= 2.1.210 warns at startup.
+         Only Edit(path) and Read(path) rules govern file access (v2.8.0).
     """
     warnings = []
     valid_overrides = {"on", "name-only", "user-invocable-only", "off"}
@@ -930,7 +940,45 @@ def check_settings_validates(settings: dict) -> list:
             "group from a prior scaffold; run cc-configure --retrofit (the "
             "merge now collapses these) or remove the duplicate group."
         )
+
+    if "autoMode" in settings:
+        warnings.append(
+            "settings.json carries an `autoMode` block, but Claude Code >= 2.1.207 "
+            "reads autoMode only from ~/.claude/settings.json or managed settings "
+            "— project and local settings are ignored (code.claude.com/docs/en/"
+            "auto-mode-config). Move the block to ~/.claude/settings.json (see "
+            "docs/05-safety-permissions.md) and delete it here."
+        )
+
+    stale = _find_unconsulted_path_rules(settings)
+    if stale:
+        warnings.append(
+            "settings.json permission rules use path forms Claude Code never "
+            f"consults and warns about at startup (>= 2.1.210): {stale[:4]}"
+            + (f" (+{len(stale) - 4} more)" if len(stale) > 4 else "")
+            + ". Only Edit(path) and Read(path) govern file access — rewrite them "
+            "(Edit covers Write/NotebookEdit; Read covers Glob/Grep)."
+        )
     return warnings
+
+
+def _find_unconsulted_path_rules(settings: dict) -> list:
+    """Return permission rules of the form Write(...) / NotebookEdit(...) /
+    Glob(...) / MultiEdit(...) found in permissions.allow/ask/deny. Claude Code
+    checks file permissions against Edit(path) and Read(path) rules only; the
+    other spellings are accepted but never consulted (startup warning since
+    2.1.210). Bare tool names (`Write`) are fine — only the parenthesised
+    path form is flagged."""
+    import re
+    perms = settings.get("permissions")
+    if not isinstance(perms, dict):
+        return []
+    found = []
+    for key in ("allow", "ask", "deny"):
+        for rule in perms.get(key, []) or []:
+            if isinstance(rule, str) and re.match(r"^(Write|NotebookEdit|Glob|MultiEdit)\(", rule):
+                found.append(f"{key}: {rule}")
+    return found
 
 
 KNOWN_STACK_MANIFESTS = (
@@ -1368,9 +1416,13 @@ def _merge_hook_groups(existing_groups, new_groups):
     # matchers pattern (the mcp drift-check ships under both `startup` and
     # `resume`) and never touches a user's own command (absent from new_groups).
     new_matchers = {}
+    new_shell = {}
     for ng in new_groups:
         for c in _hook_commands(ng):
             new_matchers.setdefault(c, set()).add(ng.get("matcher"))
+        for h in ng.get("hooks", []) or []:
+            if isinstance(h, dict) and h.get("command") and h.get("shell"):
+                new_shell[h["command"]] = h["shell"]
     for g in out:
         gm = g.get("matcher")
         hooks = g.get("hooks")
@@ -1382,6 +1434,17 @@ def _merge_hook_groups(existing_groups, new_groups):
                         and gm not in new_matchers[h["command"]])
             ]
     out = [g for g in out if g.get("hooks")]
+
+    # Field backfill (v2.8.0): the configurator started declaring `shell` on
+    # its command hooks (Windows: resolve Git Bash instead of PowerShell). The
+    # command-keyed union above keeps the user's existing entry, so copy the
+    # key onto configurator-owned entries that predate it. Never touches a
+    # user's own commands (absent from new_groups) or an explicit shell choice.
+    for g in out:
+        for h in g.get("hooks", []) or []:
+            if (isinstance(h, dict) and h.get("command") in new_shell
+                    and "shell" not in h):
+                h["shell"] = new_shell[h["command"]]
 
     groups_added = 0
     commands_added = 0
@@ -1413,6 +1476,23 @@ def _merge_hook_groups(existing_groups, new_groups):
     return out, groups_added, commands_added
 
 
+# Configurator defaults retired in v2.8.0 (CC 2.1.183-2.1.241 survey). A
+# retrofit removes ONLY these exact shipped values from a project's existing
+# settings.json; anything the user edited is left alone (and
+# check_settings_validates flags it instead).
+#   - autoMode: Claude Code >= 2.1.207 reads the key only from
+#     ~/.claude/settings.json or managed settings, never from repo-resident
+#     files (code.claude.com/docs/en/auto-mode-config) - the block shipped by
+#     v2.6.0-v2.7.x safety patches was dead config.
+#   - Write(.env) / Write(.env.*): Edit(path) rules already cover the Write
+#     tool, and CC >= 2.1.210 warns at startup about Write(path) rules,
+#     which it never consults.
+RETIRED_PROJECT_AUTOMODE = {
+    "hard_deny": ["Running executable files", "Writing to system directories"],
+}
+RETIRED_DENY_RULES = ("Write(.env)", "Write(.env.*)")
+
+
 def deep_merge_settings(existing: dict, new: dict):
     """Merge a user's existing .claude/settings.json with the configurator's
     new version. Returns (merged_dict, summary_str).
@@ -1439,9 +1519,17 @@ def deep_merge_settings(existing: dict, new: dict):
         user's deliberate overrides).
       - statusLine, model: preserve existing if set; otherwise use new.
       - Unknown top-level keys: pass through verbatim from existing.
+      - Retired configurator defaults (RETIRED_PROJECT_AUTOMODE, the
+        RETIRED_DENY_RULES strings): removed when they match exactly what a
+        prior release shipped; user-edited variants survive.
     """
     out = dict(existing)
-    counts = {"perms_added": 0, "hook_groups_added": 0, "hook_cmds_added": 0, "env_added": 0}
+    counts = {"perms_added": 0, "hook_groups_added": 0, "hook_cmds_added": 0, "env_added": 0,
+              "retired": 0}
+
+    if out.get("autoMode") == RETIRED_PROJECT_AUTOMODE:
+        del out["autoMode"]
+        counts["retired"] += 1
 
     if "$schema" in new:
         out["$schema"] = new["$schema"]
@@ -1452,6 +1540,10 @@ def deep_merge_settings(existing: dict, new: dict):
         for key in ("allow", "ask", "deny", "additionalDirectories"):
             if key in new_perms:
                 existing_list = out_perms.get(key, [])
+                if key == "deny":
+                    kept = [r for r in existing_list if r not in RETIRED_DENY_RULES]
+                    counts["retired"] += len(existing_list) - len(kept)
+                    existing_list = kept
                 merged = _merge_unique_list(existing_list, new_perms[key])
                 counts["perms_added"] += len(merged) - len(existing_list)
                 out_perms[key] = merged
@@ -1489,6 +1581,9 @@ def deep_merge_settings(existing: dict, new: dict):
     msg = (f"preserved existing config; added {counts['perms_added']} permission rule(s), "
            f"{counts['hook_groups_added']} hook group(s), {counts['hook_cmds_added']} hook command(s), "
            f"{counts['env_added']} env var(s)")
+    if counts["retired"]:
+        msg += (f"; removed {counts['retired']} retired configurator default(s) "
+                "(project-scope autoMode / Write(.env*) deny rules)")
     return out, msg
 
 
@@ -1533,6 +1628,13 @@ def apply_structured_merges(files, target_dir):
         new_data = json.loads(f["content"])
         if target == ".claude/settings.json":
             merged_data, msg = deep_merge_settings(existing_data, new_data)
+            # The preflight only sees the template merge; a retrofit is the
+            # one place a user's own settings.json enters the pipeline, so
+            # re-validate the merged result (v2.8.0: project-scope autoMode,
+            # never-consulted Write()/Glob() rules, stale duplicate groups).
+            merge_warnings = check_settings_validates(merged_data)
+            if merge_warnings:
+                f["merge_warnings"] = merge_warnings
         else:
             merged_data, msg = deep_merge_mcp(existing_data, new_data)
         f["content"] = json.dumps(merged_data, indent=2) + "\n"
@@ -2728,8 +2830,9 @@ def main():
         print(bold(yellow("[ SETTINGS WARNINGS ]")))
         for w in settings_warnings:
             print(f"  {yellow('!')} {w}")
-        print(dim("  These trigger Claude Code's settings-validator complaints in the user's editor."))
-        print(dim("  File a configurator issue with the offending key + module — this is a template bug."))
+        print(dim("  These trigger Claude Code's settings-validator complaints in the user's editor,"))
+        print(dim("  or name keys/rules current Claude Code silently ignores. If the offending entry"))
+        print(dim("  came from a template (not your own settings.json), file a configurator issue."))
 
     # Surface module-level prerequisites that can't be fixed by the configurator.
     module_warnings = []
@@ -2905,6 +3008,9 @@ def main():
         print(bold(blue("[ MERGED ]")))
         for target_rel, msg in merge_messages:
             print(f"  {tick} {target_rel} — {msg}")
+        for f in files:
+            for w in f.get("merge_warnings", []):
+                print(f"  {yellow('!')} {f['target']}: {w}")
 
     if collision_report:
         print()

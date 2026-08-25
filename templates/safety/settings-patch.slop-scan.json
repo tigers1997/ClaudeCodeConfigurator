@@ -8,6 +8,7 @@
         "hooks": [
           {
             "type": "command",
+            "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/slop-scan.sh",
             "timeout": 10
           }

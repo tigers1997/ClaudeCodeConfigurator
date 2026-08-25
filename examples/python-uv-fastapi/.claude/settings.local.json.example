@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "//": "Personal settings — gitignored. Override anything from .claude/settings.json here. Copy this file to .claude/settings.local.json to activate; the .example suffix means Claude Code does not parse this file directly.",
 
-  "// env": "Durable home for env vars including MCP auth tokens — e.g. SONATYPE_TOKEN (security-auditor agent) or GITHUB_TOKEN (mcp_github). Persists across shells, so MCPs keep working even when Claude is launched from a shell that doesn't inherit your tokens. Add entries below alongside EDITOR. CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (CC 2.1.143+, overrides default 8-block cap for consecutive Stop hook blocks) lives here too — add the env var if a safety Stop hook intentionally blocks repeatedly.",
+  "// env": "Durable home for env vars including MCP auth tokens — e.g. SONATYPE_TOKEN (security-auditor agent) or GITHUB_TOKEN (mcp_github). Persists across shells, so MCPs keep working even when Claude is launched from a shell that doesn't inherit your tokens. Add entries below alongside EDITOR. CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (CC 2.1.143+, overrides default 8-block cap for consecutive Stop hook blocks) lives here too — add the env var if a safety Stop hook intentionally blocks repeatedly. ANTHROPIC_DEFAULT_MODEL (CC 2.1.236+) is the env-var alternative to the `model` key below: it sets the model new sessions start on while a /model pick still overrides it and persists.",
   "env": {
     "EDITOR": "code"
   },
@@ -14,11 +14,15 @@
     ]
   },
 
-  "//opt-ins": "===== OPT-IN STUBS — uncomment by removing the leading `// ` from any block, then drop this `//opt-ins` line. Each block is a documented Claude Code setting the configurator does not ship as an active default but supports users opting into per-project. All schemastore-validated as of 2026-05-23. Inline `//N` keys are explainer notes; the values shown are reasonable defaults you'll likely want to tune.",
+  "//opt-ins": "===== OPT-IN STUBS — uncomment by removing the leading `// ` from any block, then drop this `//opt-ins` line. Each block is a documented Claude Code setting the configurator does not ship as an active default but supports users opting into per-project. All schemastore-validated as of 2026-07-27 (SchemaStore sync to Claude Code 2.1.220, PR #6131). Inline `//N` keys are explainer notes; the values shown are reasonable defaults you'll likely want to tune.",
+
+  "//autoMode-notes": "NOT an opt-in here: the auto-mode classifier does not read `autoMode` (hard_deny / soft_deny / allow / environment / classifyAllShell) from this file or from .claude/settings.json — both live in the repo, so a checked-in file could inject allow rules (CC 2.1.207+; code.claude.com/docs/en/auto-mode-config). Put autoMode in ~/.claude/settings.json instead; docs/05-safety-permissions.md has the copy-paste block that earlier configurator releases shipped here.",
 
   "// sandbox": {
     "//1": "sandbox.network.deniedDomains (CC 2.1.113+) — data-exfiltration-resistant baseline. Takes effect only when the sandbox is otherwise active for the command. Supports wildcards (*.example.com).",
     "//2": "sandbox.failIfUnavailable (CC 2.1.143+) — when true, sandbox startup is a hard failure if dependencies are missing (no fall-back to non-sandboxed execution). Fail-closed posture for safety-sensitive projects.",
+    "//3": "sandbox.credentials (CC 2.1.187+) — hide credential files and secret env vars from sandboxed Bash commands. `deny` entries are honored from any settings scope (this file included) and merge across scopes; `mask` entries, allowPlaintextInject, awsPairs and sigv4 are honored only from ~/.claude/settings.json, managed settings, or --settings. Env-var denial still applies when filesystem isolation is off; file denial doesn't. MCP servers are not sandboxed Bash, so an MCP token exported in the `env` block above keeps working for its server while Bash can't read it.",
+    "//4": "Not stubbed because project scope can't set them: sandbox.network.strictAllowlist (CC 2.1.219+) and sandbox.filesystem.disabled (CC 2.1.216+) are read only from user, managed, or --settings sources.",
     "network": {
       "deniedDomains": [
         "pastebin.com",
@@ -33,21 +37,37 @@
         "uguu.se"
       ]
     },
-    "failIfUnavailable": true
+    "failIfUnavailable": true,
+    "credentials": {
+      "files": [
+        { "path": "~/.aws/credentials", "mode": "deny" },
+        { "path": "~/.ssh", "mode": "deny" }
+      ],
+      "envVars": [
+        { "name": "GITHUB_TOKEN", "mode": "deny" },
+        { "name": "SONATYPE_TOKEN", "mode": "deny" }
+      ]
+    }
   },
 
   "// worktree": {
     "//1": "worktree.baseRef (CC 2.1.133+) — values: 'fresh' (default; new worktrees from origin/HEAD) or 'head' (preserves unpushed local commits).",
     "//2": "worktree.bgIsolation (CC 2.1.143+) — values: 'worktree' (default; background sessions get their own worktree) or 'none' (background sessions edit the live working copy directly).",
+    "//3": "worktree.symlinkDirectories — directories symlinked from the main checkout into each worktree instead of duplicated on disk (nothing is symlinked by default). node_modules is the usual candidate; drop the entry if your build writes into it per-branch.",
+    "//4": "worktree.sparsePaths (CC 2.1.76+) — array of directories to check out via git sparse-checkout (cone mode) in each worktree; only those paths hit the disk. Monorepo-only; omit it entirely (an empty array is not a no-op) unless you know which paths a session needs.",
     "baseRef": "head",
-    "bgIsolation": "worktree"
+    "bgIsolation": "worktree",
+    "symlinkDirectories": ["node_modules"]
   },
 
+  "// agent": "code-reviewer",
+  "//agent-notes": "agent — name of a subagent (built-in or .claude/agents/<name>.md) whose system prompt, tool restrictions and model the MAIN thread takes on for every session in this project (same as `claude --agent <name>`; the choice persists on resume). Never a configurator default: it replaces the default Claude Code system prompt entirely. Useful for a review-only checkout or a docs-only worktree.",
+
   "// prUrlTemplate": "https://gitlab.com/{owner}/{repo}/-/merge_requests/{number}",
-  "//prUrlTemplate-notes": "prUrlTemplate (CC 2.1.119+) — footer PR badge + tool-result summaries follow this URL template instead of github.com. Placeholders: {host}, {owner}, {repo}, {number}. Examples: GitLab as shown above; Bitbucket: https://bitbucket.org/{owner}/{repo}/pull-requests/{number}; GHE: https://gh.example.com/{owner}/{repo}/pull/{number}.",
+  "//prUrlTemplate-notes": "prUrlTemplate (CC 2.1.119+) — footer PR badge + tool-result summaries follow this URL template instead of github.com. Placeholders: {host}, {owner}, {repo}, {number}. Examples: GitLab as shown above; Bitbucket: https://bitbucket.org/{owner}/{repo}/pull-requests/{number}; GHE: https://gh.example.com/{owner}/{repo}/pull/{number}. Since CC 2.1.234 GitLab remotes with an authenticated `glab` CLI get an MR badge without this setting.",
 
   "// subagentStatusLine": {
-    "//1": "subagentStatusLine (CC 2.1.143+) — distinct statusline for subagent runs so they're visually separable from the parent session. Requires statusline.sh to handle the --subagent flag (the shipped script does not yet — wrap or fork before uncommenting).",
+    "//1": "subagentStatusLine (CC 2.1.143+) — distinct statusline for subagent runs so they're visually separable from the parent session. Requires statusline.sh to handle the --subagent flag (the shipped script does not yet — wrap or fork before uncommenting). The payload carries the subagent's model and, since CC 2.1.214, its reasoning effort.",
     "//2": "Note on the sibling statusLine.hideVimModeIndicator opt-in (CC 2.1.143+): only useful if you wrote a custom statusline.sh that renders its own vim mode display. To enable, copy your full statusLine block from .claude/settings.json (settings.local.json's statusLine REPLACES rather than merges with the base config) and add `\"hideVimModeIndicator\": true` to it.",
     "type": "command",
     "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/statusline.sh --subagent"
@@ -59,6 +79,15 @@
     "//3": "Add your own skill-name → enum-value entries below. The configurator does not ship default entries because guessing which skills to compress is project-specific."
   },
 
+  "//token-efficiency-notes": "Four context-budget keys, all project-scope-honored: claudeMdExcludes — glob patterns (matched against absolute paths, merged across settings layers) for CLAUDE.md files to skip when memory loads, e.g. another team's tree in a monorepo or vendored checkouts; skillListingBudgetFraction — share of the context window reserved for the per-turn skill listing (default 0.01 = 1%; descriptions are truncated to fit, so raise it when your skill descriptions get cut short, lower it to fit more skills); skillListingMaxDescChars — per-skill cap on the description + when-to-use text in that listing; disableBundledSkills (CC 2.1.169+) — removes every bundled skill and workflow except /doctor (`/code-review`, `/loop`, `/claude-api`, `/dataviz`, `/deep-research`, `/batch`, `/debug` …) and hides built-in slash commands from the model; project, user and plugin skills are unaffected. Weigh it against losing `/code-review` — the built-in multi-agent review — before turning it on.",
+  "// claudeMdExcludes": ["**/vendor/**/CLAUDE.md", "**/third_party/**/CLAUDE.md"],
+  "// skillListingBudgetFraction": 0.02,
+  "// skillListingMaxDescChars": 2048,
+  "// disableBundledSkills": true,
+
+  "// fallbackModel": ["opus", "sonnet"],
+  "//fallbackModel-notes": "fallbackModel (CC 2.1.166+) — ordered chain (up to three entries; model names or aliases; 'default' expands to the account default) tried when the primary model is overloaded, unavailable, or returns a non-retryable server error. Position carries meaning, so Claude Code takes the whole array from the highest-precedence file that sets it. The --fallback-model CLI flag overrides it.",
+
   "// model": "sonnet",
-  "//model-notes": "Per-machine model override. The scaffolded project default is 'fable' (Claude Fable 5 — requires CC 2.1.170+; premium pricing; safety-classifier fallback in cybersecurity/biology domains; unavailable under zero-data-retention). Uncomment to drop THIS machine back to 'sonnet' when its CC predates 2.1.170, Fable 5 isn't in your org's plan, or the cost posture doesn't fit. 'best' is the middle path: resolves to Fable 5 where available, latest Opus otherwise."
+  "//model-notes": "Per-machine model override. The scaffolded project default is 'fable' (Claude Fable 5 — requires CC 2.1.170+; premium pricing; safety-classifier fallback in cybersecurity/biology domains; unavailable under zero-data-retention). Uncomment to drop THIS machine back to 'sonnet' (Claude Sonnet 5 on CC 2.1.197+, Claude Code's own default model) when its CC predates 2.1.170, Fable 5 isn't in your org's plan, or the cost posture doesn't fit. 'opus' resolves to Claude Opus 5 on CC 2.1.219+. 'best' is the middle path: resolves to Fable 5 where available, latest Opus otherwise."
 }

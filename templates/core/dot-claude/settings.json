@@ -39,8 +39,6 @@
       "Bash(curl * | sh:*)",
       "Bash(curl * | bash:*)",
       "Bash(wget * | sh:*)",
-      "Write(.env)",
-      "Write(.env.*)",
       "Edit(.env)",
       "Edit(.env.*)"
     ]

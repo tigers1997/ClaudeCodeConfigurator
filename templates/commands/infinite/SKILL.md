@@ -48,13 +48,13 @@ Pick a batching plan based on `count`:
 
 | count       | strategy                                                             |
 |-------------|----------------------------------------------------------------------|
-| 1-5         | Launch all subagents simultaneously in a single parallel Task call.  |
+| 1-5         | Launch all subagents simultaneously in a single parallel Agent-tool call (the tool was named Task before CC 2.1.63; the alias still works). |
 | 6-20        | Batches of 5. Launch batch, wait for all, then launch next.          |
 | infinite    | Waves of 3-5. After each wave, check context usage; if > 50% start a fresh session and hand off the directory snapshot. Stop if user says stop. |
 
 ## Phase 4 — Parallel agent coordination
 
-Dispatch subagents via the Task tool using the `parallel-generator` subagent. Each call's prompt must contain exactly these five sections (keep them labeled):
+Dispatch subagents via the Agent tool (formerly Task) using the `parallel-generator` subagent. Claude Code caps concurrent subagents at 20 (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, CC ≥ 2.1.217) — the wave sizes above stay well under it. Each call's prompt must contain exactly these five sections (keep them labeled):
 
 1. **spec_context** — the full contents of `spec_file` (or a summary if > 2k chars; include the path).
 2. **claimed_slots_manifest** — the snapshot from Phase 2, updated with any slots claimed by earlier waves.
@@ -62,7 +62,7 @@ Dispatch subagents via the Task tool using the `parallel-generator` subagent. Ea
 4. **diversification_axis** — the axis this iteration should differ on, named explicitly. e.g. "this iteration must use a dark color palette"; "this iteration must favor imperative style over declarative."
 5. **quality_standards** — the must-be-true bullets from Phase 1, verbatim.
 
-**Do not ask subagents to coordinate with each other.** Their contexts don't share — even with nested-subagent support (CC ≥ 2.1.172, ≤ 5 levels), a child can't reach a sibling's transcript. The claimed_slots_manifest + diversification_axis does the coordination for them.
+**Do not ask subagents to coordinate with each other.** Their contexts don't share — even with nested-subagent support (3 levels by default since CC 2.1.219, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a child can't reach a sibling's transcript. The claimed_slots_manifest + diversification_axis does the coordination for them.
 
 ## After each wave
 

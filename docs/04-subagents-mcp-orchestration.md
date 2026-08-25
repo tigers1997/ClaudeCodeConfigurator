@@ -56,7 +56,9 @@ Only `name` and `description` are required. See `templates/agents/` for four rea
 
 - Each subagent starts with its own system prompt + minimal env info. **No inherited conversation**.
 - Only the subagent's final response returns to the parent. Verbose tool output stays in the subagent's transcript.
-- **Subagents can spawn other subagents (CC ≥ 2.1.172, capped at 5 nesting levels).** Older CC versions can't. Prefer leaf designs anyway — use skills or chain through the main thread — so the architecture survives older CC and doesn't bury context behind deep subagent transcripts.
+- **Subagents can spawn nested subagents — 3 levels below the main thread by default (CC ≥ 2.1.219; 2.1.172–2.1.216 allowed 5, 2.1.217–218 shipped nesting off).** Tune with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; at the cap Claude Code withholds the Agent tool from the subagent. Prefer leaf designs anyway — use skills or chain through the main thread — so the architecture survives older CC and doesn't bury context behind deep subagent transcripts.
+- **Subagents run in the background by default (CC ≥ 2.1.198)** with a narrower built-in tool set; their permission prompts surface in the main session. At most 20 run concurrently (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, 2.1.217+); the 21st spawn fails with an error that tells Claude not to retry.
+- **Forks are the opposite of isolation.** `subagent_type: "fork"` (on by default since 2.1.232; `/subtask` from the prompt) inherits the whole conversation and prompt cache. Use a fork to continue *this* context elsewhere; use a named subagent for a specialist with its own prompt.
 - Parent `bypassPermissions` or `acceptEdits` **overrides** any `permissionMode` set on the subagent.
 
 ### Parallel subagents
@@ -69,7 +71,7 @@ For sustained parallelism that exceeds context, use **agent teams** (separate se
 
 ### Built-in subagents you get for free
 
-- `Explore` (Haiku, read-only) — fast codebase exploration.
+- `Explore` (read-only) — fast codebase exploration. Since CC 2.1.198 it inherits the session model (capped at Opus) instead of always running on Haiku; define a project agent named `Explore` with `model: haiku` to pin it cheap.
 - `Plan` (inherits, read-only) — structured planning.
 - `general-purpose` — default catch-all.
 - `statusline-setup`.
@@ -137,7 +139,7 @@ Local Claude Code for interactive work; Claude Code Web for long-running cloud j
 
 - The main thread's context is still finite. Subagents help with verbosity but not with total information you're holding in your head.
 - Parallel subagents that return detailed results still fill the parent. Prefer "ship a summary, not a transcript."
-- Subagent nesting caps at 5 levels (CC ≥ 2.1.172; earlier versions: 0). If you need 3+ levels, the design is usually still wrong — re-shape into a fanout or pipeline through the main thread.
+- Subagent nesting is capped — 3 levels below the main thread by default since CC 2.1.219 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`). If you need 3+ levels, the design is usually still wrong — re-shape into a fanout or pipeline through the main thread, or a dynamic Workflow for fan-outs beyond a handful of workers.
 
 ## Recommendations
 
