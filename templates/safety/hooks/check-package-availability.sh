@@ -182,9 +182,19 @@ done
 # --- Run availability checks ---
 [ -f "$AVAIL_LIB" ] || { echo "[check-package-availability] lib not found at $AVAIL_LIB; not gating" >&2; exit 0; }
 
+# GNU coreutils `timeout` bounds each probe. It is absent on stock macOS (where
+# Homebrew installs it as gtimeout), and calling it unguarded returned rc=127 ->
+# the "inconclusive" branch below -> the gate disabled itself on the first
+# package, silently, for every macOS user. Fall back to gtimeout, then to an
+# unbounded probe: a slower worst case, but the gate keeps working.
+PROBE_TIMEOUT="timeout 3"
+command -v timeout >/dev/null 2>&1 || PROBE_TIMEOUT="gtimeout 3"
+command -v ${PROBE_TIMEOUT%% *} >/dev/null 2>&1 || PROBE_TIMEOUT=""
+
 for pkg in "${pkgs[@]}"; do
-  # Each probe bounded at 3s via timeout; lib is re-sourced inside the subshell.
-  if timeout 3 bash -c '. "$1" && check_package_available "$2" "$3"' _ "$AVAIL_LIB" "$pm" "$pkg"; then
+  # Probe bounded where a timeout binary exists; lib is re-sourced in the subshell.
+  # shellcheck disable=SC2086  # deliberate word-split: PROBE_TIMEOUT may be empty
+  if $PROBE_TIMEOUT bash -c '. "$1" && check_package_available "$2" "$3"' _ "$AVAIL_LIB" "$pm" "$pkg"; then
     :  # available — continue
   else
     rc=$?
