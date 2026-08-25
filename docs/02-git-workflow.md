@@ -8,7 +8,7 @@ Every change follows this shape:
 2. **Branch** — `git checkout -b feat/<short-name>` off main.
 3. **Small diff** — one logical change at a time. If the diff grows past ~200 LOC, split.
 4. **Tests** — every new behavior gets a test in the same branch.
-5. **Review** — `/review` or let `code-reviewer` subagent run. Address critical issues.
+5. **Review** — `/review-branch` or let `code-reviewer` subagent run. Address critical issues.
 6. **Ship** — `/ship` runs format → lint → typecheck → test → commit → push.
 
 ## Branch naming
@@ -133,7 +133,7 @@ Rewind (`Esc Esc` in Claude Code) and `git reflog` are your safety net. You don'
 1. `claude` from the repo root.
 2. Describe the task. Claude drafts a plan (via `/plan` or plan mode).
 3. Confirm or adjust, then let it edit.
-4. `/review` → fix what matters.
+4. `/review-branch` → fix what matters.
 5. `/ship` → commits and pushes.
 6. Open PR manually or with `gh pr create`. Merge.
 

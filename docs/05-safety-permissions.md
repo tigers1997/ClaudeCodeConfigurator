@@ -108,7 +108,7 @@ Writes a summary of the session to `.claude/logs/` before compression happens. R
 Automated review is the last line.
 
 ### At turn-end
-The `code-reviewer` subagent runs against `git diff` or `git diff --merge-base main`. Called explicitly via `/review` or auto-invoked when Claude writes code with "use proactively" description matching.
+The `code-reviewer` subagent runs against `git diff` or `git diff --merge-base main`. Called explicitly via `/review-branch` or auto-invoked when Claude writes code with "use proactively" description matching.
 
 ### At commit-time
 The `/commit` skill forces a Conventional Commit message summarizing the change, which forces the model to think about whether the diff actually does what it thinks.

@@ -29,7 +29,7 @@ Every module produces one or more drop-in files for a new Claude Code project. T
 
 ## Slash commands (skills)
 - `commands/plan/SKILL.md` → `.claude/skills/plan/SKILL.md`
-- `commands/review/SKILL.md` → `.claude/skills/review/SKILL.md`
+- `commands/review-branch/SKILL.md` → `.claude/skills/review-branch/SKILL.md`
 - `commands/commit/SKILL.md` → `.claude/skills/commit/SKILL.md`
 - `commands/ship/SKILL.md` → `.claude/skills/ship/SKILL.md`
 - `commands/sync-docs/SKILL.md` → `.claude/skills/sync-docs/SKILL.md`

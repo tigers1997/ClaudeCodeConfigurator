@@ -1,6 +1,6 @@
 ---
-name: review
-description: Code-review the current branch's changes against main with the code-reviewer agent. Use before committing or pushing. Distinct from Claude Code's built-in /code-review.
+name: review-branch
+description: Code-review the current branch's changes against main with the code-reviewer agent. Use before committing or pushing. A quick single-pass review; Claude Code's bundled /code-review is the deeper multi-agent one.
 argument-hint: "[optional focus area]"
 allowed-tools: Read Grep Glob Bash(git diff:*) Bash(git log:*) Bash(git status)
 context: fork
@@ -84,4 +84,4 @@ For each requirement stated in the PR/commit message, verify the change actually
 
 ### When you find a bug
 
-**Don't fix in place.** Note "Run /investigate before proposing a fix" in the report. The Iron Law (see `/investigate`) says no fix without investigation; `/review`'s job is to flag, not to debug.
+**Don't fix in place.** Note "Run /investigate before proposing a fix" in the report. The Iron Law (see `/investigate`) says no fix without investigation; `/review-branch`'s job is to flag, not to debug.

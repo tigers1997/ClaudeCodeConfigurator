@@ -88,7 +88,7 @@ Two paths:
 **Manual.** Diff each pair from the report and decide:
 
 ```bash
-diff -u .claude/skills/review/SKILL.md .claude-retrofit/incoming/.claude/skills/review/SKILL.md
+diff -u .claude/skills/review-branch/SKILL.md .claude-retrofit/incoming/.claude/skills/review-branch/SKILL.md
 ```
 
 For each, decide: keep yours (delete the staged), replace yours with ours (`mv`), merge sections (edit by hand), or install ours alongside (move to `<name>-cc/SKILL.md`).
