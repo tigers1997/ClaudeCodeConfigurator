@@ -131,4 +131,4 @@ different angle; if the issue doesn't survive double-check, drop it.
 - **/investigate** is for bugs in code; this skill is for issues in
   plans. Both share the confidence-gate + independent-verification
   patterns.
-- **/review** is post-code review; this skill is pre-code review.
+- **/review-branch** is post-code review; this skill is pre-code review.

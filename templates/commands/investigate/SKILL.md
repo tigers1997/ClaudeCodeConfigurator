@@ -91,7 +91,7 @@ fourth fix without re-investigating.
 - A findings doc at `.claude/investigations/<topic>-<date>.md`
 - A terse chat summary: "Root cause: <one line>. Proposed fix: <one line> (confidence: X/10)."
 - **No code change is made by this skill itself** — it stops at the
-  proposed-fix step. The user (or `/review`/`/plan`) takes it from
+  proposed-fix step. The user (or `/review-branch`/`/plan`) takes it from
   there.
 
 ## Anti-patterns this skill prevents
@@ -107,7 +107,7 @@ fourth fix without re-investigating.
 
 - **/plan** authors a plan; this skill investigates a bug. Different
   modes.
-- **/review** flags issues but does not investigate them — when
-  /review surfaces a bug, the right next step is `/investigate`.
+- **/review-branch** flags issues but does not investigate them — when
+  /review-branch surfaces a bug, the right next step is `/investigate`.
 - **/plan-eng-review** validates a plan; this skill validates a bug
   report. Both apply confidence gates and independent verification.

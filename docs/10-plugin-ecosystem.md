@@ -21,7 +21,7 @@ Some configurator-shipped surfaces have direct or near-direct plugin equivalents
 
 | Configurator | Plugin equivalent | Notes |
 |---|---|---|
-| `commands-core` skills (`/plan`, `/review`, `/commit`, `/ship`) | `feature-dev` plugin (3 agents + `/feature-dev` command) and `commit-commands` plugin (`/commit`, `/commit-push-pr`, `/clean_gone`) | Plugins are Anthropic-maintained and richer; the configurator's are simpler defaults you can edit. Either-or, not both. |
+| `commands-core` skills (`/plan`, `/review-branch`, `/commit`, `/ship`) | `feature-dev` plugin (3 agents + `/feature-dev` command) and `commit-commands` plugin (`/commit`, `/commit-push-pr`, `/clean_gone`) | Plugins are Anthropic-maintained and richer; the configurator's are simpler defaults you can edit. Either-or, not both. |
 | `code-reviewer` subagent | `feature-dev`'s `code-reviewer` agent (with confidence-based filtering) | Plugin version is more sophisticated; ours is a simpler baseline. |
 | `/sync-docs`, `/session-retro` | `claude-md-management` plugin (`claude-md-improver` skill + `/revise-claude-md`) | Different focus: ours captures session learnings; theirs audits any CLAUDE.md against quality criteria. Complementary; both can coexist. |
 | `safety` hooks (`block-dangerous-bash.sh`, `scan-secrets.sh`) | `security-guidance` plugin + `hookify` plugin | Ours are static bash scripts; the plugin path lets you author hooks via markdown rules. |
@@ -91,7 +91,7 @@ The configurator ships a `discipline-skills` module — a curated 7-skill subset
 **Why ship a fork instead of just recommending the upstream plugin:**
 
 - **~930 tokens saved per session.** Full superpowers injects ~1,200 tokens at SessionStart via `using-superpowers` plus ~270 tokens of skill descriptions for 14 skills. The configurator's bootstrap is ~400 tokens and we ship 7 skill descriptions, totaling ~540 — a ~63% reduction in fixed session-overhead for these capabilities.
-- **Curation control.** The configurator picks which 7 skills earn the context cost. The other 7 upstream skills (`systematic-debugging`, `test-driven-development`, `dispatching-parallel-agents`, `requesting-code-review`, `receiving-code-review`, `writing-skills`, `using-superpowers`) overlap configurator-shipped equivalents (`/investigate`, `multi-agent-guardrails.md`, `/review`, `code-reviewer` agent) or are too meta for the default kit.
+- **Curation control.** The configurator picks which 7 skills earn the context cost. The other 7 upstream skills (`systematic-debugging`, `test-driven-development`, `dispatching-parallel-agents`, `requesting-code-review`, `receiving-code-review`, `writing-skills`, `using-superpowers`) overlap configurator-shipped equivalents (`/investigate`, `multi-agent-guardrails.md`, `/review-branch`, `code-reviewer` agent) or are too meta for the default kit.
 - **Rugpull immunity.** Upstream v5.1.0 (2026-04-30) removed three slash commands (`/brainstorm`, `/write-plan`, `/execute-plan`) — that broke configurator references and required a cleanup PR. A forked-snapshot module stays stable until we choose to sync.
 - **Plugin-skill namespacing means no conflict.** Per `code.claude.com/docs/en/skills`: *"Plugin skills use a `plugin-name:skill-name` namespace, so they cannot conflict with other levels."* If a user installs both this module and the upstream plugin, the configurator's bootstrap auto-suppresses (detects `~/.claude/plugins/cache/claude-plugins-official/superpowers/`) and the two coexist. `/verify-setup` Check #12 flags the duplication so the user can pick one.
 

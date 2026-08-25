@@ -140,6 +140,14 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - **Only upstream superpowers:** `[ - ] Discipline skills: upstream superpowers plugin in use (configurator's module not installed).`
 - **Both installed:** `[ ⚠ ] Discipline skills: BOTH installed — your /skills menu has 7 forked skills + 14 upstream skills with the same names. The configurator's SessionStart bootstrap auto-suppresses, but skill invocations may resolve to either copy depending on namespace.` Suggest: pick one — either `cc-configure --retrofit` without `discipline-skills` to drop the fork, or `/plugin uninstall superpowers` to drop the upstream.
 
+### 13. Superseded `/review` skill
+
+- Skip unless BOTH `.claude/skills/review/SKILL.md` and `.claude/skills/review-branch/SKILL.md` exist.
+- Configurator releases before this rename shipped the skill as `review`. Claude Code 2.1.223 made `/review` the alias of the bundled `/code-review`, and a project skill of that name wins it — so the leftover directory hides Claude Code's multi-agent reviewer. The configurator has no mechanism to delete a file it previously wrote, so an upgraded project keeps both.
+- **Both present:** `[ ⚠ ] Superseded skill: .claude/skills/review/ is left over from an older scaffold and shadows the bundled /review (alias of /code-review). The replacement is .claude/skills/review-branch/. Delete the old directory: rm -rf .claude/skills/review`
+- **Only `review-branch/`:** `[ ✓ ] Skills: no superseded /review shadow.`
+- Neither, or only `review/` (project predates the rename and hasn't been re-scaffolded) → `[ - ]` skipped.
+
 ## Output format
 
 ```

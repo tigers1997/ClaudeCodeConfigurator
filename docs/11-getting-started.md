@@ -140,8 +140,8 @@ The `/retrofit` skill (shipped in `commands-core`) walks `.claude-retrofit/REPOR
 For each pair in the report:
 
 ```bash
-diff -u .claude/skills/review/SKILL.md \
-        .claude-retrofit/incoming/.claude/skills/review/SKILL.md
+diff -u .claude/skills/review-branch/SKILL.md \
+        .claude-retrofit/incoming/.claude/skills/review-branch/SKILL.md
 ```
 
 Decide per file: keep yours (delete the staged), replace yours with ours (`mv`), merge sections (edit by hand), or install ours alongside (`mv` to `<name>-cc/SKILL.md`).
@@ -167,7 +167,7 @@ Optional: install `claude-md-management` and run its `/revise-claude-md` for an 
 Once scaffolded, the configurator's job is done. Day-to-day:
 
 - `/plan` (configurator) or the `brainstorming` skill (`superpowers`) — scope the next change
-- `/review` (configurator) or `feature-dev` plugin's `code-reviewer` agent — review a diff
+- `/review-branch` (configurator) or `feature-dev` plugin's `code-reviewer` agent — review a diff
 - `/ship` (configurator) or `commit-commands` plugin's `/commit-push-pr` — push the change
 - `/check-context` (configurator) — look at where context is going if sessions feel slow
 - `/verify-setup` (configurator) — audit the `.claude/` shape against best practices
