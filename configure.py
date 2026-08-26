@@ -489,12 +489,40 @@ def compute_placeholders(form_values: dict, selected: set, module_flags: dict = 
     return v
 
 
-def substitute_placeholders(text: str, values: dict) -> str:
+def escape_bash_dq(s: str) -> str:
+    r"""Escape a value being interpolated into a double-quoted bash string.
+
+    Generated hooks embed cmd_* answers as `"label|<command>"` array elements.
+    A raw `"` in the command closes the element early and the whole CHECKS
+    array fails to parse — the hook is then dead on arrival and fails
+    silently, which looks identical to "installed and passing". `$` and
+    backtick would expand (or execute) at parse time; `\` would eat the next
+    character. Backslash goes first so the escapes we add aren't re-escaped.
+    """
+    for ch in ("\\", '"', "$", "`"):
+        s = s.replace(ch, "\\" + ch)
+    return s
+
+
+def escape_pwsh_sq(s: str) -> str:
+    """Escape a value being interpolated into a single-quoted PowerShell
+    string. Doubling is the only escape a single-quoted string recognizes —
+    everything else, backtick included, is already literal."""
+    return s.replace("'", "''")
+
+
+# Quoting context of the template being rendered, keyed by file extension.
+# Templates with no entry (Markdown, JSON, …) substitute values verbatim.
+SHELL_ESCAPERS = {".sh": escape_bash_dq, ".ps1": escape_pwsh_sq}
+
+
+def substitute_placeholders(text: str, values: dict, escape=None) -> str:
     import re
     def repl(m):
         k = m.group(1)
         if k in values and values[k] is not None:
-            return str(values[k])
+            v = str(values[k])
+            return escape(v) if escape else v
         return m.group(0)
     return re.sub(r"\{\{(\w+)\}\}", repl, text)
 
@@ -2451,7 +2479,9 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
             src = TEMPLATE_DIR / rel
             content = src.read_text(encoding="utf-8")
             if "{{" in content:
-                content = substitute_placeholders(content, placeholders)
+                content = substitute_placeholders(
+                    content, placeholders,
+                    SHELL_ESCAPERS.get(os.path.splitext(rel)[1]))
             files.append({
                 "target": tgt,
                 "content": content,
@@ -2472,7 +2502,9 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
                 src = TEMPLATE_DIR / rel
                 content = src.read_text(encoding="utf-8")
                 if "{{" in content:
-                    content = substitute_placeholders(content, placeholders)
+                    content = substitute_placeholders(
+                        content, placeholders,
+                        SHELL_ESCAPERS.get(os.path.splitext(rel)[1]))
                 files.append({
                     "target": tgt,
                     "content": content,
