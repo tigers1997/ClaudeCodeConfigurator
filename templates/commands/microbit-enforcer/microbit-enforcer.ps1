@@ -2,9 +2,11 @@
 # /careful microbits. PowerShell sibling of microbit-enforcer.sh.
 #
 # Reads the tool-call payload from stdin (Claude Code PreToolUse contract).
-# Exits 0 to allow the call; exits non-zero to block. Emits
-# {"action":"ask",...} on stdout for /careful matches so Claude Code surfaces a
-# confirmation prompt.
+# Exits 0 to allow the call; exits 2 to block. Exit 2 is the only non-zero
+# code Claude Code treats as a block -- exit 1 is a "non-blocking error": the
+# message shows and the edit lands anyway. Emits the documented PreToolUse
+# decision JSON with permissionDecision "ask" for /careful matches so Claude
+# Code surfaces a confirmation prompt.
 #
 # Marker files (project-local, session-scoped):
 #   .claude/.frozen   -- present  => block ALL Write/Edit/NotebookEdit
@@ -48,7 +50,7 @@ if ($payload.PSObject.Properties.Name -contains 'tool_input' -and $payload.tool_
 # 1. Frozen check -- overrides everything.
 if (Test-Path -LiteralPath $frozenFile -PathType Leaf) {
     [Console]::Error.WriteLine('[ FROZEN ] Write/Edit/NotebookEdit blocked until /unfreeze.')
-    exit 1
+    exit 2
 }
 
 # Glob matching. The bash hook uses shell globs against the raw path; here the
@@ -84,7 +86,7 @@ if ((Test-Path -LiteralPath $guardedFile -PathType Leaf) -and $targetPath) {
     foreach ($pattern in (Read-Patterns $guardedFile)) {
         if (Test-GlobMatch $targetPath $pattern) {
             [Console]::Error.WriteLine("[ GUARDED ] $targetPath matches '$pattern' -- edit blocked.")
-            exit 1
+            exit 2
         }
     }
 }
@@ -93,11 +95,19 @@ if ((Test-Path -LiteralPath $guardedFile -PathType Leaf) -and $targetPath) {
 if ((Test-Path -LiteralPath $carefulFile -PathType Leaf) -and $targetPath) {
     foreach ($pattern in (Read-Patterns $carefulFile)) {
         if (Test-GlobMatch $targetPath $pattern) {
-            $question = "About to write '$targetPath' (matches careful pattern '$pattern'). Proceed?"
-            # Build via ConvertTo-Json so a quote or backslash in the path can't
-            # produce malformed JSON, which the bash heredoc version can.
-            $obj = [ordered]@{ action = 'ask'; question = $question }
-            Write-Output ($obj | ConvertTo-Json -Compress)
+            $reason = "About to write '$targetPath' (matches careful pattern '$pattern'). Proceed?"
+            # The documented PreToolUse decision shape; a bare {"action":"ask"}
+            # object is only meaningful to Elicitation hooks. Built via
+            # ConvertTo-Json so a quote or backslash in the path can't produce
+            # malformed JSON.
+            $obj = [ordered]@{
+                hookSpecificOutput = [ordered]@{
+                    hookEventName            = 'PreToolUse'
+                    permissionDecision       = 'ask'
+                    permissionDecisionReason = $reason
+                }
+            }
+            Write-Output ($obj | ConvertTo-Json -Compress -Depth 4)
             exit 0
         }
     }

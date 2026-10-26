@@ -2,9 +2,13 @@
 # microbit-enforcer: PreToolUse hook for /freeze, /guard, /careful microbits.
 #
 # Reads the tool-call payload from stdin (Claude Code PreToolUse contract).
-# Exits 0 to allow the call; exits non-zero to block.
-# Emits JSON `{"action":"ask",...}` to stdout for /careful matches so
-# Claude Code surfaces a confirmation prompt to the user.
+# Exits 0 to allow the call; exits 2 to block. Exit 2 is the only non-zero
+# code Claude Code treats as a block — exit 1 is a "non-blocking error": the
+# message shows in the transcript and the edit lands anyway (hooks reference,
+# "Other exit codes"). Earlier releases of this hook exited 1, so /freeze and
+# /guard were advisory.
+# Emits the documented PreToolUse decision JSON with permissionDecision "ask"
+# for /careful matches so Claude Code surfaces a confirmation prompt.
 #
 # Marker files (project-local, session-scoped):
 #   .claude/.frozen     — present  ⇒ block ALL Write/Edit/NotebookEdit
@@ -53,7 +57,7 @@ except Exception:
 # 1. Frozen check — overrides everything.
 if [[ -f "$FROZEN_FILE" ]]; then
     echo "[ FROZEN ] Write/Edit/NotebookEdit blocked until /unfreeze." >&2
-    exit 1
+    exit 2
 fi
 
 # 2. Guarded check (block on match).
@@ -64,7 +68,7 @@ if [[ -f "$GUARDED_FILE" && -n "$TARGET_PATH" ]]; then
         # shellcheck disable=SC2053
         if [[ "$TARGET_PATH" == $pattern ]]; then
             echo "[ GUARDED ] $TARGET_PATH matches '$pattern' — edit blocked." >&2
-            exit 1
+            exit 2
         fi
     done < "$GUARDED_FILE"
 fi
@@ -76,9 +80,20 @@ if [[ -f "$CAREFUL_FILE" && -n "$TARGET_PATH" ]]; then
         shopt -s extglob globstar nullglob
         # shellcheck disable=SC2053
         if [[ "$TARGET_PATH" == $pattern ]]; then
-            cat <<JSON
-{"action": "ask", "question": "About to write '$TARGET_PATH' (matches careful pattern '$pattern'). Proceed?"}
-JSON
+            # The documented PreToolUse decision shape (hooks reference,
+            # "Decision control"); a bare {"action": "ask"} object is only
+            # meaningful to Elicitation hooks and never produced a prompt here.
+            # Built with json.dumps so a quote or backslash in the path cannot
+            # produce malformed JSON.
+            TARGET_PATH="$TARGET_PATH" PATTERN="$pattern" python3 -c '
+import json, os
+reason = "About to write %s (matches careful pattern %s). Proceed?" % (
+    os.environ["TARGET_PATH"], os.environ["PATTERN"])
+print(json.dumps({"hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "ask",
+    "permissionDecisionReason": reason}}))
+'
             exit 0
         fi
     done < "$CAREFUL_FILE"
