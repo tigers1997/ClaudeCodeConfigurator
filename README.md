@@ -45,6 +45,8 @@ chmod +x ~/.cc-configurator/configure.py
 # ensure ~/.local/bin is on $PATH
 ```
 
+Then do the one-time machine setup in [`docs/11-getting-started.md` § Once per machine](docs/11-getting-started.md#once-per-machine): background updates off, auto mode out of the Shift+Tab cycle, plan mode prompting, the VS Code extension pinned. That is the half of the discipline profile a repository cannot pin.
+
 ## Use
 
 > First time? See [`docs/11-getting-started.md`](docs/11-getting-started.md) for the two end-to-end walkthroughs (brand-new project with `superpowers` brainstorming first, or existing-project retrofit with `/retrofit`).
@@ -58,6 +60,7 @@ cc-configure --persona solo-newer --yes    # one-shot for newer coders
 cc-configure --persona small-team --yes    # one-shot, team kit
 cc-configure --yes                         # reuse existing .claude-config.json
 cc-configure --dry-run                     # preview without writing
+cc-configure --whats-new                   # what a re-run would pick up (reads .claude/.cc-manifest.json)
 cc-configure --help                        # full flags
 ```
 

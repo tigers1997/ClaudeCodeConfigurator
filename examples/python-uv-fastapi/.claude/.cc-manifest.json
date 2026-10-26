@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "written_at": "2026-10-26T15:35:05Z",
+  "written_at": "2026-10-26T19:33:48Z",
   "written_by": "cc-configure 2.7.0",
-  "written_by_sha": "9c763be",
+  "written_by_sha": "771efe9",
   "mcp_servers": [],
   "stack_manifests": [],
   "check_commands": {
