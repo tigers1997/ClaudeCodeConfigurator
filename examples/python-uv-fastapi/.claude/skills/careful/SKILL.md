@@ -21,8 +21,9 @@ Examples:
 
 1. `/careful <pattern>` appends the pattern to `.claude/.careful`.
 2. PreToolUse hook checks every Write/Edit/NotebookEdit target path
-   against the careful list. On match, the hook emits a JSON `ask`
-   action to Claude Code, which surfaces a Yes/No prompt to the user.
+   against the careful list. On match, the hook returns the documented
+   PreToolUse decision JSON with `permissionDecision: "ask"`, and
+   Claude Code surfaces a Yes/No prompt to the user.
 3. "yes" → tool proceeds. "no" → tool is rejected.
 
 ## Output

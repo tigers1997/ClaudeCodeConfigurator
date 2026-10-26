@@ -130,7 +130,9 @@ expect "non-write tool ignored" "$(run_hook "$enforcer" '{"tool_name":"Bash","to
 : > "$tmp/.claude/.frozen"
 frozen_rc="$(run_hook "$enforcer" '{"tool_name":"Write","tool_input":{"file_path":"a.py"}}')"
 rm -f "$tmp/.claude/.frozen"
-expect "frozen marker blocks" "$frozen_rc" 1
+# Exit 2 is the only non-zero code Claude Code treats as a block; 1 is a
+# non-blocking error that lets the edit land.
+expect "frozen marker blocks" "$frozen_rc" 2
 unset CLAUDE_PROJECT_DIR
 
 echo "PASS: powershell hooks wired per-entry, installed, and behaving ($PS)"
