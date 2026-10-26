@@ -3,6 +3,10 @@ name: code-reviewer
 description: Senior code-review specialist. Runs automatically after code is written or modified to catch quality, security, and maintainability issues. Read-only.
 tools: Read, Grep, Glob, Bash
 model: inherit
+# Opus 5.5, Sonnet 5.5 and Haiku 5.5 start at effort `medium` (one level below
+# Opus 5's `high`); a review is where the extra verification pays for itself,
+# so this agent pins `high` regardless of the session's level.
+effort: high
 color: purple
 ---
 

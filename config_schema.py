@@ -420,21 +420,29 @@ PERSONAS = {
 
 
 # ---- Claude Code compatibility range ----
-# Declared templates-vs-CC version envelope. Bump deliberately; each configurator
-# release should state the range it's been tested against in the CHANGELOG.
+# Declared templates-vs-CC version envelope. FROZEN on 2026-10-26 at 2.1.310 —
+# see the last paragraph of the comment block below for the policy. The upper
+# bound moves only when a template change needs a newer feature or a user
+# reports breakage, never because a release shipped.
 #
-# min_version:   features in shipped templates require this at minimum. Below
-#                it, several things silently fail (currently: agent-frontmatter
-#                mcpServers http transport; DISABLE_UPDATES env; the
-#                disableBypassPermissionsMode key in safety).
-# tested_up_to:  highest CC version the maintainer has actually run the
-#                configurator against. Newer is likely fine but unverified.
+# min_version:   the oldest build on which nothing the shipped templates rely
+#                on fails silently. Below 2.1.304: project skills vanish from
+#                Claude's view after every compaction (fixed 2.1.304); Windows
+#                hooks with no `shell` fail open when Git Bash is missing
+#                (fixed 2.1.299); the hooks' `onFailure` field is ignored, so a
+#                guard that crashes lets the call through (added 2.1.295); the
+#                Workflow tool refuses a CRLF script (fixed 2.1.296). The
+#                PowerShell hook variants (--hook-shell powershell) need
+#                2.1.309 on top of that and say so in their own warning.
+# tested_up_to:  the version the templates are DESIGNED FOR and were last run
+#                against. Newer releases are expected to work; the preflight
+#                prints one informational line above it.
 CLAUDE_CODE_COMPAT = {
-    "min_version": "2.1.116",   # agent mcpServers http (2.1.116/117)
-    "tested_up_to": "2.1.220",  # SchemaStore sync PR #6131 merged 2026-07-27
-                                # (v2.1.220). Surveyed through 2.1.241 on
-                                # 2026-08-24 - see the LAST paragraph of this
-                                # block. History follows, oldest first:
+    "min_version": "2.1.304",   # skills re-sent after compaction (2.1.304)
+    "tested_up_to": "2.1.310",  # designed-for version, frozen 2026-10-26
+                                # (released 2026-10-23). The paragraph at the
+                                # END of this block is the freeze record; the
+                                # history before it is kept as-is, oldest first:
                                 # 2.1.150 bump - SchemaStore PR #5706 merged 2026-05-23 (sync to
                                 # v2.1.143), unblocking nine settings.json keys for
                                 # opt-in templating: skillOverrides (token-
@@ -712,7 +720,95 @@ CLAUDE_CODE_COMPAT = {
                                 # `/agents` wizard removed (2.1.198; no template
                                 # referenced it). Issue #14920 (disable individual
                                 # plugin skills) still open.
+                                # FREEZE (2026-10-26): tested_up_to 2.1.220 ->
+                                # 2.1.310 (released 2026-10-23, the installed
+                                # CLI); min_version 2.1.116 -> 2.1.304. Every
+                                # release 2.1.221-2.1.310 was read (78 builds,
+                                # ~4,000 changelog lines; full record in the
+                                # "Claude Code Freeze Review" doc of 2026-10-26).
+                                # The per-release survey ENDS here. Inflection
+                                # points the templates now assume: auto mode as
+                                # the built-in starting mode (2.1.283/2.1.284),
+                                # answered by the safety module's discipline
+                                # profile; Fable 5.1 / Opus 5.5 / Sonnet 5.5 /
+                                # Haiku 5.5 (2.1.257/280/284/293), 5.5 models
+                                # start at effort medium; hook `onFailure`
+                                # (2.1.295), adopted on the PreToolUse guards;
+                                # Windows hooks fail closed without Git Bash
+                                # (2.1.299); skills re-sent after compaction
+                                # (2.1.304); PowerShell hooks block on exit 2
+                                # (2.1.309). SchemaStore rule REDEFINED: the
+                                # published schema (last merged sync 2.1.220,
+                                # PR #6131; sync PR #6511 open since 2026-10-16)
+                                # is a validation gate for keys the configurator
+                                # writes ACTIVELY (all of them pass it), no
+                                # longer the gate that moves tested_up_to; keys
+                                # newer than the schema ship as comment stubs
+                                # citing the docs page. What replaces the
+                                # survey: --check asserts the wired hook events
+                                # are in KNOWN_HOOK_EVENTS and no shipped skill
+                                # takes a RESERVED_SKILL_NAMES name; /verify-setup
+                                # audits a scaffolded project; a quarterly look
+                                # at the env-vars and settings-reference pages
+                                # for scope changes to the keys the discipline
+                                # profile relies on. Bump tested_up_to only for
+                                # a template change that needs a newer feature
+                                # or a reported breakage, and bump
+                                # KNOWN_HOOK_EVENTS / RESERVED_SKILL_NAMES with it.
 }
+
+
+# ---- breakage watch (what replaced the per-release survey at the freeze) ----
+# Hook events the shipped settings patches may wire. The settings schema's
+# `hooks` vocabulary at the 2.1.220 SchemaStore sync, plus the two events the
+# hooks reference documents since (PreModelSwitch / PostModelSwitch, 2.1.251;
+# SchemaStore PR #6502). `--check` fails when a patch wires anything else, so a
+# renamed or withdrawn event is caught at template time, not in a user's
+# project where a hook on an unknown event is silently never fired.
+KNOWN_HOOK_EVENTS = frozenset({
+    "ConfigChange", "CwdChanged", "DirectoryAdded", "Elicitation",
+    "ElicitationResult", "FileChanged", "InstructionsLoaded", "MessageDisplay",
+    "Notification", "PermissionDenied", "PermissionRequest", "PostCompact",
+    "PostModelSwitch", "PostToolBatch", "PostToolUse", "PostToolUseFailure",
+    "PreCompact", "PreModelSwitch", "PreToolUse", "SessionEnd", "SessionStart",
+    "Setup", "Stop", "StopFailure", "SubagentStart", "SubagentStop",
+    "TaskCompleted", "TaskCreated", "TeammateIdle", "UserPromptExpansion",
+    "UserPromptSubmit", "WorktreeCreate", "WorktreeRemove",
+})
+
+# Names of Claude Code's built-in slash commands and bundled skills as of
+# 2.1.310 (code.claude.com/docs/en/commands, read 2026-10-26). A project skill
+# with one of these names shadows the built-in — the lesson of `/review`
+# (PR #94): every scaffolded project hid the multi-agent `/code-review` behind
+# a single-pass skill for a month. `--check` fails when a shipped SKILL.md
+# declares one of these names. `plan` is the documented exception: it shadows
+# the plan-mode shortcut, not a bundled skill, and plan mode stays reachable
+# with Shift+Tab (README, "commands" row).
+RESERVED_SKILL_NAMES = frozenset({
+    "add-dir", "advisor", "agents", "artifact-capabilities",
+    "artifact-diagramming", "artifacts", "auto-mode-setup", "autocompact",
+    "autofix-pr", "background", "batch", "branch", "btw", "bug", "cd", "chrome",
+    "claude-api", "claude-in-chrome", "clear", "code-review", "color",
+    "compact", "config", "context", "copy", "cost", "dataviz", "debug",
+    "deep-research", "design", "design-login", "design-sync", "desktop", "diff",
+    "doctor", "effort", "exit", "export", "fast", "feedback",
+    "fewer-permission-prompts", "focus", "fork", "goal", "heapdump", "help",
+    "hooks", "ide", "import", "init", "insights", "install-github-app",
+    "install-slack-app", "keybindings", "list-agents", "login", "logout",
+    "loop", "mcp", "memory", "mobile", "model", "output-style", "passes",
+    "permissions", "plan", "plugin", "plugin-authoring", "powerup",
+    "pr-comments", "privacy-settings", "radio", "rate-limit-options", "recap",
+    "release-notes", "reload-plugins", "reload-skills", "remote-control",
+    "remote-env", "rename", "resume", "review", "rewind", "run",
+    "run-skill-generator", "sandbox", "schedule", "scroll-speed",
+    "security-review", "setup-bedrock", "setup-vertex", "simplify",
+    "skill-doctor", "skills", "slides", "stats", "status", "statusline",
+    "stickers", "stop", "subtask", "tasks", "team-onboarding", "teleport",
+    "terminal-setup", "theme", "tui", "ultraplan", "ultrareview",
+    "update-config", "upgrade", "usage", "usage-credits", "verify", "vim",
+    "voice", "web-setup", "workflow-authoring", "workflows",
+})
+RESERVED_SKILL_NAME_EXCEPTIONS = frozenset({"plan"})
 
 
 # ---- stack presets ----

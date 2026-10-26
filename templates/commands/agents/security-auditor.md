@@ -8,6 +8,9 @@ tools: Read, Grep, Glob, Bash
 # code.claude.com/docs/en/model-config "Automatic model fallback"). Pinning
 # opus here avoids the bounce; it also keeps the agent working on CC < 2.1.170.
 model: opus
+# `opus` resolves to Opus 5.5 since CC 2.1.280, which starts at effort
+# `medium`; an audit is the wrong place to save reasoning, so pin `high`.
+effort: high
 color: red
 mcpServers:
   # Sonatype dependency-management MCP — CVE scanning, license compliance,

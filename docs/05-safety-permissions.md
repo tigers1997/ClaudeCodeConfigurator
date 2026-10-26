@@ -127,8 +127,9 @@ Writes a summary of the session to `.claude/logs/` before compression happens. R
 
 - **Quote everything.** `"$VAR"`, always. Input contains user strings.
 - **Use `$CLAUDE_PROJECT_DIR`** for absolute paths; don't rely on cwd.
-- **Don't block on non-critical checks.** Exit 0 and emit additionalContext instead. Exit 2 is a last resort.
-- **Timeout defensively.** Set `"timeout": 10` on fast hooks; 60-120 on things that might genuinely take time.
+- **Don't block on non-critical checks.** Exit 0 and emit additionalContext instead. Exit 2 is a last resort — and the only non-zero code that blocks; exit 1 is a non-blocking error and the action proceeds.
+- **Guards fail closed.** The shipped `PreToolUse` guards carry `onFailure: "block"` (CC 2.1.295+): a guard that cannot start, times out or exits with an unexpected code refuses the call instead of waving it through. Put it on policy hooks only; a formatter or an advisory check stays fail-open.
+- **Timeout defensively.** Set `"timeout": 10` on fast hooks; 60-120 on things that might genuinely take time. Under `onFailure: "block"` a timeout is a block, so leave headroom for a cold shell start.
 - **Don't print anything you don't want in the transcript.** Stdout may be injected. Write logs to files.
 
 ## Layer 3: Review

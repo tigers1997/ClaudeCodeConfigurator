@@ -71,7 +71,7 @@ Which modules operationalize which docs:
 
 ## Versions this kit assumes
 
-- Claude Code ≥ 2.1.59 (auto-memory, modern frontmatter). Some optional polish needs 2.1.119+ (statusline `effort.level` / `thinking.enabled`).
+- Claude Code 2.1.304–2.1.310: the templates are designed for 2.1.310 (frozen 2026-10-26) and nothing they rely on fails silently from 2.1.304 up; the PowerShell hook variants need 2.1.309. Newer releases are expected to work — the preflight prints one informational line above 2.1.310 and the project no longer tracks Claude Code release by release.
 - Git ≥ 2.40 (worktrees).
 - Python ≥ 3.8 for `cc-configure` itself (stdlib only).
 

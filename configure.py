@@ -31,7 +31,8 @@ sys.path.insert(0, str(REPO_ROOT))
 try:
     from config_schema import (
         CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, _DEFAULT_STACK,
-        target_path_for, PERSONAS,
+        target_path_for, PERSONAS, KNOWN_HOOK_EVENTS, RESERVED_SKILL_NAMES,
+        RESERVED_SKILL_NAME_EXCEPTIONS,
     )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
@@ -655,11 +656,17 @@ def _parse_version(s: str):
     return tuple(int(x) for x in m.groups())
 
 
-def check_claude_code_version() -> list:
+POWERSHELL_HOOKS_MIN_VERSION = "2.1.309"
+
+
+def check_claude_code_version(hook_shell: str = "bash") -> list:
     """Compare the installed Claude Code version against CLAUDE_CODE_COMPAT.
-    Warns if below min_version (several features silently fail) or if claude
-    isn't on PATH. Informational note if above tested_up_to. Silent when in range."""
+    Warns if below min_version (the things the templates rely on fail
+    silently there) or if claude isn't on PATH. One informational line above
+    tested_up_to, the version the templates are designed for. Silent when in
+    range. `hook_shell` adds the PowerShell variants' own floor."""
     import subprocess
+    designed = CLAUDE_CODE_COMPAT["tested_up_to"]
     try:
         result = subprocess.run(
             ["claude", "--version"], capture_output=True, text=True, timeout=5,
@@ -667,8 +674,8 @@ def check_claude_code_version() -> list:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return [
             f"`claude` CLI not found on PATH — cannot verify compatibility. "
-            f"Templates target Claude Code "
-            f"{CLAUDE_CODE_COMPAT['min_version']}–{CLAUDE_CODE_COMPAT['tested_up_to']}."
+            f"Templates are designed for Claude Code {designed} "
+            f"(minimum {CLAUDE_CODE_COMPAT['min_version']})."
         ]
     if result.returncode != 0:
         return [f"`claude --version` exited {result.returncode} — cannot verify compatibility."]
@@ -676,26 +683,78 @@ def check_claude_code_version() -> list:
     if found is None:
         return [f"Could not parse `claude --version` output: {result.stdout.strip()!r}"]
     min_v = _parse_version(CLAUDE_CODE_COMPAT["min_version"])
-    max_v = _parse_version(CLAUDE_CODE_COMPAT["tested_up_to"])
+    max_v = _parse_version(designed)
     found_str = ".".join(str(n) for n in found)
+    out = []
     if found < min_v:
-        return [
+        out.append(
             f"installed Claude Code is {found_str}, below the supported minimum "
-            f"{CLAUDE_CODE_COMPAT['min_version']}. Several features will silently "
-            f"fail: agent-frontmatter mcpServers http transport (security-auditor's "
-            f"Sonatype wiring); DISABLE_UPDATES env (lockdown module); "
-            f"permissions.disableBypassPermissionsMode (safety module). "
-            f"Upgrade with `npm install -g @anthropic-ai/claude-code@latest` "
-            f"(or your install method)."
-        ]
-    if found > max_v:
-        return [
-            f"installed Claude Code is {found_str}, newer than the tested range "
-            f"(up to {CLAUDE_CODE_COMPAT['tested_up_to']}). Templates likely still "
-            f"work but have not been verified against this version. File an issue "
-            f"if you see anything odd."
-        ]
-    return []
+            f"{CLAUDE_CODE_COMPAT['min_version']}. Below it, things the templates "
+            f"rely on fail silently: project skills vanish from Claude's view after "
+            f"every compaction (before 2.1.304); Windows hooks with no `shell` let "
+            f"the call through when Git Bash is missing (before 2.1.299); the "
+            f"guard hooks' onFailure field is ignored, so a guard that crashes lets "
+            f"the call through (before 2.1.295); the Workflow tool refuses a CRLF "
+            f"script (before 2.1.296). Upgrade with `claude update` (or your "
+            f"install method)."
+        )
+    elif found > max_v:
+        out.append(
+            f"installed Claude Code is {found_str}, newer than the version the "
+            f"templates are designed for ({designed}, frozen 2026-10-26). Newer "
+            f"releases are expected to work; the project no longer tracks Claude "
+            f"Code release by release. If something misbehaves, file an issue "
+            f"naming your version."
+        )
+    if hook_shell == "powershell" and found < _parse_version(POWERSHELL_HOOKS_MIN_VERSION):
+        out.append(
+            f"--hook-shell powershell needs Claude Code {POWERSHELL_HOOKS_MIN_VERSION} "
+            f"or later (installed: {found_str}). Before it, a hook run in PowerShell "
+            f"did not block on exit code 2, and a `shell: \"powershell\"` guard let "
+            f"the call through when Git for Windows was missing — the safety hooks "
+            f"would look installed and enforce nothing."
+        )
+    return out
+
+
+def find_unknown_hook_events() -> list:
+    """Hook events wired by a shipped settings patch or a module's
+    extraSettingsHook that are not in KNOWN_HOOK_EVENTS. Returns
+    (source, event) tuples; empty when every event is known."""
+    found = []
+    for f in sorted(TEMPLATE_DIR.rglob("settings-patch*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue  # reported by the JSON walk in run_check
+        hooks = data.get("hooks")
+        if not isinstance(hooks, dict):
+            continue
+        for event in hooks:
+            if not _is_doc_label(event) and event not in KNOWN_HOOK_EVENTS:
+                found.append((f"templates/{f.relative_to(TEMPLATE_DIR).as_posix()}", event))
+    for m in MODULES:
+        for event in (m.get("extraSettingsHook") or {}):
+            if event not in KNOWN_HOOK_EVENTS:
+                found.append((f"MODULES[{m['id']}].extraSettingsHook", event))
+    return found
+
+
+def find_reserved_skill_names() -> list:
+    """Shipped SKILL.md files whose frontmatter `name:` is a Claude Code
+    built-in command or bundled skill name (RESERVED_SKILL_NAMES), minus the
+    documented exceptions. Returns (source, name) tuples."""
+    import re
+    found = []
+    for f in sorted(TEMPLATE_DIR.rglob("SKILL.md")):
+        fm = _frontmatter_block(f.read_text(encoding="utf-8"))
+        m = re.search(r"^name:\s*(\S+)", fm, flags=re.MULTILINE)
+        if not m:
+            continue
+        name = m.group(1).strip().strip("'\"")
+        if name in RESERVED_SKILL_NAMES and name not in RESERVED_SKILL_NAME_EXCEPTIONS:
+            found.append((f"templates/{f.relative_to(TEMPLATE_DIR).as_posix()}", name))
+    return found
 
 
 def _frontmatter_block(text: str) -> str:
@@ -1142,6 +1201,19 @@ def run_check() -> int:
         if re.search(r"(?m)^\s*import\s", text) or re.search(r"(?<![\w$])import\s*\(", text):
             err(f"templates/{rel}",
                 "workflow scripts cannot use import()/import — the runtime rejects them")
+
+    # --- 4c. Breakage watch (replaces the per-release survey, freeze at
+    # 2.1.310): every hook event a shipped patch wires must be one Claude Code
+    # knows, and no shipped skill may take a built-in command or bundled skill
+    # name. Both are cheap, static, and exactly the two ways a later release
+    # silently defeats a scaffolded project.
+    for source, event in find_unknown_hook_events():
+        err(source, f"wires hook event {event!r}, which is not in KNOWN_HOOK_EVENTS "
+                    "(config_schema.py) — a hook on an unknown event never fires")
+    for source, name in find_reserved_skill_names():
+        err(source, f"skill name {name!r} is a Claude Code built-in command or "
+                    "bundled skill (RESERVED_SKILL_NAMES) — a project skill of that "
+                    "name shadows it, as /review did; rename the skill")
 
     # --- 5. Generated index is current ---
     if INDEX_PATH.exists():
@@ -1794,12 +1866,16 @@ def _merge_hook_groups(existing_groups, new_groups):
     # `resume`) and never touches a user's own command (absent from new_groups).
     new_matchers = {}
     new_shell = {}
+    new_fields = {}  # command -> {"onFailure": ..., "timeout": ...} as shipped now
     for ng in new_groups:
         for c in _hook_commands(ng):
             new_matchers.setdefault(c, set()).add(ng.get("matcher"))
         for h in ng.get("hooks", []) or []:
             if isinstance(h, dict) and h.get("command") and h.get("shell"):
                 new_shell[h["command"]] = h["shell"]
+            if isinstance(h, dict) and h.get("command"):
+                new_fields[h["command"]] = {
+                    k: h[k] for k in ("onFailure", "timeout") if k in h}
     for g in out:
         gm = g.get("matcher")
         hooks = g.get("hooks")
@@ -1822,6 +1898,28 @@ def _merge_hook_groups(existing_groups, new_groups):
             if (isinstance(h, dict) and h.get("command") in new_shell
                     and "shell" not in h):
                 h["shell"] = new_shell[h["command"]]
+
+    # Fail-closed backfill (freeze at 2.1.310): the PreToolUse guards now ship
+    # `onFailure: "block"` (CC 2.1.295+) and the microbit enforcer's timeout
+    # moved 5 -> 10 s so a cold Git Bash start cannot trip the block. Copy
+    # `onFailure` onto configurator-owned entries that predate it, and raise a
+    # timeout only when it still holds the value a prior release shipped — a
+    # timeout the user tuned is a customization and stays (see docstring).
+    for g in out:
+        for h in g.get("hooks", []) or []:
+            if not (isinstance(h, dict) and h.get("command") in new_fields):
+                continue
+            fields = new_fields[h["command"]]
+            if "onFailure" in fields and "onFailure" not in h:
+                h["onFailure"] = fields["onFailure"]
+            stem = str(h["command"]).rsplit("/", 1)[-1]
+            for ext in (".sh", ".ps1"):
+                if stem.endswith(ext):
+                    stem = stem[:-len(ext)]
+            prior = PRIOR_SHIPPED_HOOK_TIMEOUTS.get(stem, ())
+            if ("timeout" in fields and h.get("timeout") in prior
+                    and fields["timeout"] > h["timeout"]):
+                h["timeout"] = fields["timeout"]
 
     groups_added = 0
     commands_added = 0
@@ -1868,6 +1966,11 @@ RETIRED_PROJECT_AUTOMODE = {
     "hard_deny": ["Running executable files", "Writing to system directories"],
 }
 RETIRED_DENY_RULES = ("Write(.env)", "Write(.env.*)")
+# Hook timeouts a prior release shipped, by script stem. A retrofit raises a
+# timeout only when the project still holds one of these exact values, so the
+# microbit enforcer's 5 s (every release before the freeze) becomes today's
+# 10 s while a user's own 7 s stays put.
+PRIOR_SHIPPED_HOOK_TIMEOUTS = {"microbit-enforcer": (5,)}
 
 
 def deep_merge_settings(existing: dict, new: dict):
@@ -3300,7 +3403,8 @@ def main():
 
     # Pre-flight: surface version mismatches, schema drift, heavy hooks,
     # and module prerequisites before writing any files.
-    version_warnings = check_claude_code_version()
+    version_warnings = check_claude_code_version(
+        config["formValues"].get("hook_shell", "bash"))
     if version_warnings:
         print()
         print(bold(yellow("[ VERSION WARNINGS ]")))
