@@ -61,6 +61,10 @@ function Get-ManifestFor {
 }
 
 $report = ''
+# Tracks whether anything actually failed. The report is built either way --
+# passing lines are useful context *alongside* a failure -- but it is only
+# emitted when this flips. See the gate below the loop.
+$anyFail = $false
 
 foreach ($check in $checks) {
     $label = $check.label
@@ -94,6 +98,7 @@ foreach ($check in $checks) {
         $report += "[stop-check] ${label}: OK`n"
     } else {
         $tail = ($output -split "`r?`n" | Select-Object -Last 30) -join "`n"
+        $anyFail = $true
         $report += "[stop-check] ${label}: FAIL (exit ${status})`n${tail}`n---`n"
     }
 }
@@ -101,7 +106,11 @@ foreach ($check in $checks) {
 # Emit decision JSON so Claude sees the report on the next turn. Built with
 # ConvertTo-Json so command output containing quotes or backslashes can't
 # produce malformed JSON.
-if (-not [string]::IsNullOrWhiteSpace($report)) {
+#
+# Gated on $anyFail: a fully-passing run emits nothing. Reporting "lint: OK"
+# back on every stop costs context on every turn and tells Claude nothing it
+# can act on. Failures still carry the passing lines with them.
+if ($anyFail -and -not [string]::IsNullOrWhiteSpace($report)) {
     $obj = [ordered]@{
         hookSpecificOutput = [ordered]@{
             hookEventName    = 'Stop'

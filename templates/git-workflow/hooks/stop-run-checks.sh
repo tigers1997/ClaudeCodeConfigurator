@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Stop hook — runs the typecheck / lint / test commands you configured during
-# cc-configure intake. Reports results to Claude via
+# cc-configure intake. Reports FAILURES to Claude via
 # hookSpecificOutput.additionalContext on the next turn; never blocks.
-# (That output shape is officially supported as of Claude Code 2.1.163 —
-# feedback that keeps the turn going without being labeled a hook error.)
+# (That output shape is officially supported as of Claude Code 2.1.163.)
+#
+# An all-clear run emits nothing at all — see the ANY_FAIL gate at the bottom.
+# "Everything passed" is not actionable, and a Stop hook that says it on every
+# single stop pays context for no signal. Only a failure has something to say.
 #
 # Skipping rules (silent, not reported):
 #   1. Empty command — you blanked the field in the form (e.g., "I don't have
@@ -91,6 +94,10 @@ compose() {
 CC="$(compose)" || CC=""
 
 REPORT=""
+# Tracks whether anything actually failed. The report is built either way —
+# passing lines are useful context *alongside* a failure — but it is only
+# emitted when this flips. See the gate below the loop.
+ANY_FAIL=0
 for entry in "${CHECKS[@]}"; do
   label="${entry%%|*}"
   rest="${entry#*|}"
@@ -139,6 +146,7 @@ for entry in "${CHECKS[@]}"; do
   if [ $status -eq 0 ]; then
     REPORT="${REPORT}[stop-check] ${label}: OK"$'\n'
   else
+    ANY_FAIL=1
     tail=$(printf '%s' "$out" | tail -n 30)
     REPORT="${REPORT}[stop-check] ${label}: FAIL (exit ${status})"$'\n'"${tail}"$'\n---\n'
   fi
@@ -150,7 +158,12 @@ done
 # missing: the checks ran, the hook exited 0, and Claude never learned that
 # anything failed. Fall back to python3 (already required by the ui module),
 # then to stderr — never silently.
-if [ -n "$REPORT" ]; then
+#
+# Gated on ANY_FAIL: a fully-passing run emits nothing. Reporting "lint: OK"
+# back on every stop costs context on every turn and tells Claude nothing it
+# can act on. Failures still carry the passing lines with them, so a real
+# report keeps its full context.
+if [ -n "$REPORT" ] && [ "$ANY_FAIL" -eq 1 ]; then
   if command -v jq >/dev/null 2>&1; then
     jq -n --arg ctx "$REPORT" '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":$ctx}}'
   elif command -v python3 >/dev/null 2>&1; then
