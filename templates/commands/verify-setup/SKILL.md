@@ -147,6 +147,29 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - **Only `review-branch/`:** `[ ✓ ] Skills: no superseded /review shadow.`
 - Neither, or only `review/` (project predates the rename and hasn't been re-scaffolded) → `[ - ]` skipped.
 
+### 14. Starting mode pinned
+
+- Read `.claude/settings.json` → `permissions.defaultMode`.
+- Since Claude Code 2.1.283/2.1.284 a session with no configured mode starts in auto mode, which routes edits through `sed` and heredocs — the scaffold's Write/Edit hooks (secret scan, formatter, slop scan, microbit enforcer) never see those edits. The safety module's discipline profile writes `"default"` here.
+- `default`, `acceptEdits` or `plan` → `[ ✓ ] Starting mode: <value> (pinned in .claude/settings.json)`.
+- `auto` or `bypassPermissions` → `[ ✗ ] Starting mode: <value> is ignored from project and local settings (since 2.1.257) — sessions start in Claude Code's built-in default instead; set it in ~/.claude/settings.json or use default / acceptEdits / plan here.`
+- Absent → `[ ⚠ ] Starting mode: none pinned — sessions start in auto mode on Claude Code ≥ 2.1.284; re-run cc-configure (safety.discipline) or add permissions.defaultMode: "default".`
+- Always append one line when the value is pinned: VS Code sessions do not read a project's starting mode; they use `claudeCode.initialPermissionMode` (VS Code user settings) or `~/.claude/settings.json`.
+
+### 15. Discipline env vars
+
+- Skip (`[ - ]`) unless the safety module is installed (`.claude/hooks/block-dangerous-bash.sh` exists) and `.claude-config.json` does not set `module_flags.safety.discipline` to `false`.
+- Read `.claude/settings.json` → `env`. Expect `CLAUDE_CODE_FORK_SUBAGENT` = `"0"` (fork mode off, so Claude can wait for `code-reviewer` inside the turn) and `CLAUDE_CODE_ENABLE_TODO_TOOLS` = `"1"` (task-tracking tools back on the 5-generation models).
+- Both present → `[ ✓ ] Discipline env: fork mode off, task tools on`.
+- Either missing → `[ ⚠ ] Discipline env: <name> missing from settings.env → re-run cc-configure, or add it by hand`. Project-scope `env` has been losing keys in 2026 (`TMPDIR`, `OTEL_*`, `CLAUDE_CODE_DISABLE_ATTACHMENTS`); if Claude Code's env-vars reference now says either of these is user/managed-only, say so and point at `~/.claude/settings.json`.
+
+### 16. Account skill sync
+
+- Since Claude Code 2.1.275, the skills and plugins enabled on the claude.ai account sync into terminal sessions signed in with it (`~/.claude/skills/synced/`). They share the per-turn skill listing, capped at 1% of the context window, and when it overflows Claude Code drops descriptions — the text project skills trigger on.
+- `ls ~/.claude/skills/synced/` empty or absent → `[ ✓ ] Account skill sync: no account skills in the listing`.
+- Non-empty, and `syncClaudeAiSkills: false` is set in `~/.claude/settings.json` or `.claude/settings.local.json` → `[ ✓ ] Account skill sync: off (N synced copies will be trashed at next start)`.
+- Non-empty and sync still on → `[ ⚠ ] Account skill sync: N synced skills share the listing with this project's skills → set syncClaudeAiSkills: false (and syncClaudeAiPlugins: false) in ~/.claude/settings.json or .claude/settings.local.json`. Both keys are honored from user, local or managed scope only — never suggest the committed `.claude/settings.json`.
+
 ## Output format
 
 ```
@@ -166,6 +189,9 @@ PROJECT /absolute/path/here
 [ - ] Nested .git/: none found
 [ ⚠ ] Scaffold committed: .claude/settings.json untracked → `git add .claude/ && git commit`
 [ - ] Discipline skills: module not installed
+[ ✓ ] Starting mode: default (pinned in .claude/settings.json)
+[ ✓ ] Discipline env: fork mode off, task tools on
+[ ⚠ ] Account skill sync: 31 synced skills share the listing with this project's skills → set syncClaudeAiSkills: false in ~/.claude/settings.json
 
 Suggested next actions:
 1. Extract frontend-specific rules from CLAUDE.md (lines 45–78) into .claude/rules/frontend.md with paths: "src/frontend/**"

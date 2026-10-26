@@ -42,7 +42,8 @@
       "Edit(.env)",
       "Edit(.env.*)"
     ],
-    "disableBypassPermissionsMode": "disable"
+    "disableBypassPermissionsMode": "disable",
+    "defaultMode": "default"
   },
   "hooks": {
     "PreToolUse": [
@@ -149,6 +150,8 @@
     ]
   },
   "env": {
+    "CLAUDE_CODE_FORK_SUBAGENT": "0",
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
     "SLOP_SCAN_ACTION": "warn",
     "CLAUDE_BASH_MAX_LINES": "80"
   },

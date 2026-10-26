@@ -38,6 +38,23 @@ MODULES = [
                 "description": "Block all CC updates (autoupdate + manual). Sets DISABLE_UPDATES=1.",
                 "extraSettingsPatch": "safety/settings-patch.lockdown.json",
             },
+            "discipline": {
+                "default": True,
+                "description": "Pin the session shape Claude Code had before auto mode became the starting mode (built in since CC 2.1.283/2.1.284): permissions.defaultMode=default (Manual — file edits stay auto-approved by the allow list, every other shell command prompts, and Claude edits with the Edit/Write tools instead of the sed/heredoc editing auto mode instructs, so the Write|Edit hooks fire), CLAUDE_CODE_FORK_SUBAGENT=0 (fork mode off, so Claude can wait for code-reviewer inside the turn) and CLAUDE_CODE_ENABLE_TODO_TOOLS=1 (task-tracking tools back on the 5-generation models). Terminal sessions honor these from the project file; VS Code reads claudeCode.initialPermissionMode instead. false keeps Claude Code's own defaults.",
+                "extraSettingsPatch": {True: "safety/settings-patch.discipline.json"},
+            },
+            "discipline_mode": {
+                "default": "default",
+                "options": ["default", "acceptEdits", "inspect"],
+                "requires": "discipline",
+                "description": "default = Manual. acceptEdits = also auto-approve in-scope mkdir/touch/rm/mv/cp/sed — note a `sed -i` edit then runs silently and bypasses the Write|Edit hooks. inspect = Manual with the whole-tool Write and Edit allow rules removed, so every edit prompts with its diff (the CLAUDE.md 'core logic, every edit inspected' posture); fresh scaffolds only, since a retrofit never removes a user's existing allow entries.",
+            },
+            "discipline_strict": {
+                "default": False,
+                "requires": "discipline",
+                "description": "Also write disableAutoMode='disable': removes auto mode from the Shift+Tab cycle and the 'Yes, and switch to auto mode' prompt option for everyone who clones the repo (the key has no enabling value, so a local settings file cannot undo it). Off by default because it binds teammates.",
+                "extraSettingsPatch": {True: "safety/settings-patch.discipline-strict.json"},
+            },
             "slop_scan": {
                 "default": False,
                 "description": "Enable slop-scan PostToolUse hook (warn-mode by default). Personas opt in: 4 non-custom personas pre-set this to true; custom (and bare --modules) leaves it false.",
@@ -320,7 +337,8 @@ PERSONAS = {
         "description": "Sensible kit for a single developer learning the ropes. Documentation fields default to bracketed [TODO:] placeholders.",
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "discipline-skills"],
         "module_flags": {
-            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn",
+                       "discipline": True, "discipline_mode": "default", "discipline_strict": False},
             "token-efficiency": {"tier": "basic"},
             "commands": {"subset": "curated"},
         },
@@ -345,7 +363,8 @@ PERSONAS = {
         "description": "Today's de-facto default. Full kit minus team-only modules.",
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui", "discipline-skills"],
         "module_flags": {
-            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn",
+                       "discipline": True, "discipline_mode": "default", "discipline_strict": False},
             "token-efficiency": {"tier": "pro"},
             "commands": {"subset": "rigorous"},
         },
@@ -361,7 +380,8 @@ PERSONAS = {
         "modules": ["core", "safety", "git-workflow", "token-efficiency", "commands", "mcp", "ui",
                     "multi-agent", "github-actions", "discipline-skills"],
         "module_flags": {
-            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn",
+                       "discipline": True, "discipline_mode": "default", "discipline_strict": False},
             "token-efficiency": {"tier": "pro"},
             "commands": {"subset": "rigorous"},
         },
@@ -377,7 +397,8 @@ PERSONAS = {
         "description": "No app-specific modules. Defaults to MIT license.",
         "modules": ["core", "safety", "git-workflow", "commands", "github-actions"],
         "module_flags": {
-            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn"},
+            "safety": {"lockdown": False, "slop_scan": True, "slop_scan_action": "warn",
+                       "discipline": True, "discipline_mode": "default", "discipline_strict": False},
             "commands": {"subset": "full"},
         },
         "form_overrides": {

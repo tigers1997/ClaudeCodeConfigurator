@@ -1,0 +1,12 @@
+{
+  "//": "Applied via safety.flags.discipline (default true). Pins the session shape Claude Code had before auto mode became the starting mode (2.1.283 for the built-in default, 2.1.284 for interactive terminal and VS Code sessions on every plan; paid accounts had it by an account flag since about 2.1.207). Terminal sessions honor permissions.defaultMode from a project file for every value except auto and bypassPermissions (ignored from project/local scope since 2.1.257); VS Code reads claudeCode.initialPermissionMode and the user settings file instead, so VS Code users set it there.",
+  "//2": "defaultMode 'default' (Manual): file edits are still auto-approved by the allow list in the base settings, every other shell command prompts, and — the point — Claude edits with the Edit/Write tools rather than through sed and heredocs as the auto-mode instructions direct it to. The scan-secrets, format-on-write, slop-scan and microbit-enforcer hooks are all keyed to Write|Edit|NotebookEdit, so under auto mode they never see the edits and /rewind has no checkpoint for them. discipline_mode=acceptEdits or inspect adjusts this key at scaffold time (see config_schema.py).",
+  "//3": "CLAUDE_CODE_FORK_SUBAGENT=0: fork mode off. While fork mode is on (terminal default since 2.1.232, every host since 2.1.302) Claude cannot wait for a subagent, so code-reviewer's report and the subagent-driven-development implementer/reviewer results land a turn later. CLAUDE_CODE_ENABLE_TODO_TOOLS=1: the task-tracking tools (TaskCreate/TaskUpdate/TaskList, TodoWrite) are withdrawn on Opus 4.8+, Sonnet 5, Fable 5 and newer since 2.1.233; this brings the visible task list back. Both env vars are honored from project settings as of 2.1.310. Project-scope env has been losing keys over 2026 (TMPDIR, OTEL_*, CLAUDE_CODE_DISABLE_ATTACHMENTS), so /verify-setup check 15 watches these two and docs/05 names the user-scope fallback.",
+  "permissions": {
+    "defaultMode": "default"
+  },
+  "env": {
+    "CLAUDE_CODE_FORK_SUBAGENT": "0",
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "//": "Applied via safety.flags.discipline_strict (default false; requires discipline). disableAutoMode 'disable' is honored from any settings file: it removes auto from the Shift+Tab cycle and the 'Yes, and switch to auto mode' option from Bash permission prompts, so the closed path stays closed for every session in this project. From a committed project file it binds everyone who clones the repo — the key has no enabling value, so .claude/settings.local.json cannot undo it — which is why it is an opt-in rather than part of the base profile.",
+  "disableAutoMode": "disable"
+}
