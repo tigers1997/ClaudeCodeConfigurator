@@ -170,6 +170,14 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - Non-empty, and `syncClaudeAiSkills: false` is set in `~/.claude/settings.json` or `.claude/settings.local.json` → `[ ✓ ] Account skill sync: off (N synced copies will be trashed at next start)`.
 - Non-empty and sync still on → `[ ⚠ ] Account skill sync: N synced skills share the listing with this project's skills → set syncClaudeAiSkills: false (and syncClaudeAiPlugins: false) in ~/.claude/settings.json or .claude/settings.local.json`. Both keys are honored from user, local or managed scope only — never suggest the committed `.claude/settings.json`.
 
+### 17. Machine lock (user scope)
+
+- The project file pins the starting mode and the discipline env vars (checks 14–15). Three locks only a machine-level file can hold: the background updater, auto mode's reach through Shift+Tab, and the auto-mode classifier in plan mode. Read `~/.claude/settings.json` (`%USERPROFILE%\.claude\settings.json` on Windows) and report one line per lock. A managed settings file can carry the same keys; if `claude doctor` already reports auto-updates disabled, say where that comes from instead of warning.
+- `env.DISABLE_AUTOUPDATER` = `"1"` (or `env.DISABLE_UPDATES` = `"1"`) → `[ ✓ ] Auto-updates: off (DISABLE_AUTOUPDATER in ~/.claude/settings.json)`. Otherwise → `[ ⚠ ] Auto-updates: on — a native install replaces Claude Code in the background, off the version the scaffold is designed for; add env.DISABLE_AUTOUPDATER: "1" to ~/.claude/settings.json and confirm with claude doctor`. The old `autoUpdates` key in `~/.claude.json` does not count: it is gone from the settings reference and does not stop a native install.
+- `disableAutoMode` = `"disable"` (top level or under `permissions`) → `[ ✓ ] Auto mode: removed from the Shift+Tab cycle`. Otherwise → `[ ⚠ ] Auto mode: one Shift+Tab away — set disableAutoMode: "disable" in ~/.claude/settings.json (or discipline_strict in the project)`.
+- `useAutoModeDuringPlan` = `false` → `[ ✓ ] Plan mode: prompts for shell commands`. Otherwise → `[ ⚠ ] Plan mode: the auto-mode classifier approves shell commands silently — set useAutoModeDuringPlan: false in ~/.claude/settings.json or .claude/settings.local.json`. Never suggest the committed `.claude/settings.json` for this key; it is honored from user, local or managed scope only.
+- File absent → the three ⚠ lines, each starting `no ~/.claude/settings.json —`. The full setup, including the VS Code extension and the optional managed-settings ceiling, is docs/11 § Once per machine.
+
 ## Output format
 
 ```
@@ -192,6 +200,9 @@ PROJECT /absolute/path/here
 [ ✓ ] Starting mode: default (pinned in .claude/settings.json)
 [ ✓ ] Discipline env: fork mode off, task tools on
 [ ⚠ ] Account skill sync: 31 synced skills share the listing with this project's skills → set syncClaudeAiSkills: false in ~/.claude/settings.json
+[ ✓ ] Auto-updates: off (DISABLE_AUTOUPDATER in ~/.claude/settings.json)
+[ ⚠ ] Auto mode: one Shift+Tab away — set disableAutoMode: "disable" in ~/.claude/settings.json
+[ ✓ ] Plan mode: prompts for shell commands
 
 Suggested next actions:
 1. Extract frontend-specific rules from CLAUDE.md (lines 45–78) into .claude/rules/frontend.md with paths: "src/frontend/**"
@@ -199,6 +210,7 @@ Suggested next actions:
 3. Edit CLAUDE.md line 11 to replace [TODO:] with the real repo URL.
 4. Restore the Claude Code .gitignore block (rerun cc-configure --retrofit, or append templates/core/.gitignore.append).
 5. Stage and commit the configurator scaffold so collaborators see it.
+6. Add disableAutoMode: "disable" to ~/.claude/settings.json (docs/11 § Once per machine).
 ```
 
 Each row: `[ ✓ | ⚠ | ✗ ]`, the check name, the finding in one line.
