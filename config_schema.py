@@ -741,9 +741,15 @@ CLAUDE_CODE_COMPAT = {
                                 # published schema (last merged sync 2.1.220,
                                 # PR #6131; sync PR #6511 open since 2026-10-16)
                                 # is a validation gate for keys the configurator
-                                # writes ACTIVELY (all of them pass it), no
-                                # longer the gate that moves tested_up_to; keys
-                                # newer than the schema ship as comment stubs
+                                # writes ACTIVELY, no longer the gate that moves
+                                # tested_up_to. One deliberate exception: hook
+                                # `onFailure` (2.1.295) is written to the guards
+                                # although the schema's hook-command object
+                                # (additionalProperties: false) does not list
+                                # it, so an editor validating settings.json
+                                # against $schema flags it until SchemaStore
+                                # syncs; the hooks reference is the authority.
+                                # Every other newer key ships as a comment stub
                                 # citing the docs page. What replaces the
                                 # survey: --check asserts the wired hook events
                                 # are in KNOWN_HOOK_EVENTS and no shipped skill
