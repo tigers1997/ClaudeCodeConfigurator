@@ -104,7 +104,7 @@ The cc-configure scaffold makes assumptions about what to track vs. ignore. Hono
 
 These are *how the human should drive*, not rules Claude enforces. Distilled from teams that use Claude Code in production.
 
-- **Task classification.** Decide up-front: is this peripheral/prototyping work (auto-accept edits, let Claude run) or core logic (synchronous review, every edit inspected)? Don't let the mode drift mid-session.
+- **Task classification.** Decide up-front: is this peripheral/prototyping work (accept edits, let Claude run) or core logic (synchronous review, every edit inspected)? `.claude/settings.json` pins the starting mode (`permissions.defaultMode`, Manual by default) so a session never *starts* in auto mode; switch per session with Shift+Tab (Manual → Accept edits → Plan) and don't let the mode drift mid-session. Auto mode routes edits through `sed` and heredocs, which the scaffold's Write/Edit hooks never see.
 - **Slot-machine style for long runs.** Commit your state, let Claude run autonomously for ~30 minutes, then either accept the result or `git reset --hard` and start fresh. Wrestling a bad run to success almost always loses to a clean restart.
 - **Commit as you go.** Ask Claude to commit incrementally during work, not at the end. Smaller commits = cheaper rewinds and less context bloat from a giant pending diff.
 - **Self-sufficient loops.** Wire `test`/`lint`/`typecheck` into a `Stop` or `PostToolUse` hook so Claude runs them automatically and catches its own mistakes — no need for you to referee every turn.

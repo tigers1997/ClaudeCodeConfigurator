@@ -41,11 +41,20 @@ w = check_settings_validates(bad7)
 assert any("Write(.env)" in msg and "Glob(src/**)" in msg for msg in w), f"expected path-rule warning, got: {w}"
 assert not any("Edit(.env)" in msg for msg in w), f"Edit() rule must not be flagged: {w}"
 
+# Case 8: permissions.defaultMode values Claude Code ignores from project scope
+for mode in ("auto", "bypassPermissions"):
+    bad8 = {"permissions": {"defaultMode": mode, "allow": ["Read"]}}
+    w = check_settings_validates(bad8)
+    assert any("defaultMode" in msg and mode in msg for msg in w), f"expected defaultMode-scope warning for {mode}, got: {w}"
+for mode in ("default", "acceptEdits", "plan"):
+    ok8 = {"permissions": {"defaultMode": mode, "allow": ["Read"]}}
+    assert check_settings_validates(ok8) == [], f"{mode} must not be flagged"
+
 # Case 5: clean settings — no warnings
 clean = {"$schema": "x", "skillOverrides": {"my-skill": "name-only"}, "env": {"FOO": "bar"},
-         "permissions": {"deny": ["Edit(.env)", "Read(secrets/**)", "Write"]}}
+         "permissions": {"deny": ["Edit(.env)", "Read(secrets/**)", "Write"], "defaultMode": "default"}}
 w = check_settings_validates(clean)
 assert w == [], f"expected clean output, got: {w}"
 
-print("PASS: check_settings_validates catches all 6 violation classes + clean case")
+print("PASS: check_settings_validates catches all 7 violation classes + clean case")
 EOF

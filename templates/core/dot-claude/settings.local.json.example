@@ -18,6 +18,14 @@
 
   "//autoMode-notes": "NOT an opt-in here: the auto-mode classifier does not read `autoMode` (hard_deny / soft_deny / allow / environment / classifyAllShell) from this file or from .claude/settings.json — both live in the repo, so a checked-in file could inject allow rules (CC 2.1.207+; code.claude.com/docs/en/auto-mode-config). Put autoMode in ~/.claude/settings.json instead; docs/05-safety-permissions.md has the copy-paste block that earlier configurator releases shipped here.",
 
+  "//discipline-notes": "The committed .claude/settings.json pins the session shape when safety.discipline is on (permissions.defaultMode, CLAUDE_CODE_FORK_SUBAGENT=0, CLAUDE_CODE_ENABLE_TODO_TOOLS=1 — docs/05). Four companions are honored only from THIS file (local scope) or ~/.claude/settings.json, never from the committed project file, so they are stubs here. syncClaudeAiSkills / syncClaudeAiPlugins false: since CC 2.1.275 the skills and plugins enabled on your claude.ai account sync into terminal sessions and share the per-turn skill listing (capped at 1% of the context window), so project skill descriptions get dropped. useAutoModeDuringPlan false: with auto mode available, shell commands in plan mode are classifier-reviewed silently unless this is false. idleCompaction false (CC 2.1.290+, on by default in the terminal since 2.1.299): a 200K+ conversation left idle about 54 minutes is compacted. Only useAutoModeDuringPlan is in the SchemaStore schema yet (sync at 2.1.220); the other three are documented at code.claude.com/docs/en/settings-reference. Update pinning, same scopes: autoUpdatesChannel 'stable' lags latest by about a week and skips releases with major regressions; minimumVersion stops a channel switch from downgrading; DISABLE_AUTOUPDATER=1 in the env block above stops background updates entirely (manual `claude update` still works; the safety module's lockdown flag sets DISABLE_UPDATES, which blocks that too).",
+  "// syncClaudeAiSkills": false,
+  "// syncClaudeAiPlugins": false,
+  "// useAutoModeDuringPlan": false,
+  "// idleCompaction": false,
+  "// autoUpdatesChannel": "stable",
+  "// minimumVersion": "2.1.310",
+
   "// sandbox": {
     "//1": "sandbox.network.deniedDomains (CC 2.1.113+) — data-exfiltration-resistant baseline. Takes effect only when the sandbox is otherwise active for the command. Supports wildcards (*.example.com).",
     "//2": "sandbox.failIfUnavailable (CC 2.1.143+) — when true, sandbox startup is a hard failure if dependencies are missing (no fall-back to non-sandboxed execution). Fail-closed posture for safety-sensitive projects.",

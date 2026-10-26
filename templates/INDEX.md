@@ -34,6 +34,9 @@ PreToolUse hooks (block dangerous bash: rm -rf, sudo, curl | sh, force push, har
 
 - `safety/settings-patch.json` merges into `.claude/settings.json`
 - flag `lockdown`
+- flag `discipline`
+- flag `discipline_mode` (default | acceptEdits | inspect, default `default`)
+- flag `discipline_strict`
 - flag `slop_scan`
 - flag `slop_scan_action` (warn | block, default `warn`)
 - flag `slop_scan_density`

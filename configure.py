@@ -562,6 +562,13 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
         # Apply per-module flag-gated extra patches.
         for flag_name, flag_def in m.get("flags", {}).items():
             selected_value = module_flags.get(m["id"], {}).get(flag_name, flag_def["default"])
+            # A flag that `requires` a sibling flag is inert while that sibling
+            # is off (discipline_mode / discipline_strict ride on discipline).
+            req = flag_def.get("requires")
+            if req:
+                req_def = m.get("flags", {}).get(req, {})
+                if not module_flags.get(m["id"], {}).get(req, req_def.get("default")):
+                    continue
             if selected_value:
                 extra = flag_def.get("extraSettingsPatch")
                 if isinstance(extra, dict):
@@ -599,6 +606,23 @@ def compute_merged_settings(form_values: dict, selected: set, module_flags: dict
             settings.get("env", {}).pop("CLAUDE_BASH_MAX_LINES", None)
         else:
             settings.setdefault("env", {})["CLAUDE_BASH_MAX_LINES"] = str(cap)
+
+    # Discipline profile (safety.discipline): the base patch pins
+    # permissions.defaultMode "default" plus the two env vars; discipline_mode
+    # refines the mode. `inspect` is Manual with the whole-tool Write/Edit
+    # allow rules removed, so every edit prompts with its diff — a list
+    # subtraction no JSON patch can express, hence this pass.
+    if "safety" in selected:
+        sdefs = next(m for m in MODULES if m["id"] == "safety")["flags"]
+        sflags = module_flags.get("safety", {})
+        if sflags.get("discipline", sdefs["discipline"]["default"]):
+            mode = sflags.get("discipline_mode", sdefs["discipline_mode"]["default"])
+            perms = settings.setdefault("permissions", {})
+            if mode == "acceptEdits":
+                perms["defaultMode"] = "acceptEdits"
+            elif mode == "inspect":
+                perms["defaultMode"] = "default"
+                perms["allow"] = [r for r in perms.get("allow", []) if r not in ("Write", "Edit")]
 
     # Final pass: strip any `//`-prefixed keys at any nesting depth. Catches
     # nested doc labels / stubs that escape the shallow per-merge filters.
@@ -942,6 +966,11 @@ def run_check() -> int:
                     if p not in (m.get("paths") or []):
                         err(f"MODULES[{mid}].flags[{flag_name}]",
                             f"filterPaths[{value}] references path not in m[paths]: {p}")
+            # requires must name a sibling flag of the same module.
+            req = flag_def.get("requires")
+            if req and req not in (m.get("flags") or {}):
+                err(f"MODULES[{mid}].flags[{flag_name}]",
+                    f"requires references unknown sibling flag: {req}")
 
     # --- 2. PERSONAS registry integrity ---
     mod_ids = {m["id"] for m in MODULES}
@@ -1232,6 +1261,10 @@ def check_settings_validates(settings: dict) -> list:
       5. `Write(path)` / `NotebookEdit(path)` / `Glob(path)` / `MultiEdit(path)`
          permission rules — never consulted; CC >= 2.1.210 warns at startup.
          Only Edit(path) and Read(path) rules govern file access (v2.8.0).
+      6. `permissions.defaultMode` set to `auto` or `bypassPermissions` —
+         both are ignored from project and local settings (bypassPermissions
+         since CC 2.1.257, auto since the mode shipped), so the session
+         silently starts in Claude Code's built-in default instead.
     """
     warnings = []
     valid_overrides = {"on", "name-only", "user-invocable-only", "off"}
@@ -1290,6 +1323,18 @@ def check_settings_validates(settings: dict) -> list:
             + (f" (+{len(stale) - 4} more)" if len(stale) > 4 else "")
             + ". Only Edit(path) and Read(path) govern file access — rewrite them "
             "(Edit covers Write/NotebookEdit; Read covers Glob/Grep)."
+        )
+
+    perms = settings.get("permissions")
+    mode = perms.get("defaultMode") if isinstance(perms, dict) else None
+    if mode in ("auto", "bypassPermissions"):
+        warnings.append(
+            f"settings.json sets permissions.defaultMode to {mode!r}, which Claude "
+            "Code ignores from project and local settings (bypassPermissions since "
+            "2.1.257, auto since the mode shipped) — sessions silently start in the "
+            "built-in default instead. Set it in ~/.claude/settings.json, or use "
+            "default / acceptEdits / plan here (the safety module's discipline "
+            "profile writes default)."
         )
     return warnings
 
@@ -1835,6 +1880,9 @@ def deep_merge_settings(existing: dict, new: dict):
         existing entries first, new entries appended without duplicates.
       - permissions.disableBypassPermissionsMode: ours wins (security default
         the user opted into by selecting safety).
+      - permissions.defaultMode: existing wins; added only when the project
+        has none (the discipline profile's starting mode is a default, and a
+        mode the user picked is a decision a re-run must not flip).
       - hooks: per-event groups merged via _merge_hook_groups — keyed by
         `matcher`, unioning inner hooks by `command`. Critical for retrofits:
         a naive append re-adds the configurator's own hook set every run, and
@@ -1881,6 +1929,15 @@ def deep_merge_settings(existing: dict, new: dict):
                 out_perms[key] = merged
         if "disableBypassPermissionsMode" in new_perms:
             out_perms["disableBypassPermissionsMode"] = new_perms["disableBypassPermissionsMode"]
+        # Starting mode (the discipline profile): existing wins. A mode the
+        # user chose is a deliberate per-project decision, and a re-run must
+        # never flip it; the key is only added when the project has none.
+        if "defaultMode" in new_perms:
+            if "defaultMode" in out_perms:
+                counts["mode"] = f"kept your starting mode ({out_perms['defaultMode']})"
+            else:
+                out_perms["defaultMode"] = new_perms["defaultMode"]
+                counts["mode"] = f"added starting mode ({new_perms['defaultMode']})"
         out["permissions"] = out_perms
 
     if "hooks" in new:
@@ -1916,6 +1973,8 @@ def deep_merge_settings(existing: dict, new: dict):
     if counts["retired"]:
         msg += (f"; removed {counts['retired']} retired configurator default(s) "
                 "(project-scope autoMode / Write(.env*) deny rules)")
+    if counts.get("mode"):
+        msg += "; " + counts["mode"]
     return out, msg
 
 

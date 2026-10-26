@@ -18,10 +18,10 @@ Every session runs in a permission mode. The major ones:
 
 | Mode | Behavior | Use when |
 |---|---|---|
-| `default` | Ask per tool call except allowlisted | Day-to-day |
+| `default` (Manual) | Ask per tool call except allowlisted. The starting mode the safety module's discipline profile pins | Day-to-day |
 | `plan` | Read-only. No edits, no bash side-effects | Early exploration |
-| `acceptEdits` | Auto-approve Write/Edit; still ask for shell | You trust the plan |
-| `auto` | Heuristic auto-approve using a classifier | Fast iteration on well-scoped tasks |
+| `acceptEdits` | Auto-approve Write/Edit plus in-scope `mkdir`/`touch`/`rm`/`mv`/`cp`/`sed`; still ask for other shell | You trust the plan |
+| `auto` | A classifier reviews actions instead of prompting. Claude Code's own starting mode since 2.1.283/2.1.284; it also routes edits through Bash, so the scaffold's Write/Edit hooks don't fire (see below) | Throwaway work, switched on per session |
 | `dontAsk` | Approve everything silently. ⚠️ | Never, unless in a sandbox |
 | `bypassPermissions` | Full trust. ⚠️⚠️ | Never on a machine you care about |
 
@@ -54,9 +54,37 @@ Rules of thumb:
 
 The starter settings in `templates/core/dot-claude/settings.json` are a balanced baseline.
 
+### Starting mode, the classifier, and the discipline profile
+
+Since Claude Code 2.1.283 (the built-in default) and 2.1.284 (interactive terminal and VS Code sessions on every plan and provider), a session with no configured mode starts in **auto mode**: a classifier reviews actions instead of prompting. Paid accounts had it earlier by an account flag. Three things change for a scaffolded project in auto mode:
+
+- **Edits route around the hooks.** While auto mode is active, Claude Code instructs Claude to read with `cat` / `sed -n` and to change files with `sed`, heredocs or short scripts, using Read/Edit/Write only when Bash cannot do the job. `scan-secrets`, `format-on-write`, `slop-scan` and `microbit-enforcer` match only `Write|Edit|NotebookEdit`, so they never see those edits, and `/rewind` has no checkpoint for a `sed -i`.
+- **Broad allow rules are dropped on entry**: blanket `Bash(*)`, wildcarded interpreters, package-manager run commands, `Agent` and `Monitor` allow rules. Narrow rules stay. Deny rules apply in every mode, including bypass.
+- **Denials are coached around.** The message Claude receives asks it to try a safer method and finish unrelated work before stopping to ask (2.1.268), and the dangerous-`rm` prompt auto-denies after two minutes so unattended sessions keep going (2.1.281).
+
+The safety module's **discipline profile** (`safety.discipline`, on by default for every persona) pins the pre-auto-mode session shape in the committed `.claude/settings.json`:
+
+```json
+{
+  "permissions": { "defaultMode": "default" },
+  "env": {
+    "CLAUDE_CODE_FORK_SUBAGENT": "0",
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
+  }
+}
+```
+
+- `defaultMode: "default"` (Manual). Terminal sessions honor every value from a project file except `auto` and `bypassPermissions`, which are ignored from project and local scope since 2.1.257 (`[ SETTINGS WARNINGS ]` flags them). File edits are still auto-approved by the allow list; every other shell command prompts; Claude uses the Edit/Write tools, so the hooks fire. **VS Code never reads a project's starting mode** — set `claudeCode.initialPermissionMode` in VS Code user settings, or `permissions.defaultMode` in `~/.claude/settings.json`.
+- `CLAUDE_CODE_FORK_SUBAGENT=0`. While fork mode is on (terminal default since 2.1.232, every host since 2.1.302) Claude cannot wait for a subagent, so `code-reviewer` reports a turn late. Off, the report returns inside the turn.
+- `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`. Brings the task-tracking tools back on Opus 4.8+, Sonnet 5, Fable 5 and newer, where 2.1.233 withdrew them.
+
+`discipline_mode` picks the mode: `default` (Manual); `acceptEdits` (also auto-approves in-scope `mkdir` / `touch` / `rm` / `mv` / `cp` / `sed` — a `sed -i` edit then runs silently and bypasses the hooks); or `inspect` (Manual with the whole-tool `Write` / `Edit` allow rules removed, so every edit prompts with its diff — the "core logic, every edit inspected" posture from the CLAUDE.md collaboration patterns; fresh scaffolds only, since a retrofit never removes an existing allow entry). `discipline_strict` adds `disableAutoMode: "disable"`, which removes auto from the Shift+Tab cycle and the "Yes, and switch to auto mode" prompt option for everyone who clones the repo; off by default because a local settings file cannot undo it. A re-run never flips a mode you chose: the retrofit merge keeps an existing `defaultMode` and reports "kept your starting mode".
+
+Shift+Tab still switches modes per session (Manual → Accept edits → Plan → Auto when available). Four companions live outside the committed file, in `~/.claude/settings.json` or `.claude/settings.local.json` (the example file ships the stubs): `useAutoModeDuringPlan: false` (otherwise, with auto mode available, shell commands in plan mode are classifier-reviewed silently; honored from user, local or managed scope only, never from the committed project file), `syncClaudeAiSkills: false` and `syncClaudeAiPlugins: false` (2.1.275+ syncs the account's skills and plugins into terminal sessions, where they crowd the per-turn skill listing and get project skill descriptions dropped), and `idleCompaction: false`.
+
 ### Auto-mode rules live in user scope
 
-Auto mode (the classifier that reviews actions instead of prompting; the starting mode on Pro/Max/Team since CC 2.1.207) reads its `autoMode` customizations only from `~/.claude/settings.json` or managed settings. It deliberately ignores `.claude/settings.json` and `.claude/settings.local.json` — both live in the repo, so a checked-in file could inject its own allow rules (`code.claude.com/docs/en/auto-mode-config`). Configurator releases before v2.8.0 shipped an `autoMode.hard_deny` block in project settings; that block has been dead since 2.1.207, so the safety module no longer writes it, a retrofit removes the exact shipped block, and `[ SETTINGS WARNINGS ]` flags any other project-scope `autoMode`. To keep the old defaults, add them to `~/.claude/settings.json`:
+Auto mode reads its `autoMode` customizations only from `~/.claude/settings.json` or managed settings. It deliberately ignores `.claude/settings.json` and `.claude/settings.local.json` — both live in the repo, so a checked-in file could inject its own allow rules (`code.claude.com/docs/en/auto-mode-config`). Configurator releases before v2.8.0 shipped an `autoMode.hard_deny` block in project settings; that block has been dead since 2.1.207, so the safety module no longer writes it, a retrofit removes the exact shipped block, and `[ SETTINGS WARNINGS ]` flags any other project-scope `autoMode`. To keep the old defaults, add them to `~/.claude/settings.json`:
 
 ```json
 {
@@ -66,7 +94,7 @@ Auto mode (the classifier that reviews actions instead of prompting; the startin
 }
 ```
 
-`"$defaults"` keeps the built-in rules; `soft_deny`, `allow` and `environment` follow the same shape. Two related keys *are* honored from project settings: `useAutoModeDuringPlan: false` (prompt instead of classify during plan mode) and `disableAutoMode: "disable"` (remove auto mode from the Shift+Tab cycle).
+`"$defaults"` keeps the built-in rules; `soft_deny`, `allow` and `environment` follow the same shape. Two related keys have wider scope: `disableAutoMode: "disable"` is honored from any file (the discipline profile's `strict` option writes it), and `useAutoModeDuringPlan: false` from user, local or managed scope — not from the committed project file.
 
 ## Layer 2: Hooks
 

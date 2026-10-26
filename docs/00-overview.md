@@ -47,7 +47,7 @@ Which modules operationalize which docs:
 | Module | Operationalizes |
 |---|---|
 | `core` | Doc 01 (CLAUDE.md from your form answers, "Working with Claude" collaboration section) |
-| `safety` | Doc 05 (PreToolUse hooks, `disableBypassPermissionsMode`) |
+| `safety` | Doc 05 (PreToolUse hooks, `disableBypassPermissionsMode`, the discipline profile that pins Manual as the starting mode) |
 | `git-workflow` | Doc 02 (format-on-write, Stop-hook checks) |
 | `token-efficiency` + `token-efficiency-pro` | Doc 06 (path-scoped rules, bash-output caps, PreCompact snapshots) |
 | `commands-core` | Doc 03 (eight skills: plan, review, commit, ship, sync-docs, check-context, session-retro, verify-setup) |
