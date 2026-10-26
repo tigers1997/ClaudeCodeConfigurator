@@ -54,7 +54,8 @@
             "type": "command",
             "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous-bash.sh",
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           },
           {
             "type": "command",
@@ -71,7 +72,8 @@
             "type": "command",
             "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-secrets.sh",
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       },
@@ -82,7 +84,8 @@
             "type": "command",
             "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/microbit-enforcer.sh",
-            "timeout": 5
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       }

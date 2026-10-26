@@ -12,3 +12,4 @@ claude-ctx text eol=lf
 # from Windows (core.filemode=false drops it), run once after the first add:
 #   git update-index --chmod=+x claude-ctx
 # and the same for any .claude/skills/**/scripts/* files.
+.claude/workflows/*.js text eol=lf

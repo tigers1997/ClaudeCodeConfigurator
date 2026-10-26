@@ -89,7 +89,8 @@ Claude Code fires 31 documented events (`code.claude.com/docs/en/hooks`). The on
 
 - `0` = success. Stdout may or may not inject context (depends on event).
 - `2` = **block**. Stderr is shown to Claude as an error. Stops the action.
-- Any other non-zero = non-blocking error. Transcript shows the error; execution continues.
+- Any other non-zero = non-blocking error. Transcript shows the error; execution continues. A policy hook must `exit 2` — the hooks reference says so in bold, and the microbit enforcer exited 1 until the fix of 2026-10, so `/freeze` and `/guard` were advisory for every release before it.
+- `onFailure: "block"` (CC 2.1.295+) turns the third case into a block for that hook: a hook that cannot start (missing script or interpreter), times out, exits with a code other than 0 or 2, or prints JSON that fails validation refuses the action. The shipped `PreToolUse` guards — `block-dangerous-bash`, `scan-secrets`, `microbit-enforcer` — carry it; the package-availability gate and the `PostToolUse` formatters stay fail-open on purpose, and the field has no effect on `Stop`. On Windows without Git Bash, 2.1.299+ already treats any exit other than 0 or 2 from a `PreToolUse` hook as a block, `onFailure` or not.
 
 **Exception**: on `WorktreeCreate`, any non-zero aborts.
 
@@ -156,13 +157,14 @@ The `$CLAUDE_PROJECT_DIR` env var is always set to the project root — use it i
 
 ### Defaults and caps
 
-- Default timeouts: 600s command, 30s prompt, 60s agent.
+- Default timeouts: 600s command, 30s prompt, 60s agent. Shipped: 10 s on the three `PreToolUse` guards (the microbit enforcer was 5 s; under `onFailure: "block"` a timeout is a block, and a cold Git Bash start under antivirus can take longer), 30 s formatter, 120 s Stop hook, 15 s PreCompact. A retrofit raises a timeout that still holds the shipped 5 s and backfills `onFailure`; a timeout you tuned stays.
 - Injected context (additionalContext, systemMessage, stdout) capped at 10,000 chars.
 - Multiple hooks per event run in parallel. Identical commands are deduplicated.
 - `shell`: every shipped command hook declares `"shell": "bash"` (CC 2.1.81+; the key is in the settings schema). Without it, a Windows session with no Git Bash defaults hooks to PowerShell and the `.sh` entrypoint dies on a parser error; with it, Claude Code resolves Git for Windows directly and prompts to install it when missing. To drop the bash dependency entirely, scaffold with `--hook-shell powershell`: the six hooks that ship a `.ps1` sibling install as PowerShell and get `"shell": "powershell"` on their own entries, while the rest stay bash. Two Windows details the generated command handles, both found by running it on a stock box:
 
 - Windows ships execution policy `Restricted`, so naming a `.ps1` directly fails with *"running scripts is disabled on this system"*. The command spawns PowerShell with `-ExecutionPolicy Bypass`, which applies only to that child process — it doesn't change machine policy. Prefer `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once and simplify the command if you'd rather not pay the extra process on `PreToolUse`.
 - A wrapping `powershell -Command` collapses any non-zero child exit to `1`, which would turn a `PreToolUse` **block** (exit 2) into a mere non-blocking error. The command ends with `; exit $LASTEXITCODE` to preserve it.
+- `--hook-shell powershell` needs Claude Code **2.1.309 or later**: before it, a hook run in PowerShell did not block on exit 2 and a `"shell": "powershell"` guard let the call through when Git for Windows was missing, so the safety hooks looked installed and enforced nothing. The preflight prints its own warning on an older build. Since 2.1.299 a hook with no `shell` fails closed without Git Bash.
 
 ### Debugging hooks
 

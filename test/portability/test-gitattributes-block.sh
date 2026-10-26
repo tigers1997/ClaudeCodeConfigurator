@@ -16,6 +16,8 @@ ga="$tmp/.gitattributes"
 [ -f "$ga" ] || { echo "FAIL: no .gitattributes written"; exit 1; }
 grep -q '^\*\.sh text eol=lf$' "$ga" || { echo "FAIL: *.sh eol=lf rule missing"; exit 1; }
 grep -q '^claude-ctx text eol=lf$' "$ga" || { echo "FAIL: claude-ctx eol=lf rule missing"; exit 1; }
+grep -q '^\.claude/workflows/\*\.js text eol=lf$' "$ga" \
+    || { echo "FAIL: .claude/workflows/*.js eol=lf rule missing (CC < 2.1.296 refuses a CRLF workflow script)"; exit 1; }
 
 # --- case 2: re-running must not duplicate the block ---
 python3 configure.py --persona solo-experienced --yes --dir "$tmp" >/dev/null
@@ -35,6 +37,8 @@ python3 configure.py --persona solo-experienced --yes --dir "$tmp" >/dev/null
 grep -q '^\*\.png binary$' "$ga" || { echo "FAIL: user's own rule was lost"; exit 1; }
 grep -q '^claude-ctx text eol=lf$' "$ga" \
     || { echo "FAIL: rule missing from a stale block wasn't unioned in"; exit 1; }
+grep -q '^\.claude/workflows/\*\.js text eol=lf$' "$ga" \
+    || { echo "FAIL: the workflows rule wasn't unioned into a pre-freeze block"; exit 1; }
 markers=$(grep -c -- '--- Claude Code ---' "$ga")
 [ "$markers" = "1" ] || { echo "FAIL: stale-block union duplicated the marker ($markers)"; exit 1; }
 dupes=$(grep -c '^\*\.sh text eol=lf$' "$ga")

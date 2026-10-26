@@ -1,5 +1,6 @@
 {
   "//": "Auto-installed alongside the freeze/unfreeze/guard/careful microbits when commands.subset is 'full' or 'rigorous'. PreToolUse rejects Write/Edit/NotebookEdit when a marker is present; SessionStart (matcher startup|clear) clears markers only on a fresh session or /clear — resume, compaction and fork (`source: fork`, CC 2.1.214+) preserve them so a long session keeps its freezes.",
+  "//2": "Fail closed: 'onFailure: \"block\"' (CC 2.1.295+) refuses the edit when the enforcer cannot start, times out, or exits with a code other than 0 or 2 — otherwise a broken enforcer is a non-blocking error and the edit lands. The timeout is 10 s (was 5): a first Git Bash start on a Windows box under antivirus can exceed 5 s, and under onFailure a timeout is a block. Retrofit raises a timeout that still holds the shipped 5 and backfills onFailure; a timeout you tuned yourself stays.",
   "hooks": {
     "PreToolUse": [
       {
@@ -9,7 +10,8 @@
             "type": "command",
             "shell": "bash",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/microbit-enforcer.sh",
-            "timeout": 5
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       }

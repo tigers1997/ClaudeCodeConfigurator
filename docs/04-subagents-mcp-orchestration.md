@@ -215,7 +215,10 @@ clones the repo.
 
 Set `workflowSizeGuideline` (stubbed in `.claude/settings.local.json.example`,
 honored from any settings file) if you want the workflows Claude writes for this
-repo to stay small.
+repo to stay small: `small` is under 5 agents and the default on Pro plans since
+CC 2.1.271, `medium` under 10 (was 15), `large` under 50. The scaffold's
+`.gitattributes` block pins LF on `.claude/workflows/*.js`, because Claude Code
+before 2.1.296 refused a workflow file with CRLF endings outright.
 
 ### When to reach for a workflow instead
 
