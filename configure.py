@@ -514,6 +514,17 @@ def escape_pwsh_sq(s: str) -> str:
 
 # Quoting context of the template being rendered, keyed by file extension.
 # Templates with no entry (Markdown, JSON, …) substitute values verbatim.
+#
+# The escaper is chosen per FILE and applied to EVERY placeholder in it, so it
+# assumes one quoting context for the whole template: a double-quoted bash
+# literal for `.sh` ("lint|{{cmd_lint}}" in stop-run-checks.sh) and a
+# single-quoted PowerShell literal for `.ps1` (command = '{{cmd_lint}}' in
+# stop-run-checks.ps1). Today those three cmd_* placeholders, in those two
+# files, are the only placeholders any shipped shell template carries. A
+# placeholder in any other context — unquoted, inside a single-quoted bash
+# string, a here-doc, a double-quoted PowerShell string — would be mis-escaped
+# silently: a template that needs one needs its own escaper here and a
+# round-trip case in test/stop-run-checks/test-command-quoting.sh.
 SHELL_ESCAPERS = {".sh": escape_bash_dq, ".ps1": escape_pwsh_sq}
 
 
