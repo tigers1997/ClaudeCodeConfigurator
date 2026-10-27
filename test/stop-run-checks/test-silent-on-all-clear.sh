@@ -16,14 +16,22 @@
 # 8-consecutive-continuation cap. Green stays silent whatever the flag says.
 #
 # Both shells share the gates (ANY_FAIL / $anyFail, STOP_HOOK_ACTIVE /
-# $stopHookActive) and are asserted the same way. PowerShell probes skip
-# cleanly when no PowerShell is on PATH.
+# $stopHookActive) and are asserted the same way. The .ps1 behaviour probes
+# run only on Windows: that hook executes each check through `cmd.exe /c`
+# (it exists for Windows machines without Git Bash), so under pwsh on a
+# Linux or macOS runner every check "fails" with "cmd.exe is not recognized"
+# and the all-clear probe would see a report. They skip cleanly elsewhere and
+# when no PowerShell is on PATH. CI's windows-latest job runs only
+# test/portability, so a Windows checkout is where these probes actually run.
 set -euo pipefail
 
 PS=""
-for candidate in pwsh powershell.exe powershell; do
-    if command -v "$candidate" >/dev/null 2>&1; then PS="$candidate"; break; fi
-done
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+        for candidate in pwsh powershell.exe powershell; do
+            if command -v "$candidate" >/dev/null 2>&1; then PS="$candidate"; break; fi
+        done ;;
+esac
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -127,7 +135,7 @@ psred="$tmp/psred"
 render 'python3 -c "raise SystemExit(3)"' "$psred" --hook-shell powershell
 
 if [ -z "$PS" ]; then
-    echo "  SKIP: no PowerShell on PATH; .ps1 behavior probes not run"
+    echo "  SKIP: not Windows or no PowerShell on PATH; .ps1 behavior probes not run (the hook shells out to cmd.exe)"
 else
     # $2 is the Stop input JSON, fed on the PowerShell process's own stdin:
     # the hook reads [Console]::In, which an in-PowerShell pipe does not feed.
