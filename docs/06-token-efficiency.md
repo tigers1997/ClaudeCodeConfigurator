@@ -97,7 +97,7 @@ Effort is saved per model since CC 2.1.251, and the 5.5 generation reset the def
 1. `/compact` — don't wait for auto-compaction.
 2. Check `/context`. Is there a subagent chatting a lot? A file you accidentally pasted in?
 3. Start a new session if the task is now ambiguous due to compression. Carry forward the state deliberately via a short pasted summary, not a full transcript.
-4. Take the lesson: something was too verbose. Adjust your hooks (less `additionalContext`), prune CLAUDE.md, or split the task.
+4. Take the lesson: something was too verbose. Adjust your hooks (less `additionalContext` — on `Stop` that field also continues the turn, which is why the shipped `stop-run-checks` hook reports failures only), prune CLAUDE.md, or split the task.
 
 ## Quick-reference checklist
 

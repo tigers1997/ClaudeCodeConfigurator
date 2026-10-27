@@ -7,6 +7,15 @@
 # An all-clear run emits nothing at all — see the ANY_FAIL gate at the bottom.
 # "Everything passed" is not actionable, and a Stop hook that says it on every
 # single stop pays context for no signal. Only a failure has something to say.
+# (Any additionalContext from a Stop hook continues the turn — that is what
+# the field is for — so "lint: OK" on every stop meant an idle turn on every
+# stop, up to Claude Code's 8-consecutive-continuation cap.)
+#
+# A failure is reported once. The Stop input carries `stop_hook_active`, true
+# when this stop ends a turn that a Stop hook already continued. On that stop
+# a still-red run goes out as a top-level `systemMessage` — shown to the user,
+# does not continue the turn — instead of additionalContext, so Claude gets
+# exactly one continuation to fix a failure and an unfixable one cannot loop.
 #
 # Skipping rules (silent, not reported):
 #   1. Empty command — you blanked the field in the form (e.g., "I don't have
@@ -36,17 +45,23 @@ set -uo pipefail
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 cd "$PROJECT_DIR"
 
-# Skipping rule 4: bail while background work is in flight (see header).
-# Guarded stdin read so direct terminal invocation doesn't hang on `cat`.
+# Read the Stop input once: skipping rule 4 (background_tasks) and the
+# report-once gate (stop_hook_active) both come from it. Guarded stdin read so
+# direct terminal invocation doesn't hang on `cat`. Two space-separated
+# numbers; anything unparsable (or no python3) reads as "0 0": run the checks,
+# treat this as a first stop.
 INPUT=""
 if [ ! -t 0 ]; then INPUT="$(cat)"; fi
-BG_COUNT="$(printf '%s' "$INPUT" | python3 -c '
+STOP_INFO="$(printf '%s' "$INPUT" | python3 -c '
 import sys, json
 try:
-    print(len(json.load(sys.stdin).get("background_tasks") or []))
+    d = json.load(sys.stdin)
+    print(len(d.get("background_tasks") or []), 1 if d.get("stop_hook_active") else 0)
 except Exception:
-    print(0)
-' 2>/dev/null || echo 0)"
+    print(0, 0)
+' 2>/dev/null || echo "0 0")"
+BG_COUNT="${STOP_INFO%% *}"
+STOP_HOOK_ACTIVE="${STOP_INFO##* }"
 if [ "$BG_COUNT" -gt 0 ]; then exit 0; fi
 
 # label|command  or  label|command|service
@@ -163,13 +178,30 @@ done
 # back on every stop costs context on every turn and tells Claude nothing it
 # can act on. Failures still carry the passing lines with them, so a real
 # report keeps its full context.
+#
+# Gated again on STOP_HOOK_ACTIVE: on the stop that ends a hook-continued
+# turn, Claude already had this report once and the checks are still red. A
+# second additionalContext would only buy another turn of the same, so the
+# report goes out as a top-level systemMessage instead — the user sees it,
+# the turn ends.
 if [ -n "$REPORT" ] && [ "$ANY_FAIL" -eq 1 ]; then
+  if [ "$STOP_HOOK_ACTIVE" -eq 1 ]; then
+    REPORT="[stop-run-checks] still red after the fix attempt; the turn ends here."$'\n'"$REPORT"
+  fi
   if command -v jq >/dev/null 2>&1; then
-    jq -n --arg ctx "$REPORT" '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":$ctx}}'
+    if [ "$STOP_HOOK_ACTIVE" -eq 1 ]; then
+      jq -n --arg msg "$REPORT" '{"systemMessage":$msg}'
+    else
+      jq -n --arg ctx "$REPORT" '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":$ctx}}'
+    fi
   elif command -v python3 >/dev/null 2>&1; then
-    CC_STOP_REPORT="$REPORT" python3 -c 'import json, os
-print(json.dumps({"hookSpecificOutput": {"hookEventName": "Stop",
-                  "additionalContext": os.environ["CC_STOP_REPORT"]}}))'
+    CC_STOP_REPORT="$REPORT" CC_STOP_HOOK_ACTIVE="$STOP_HOOK_ACTIVE" python3 -c 'import json, os
+report = os.environ["CC_STOP_REPORT"]
+if os.environ["CC_STOP_HOOK_ACTIVE"] == "1":
+    print(json.dumps({"systemMessage": report}))
+else:
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "Stop",
+                      "additionalContext": report}}))'
   else
     printf '[stop-run-checks] neither jq nor python3 found; the check report below is NOT reaching Claude.\n%s\n' "$REPORT" >&2
   fi

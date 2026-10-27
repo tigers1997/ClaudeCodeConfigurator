@@ -118,7 +118,7 @@ Catches: `.env` writes, API keys (AWS, OpenAI, GitHub, GitLab, Slack), private k
 Runs `prettier` / `ruff` / `gofmt` after Claude writes a file. Not a safety check per se, but eliminates the "Claude wrote un-formatted code" category of review comment. See `templates/git-workflow/hooks/format-on-write.sh`.
 
 **`Stop` — run fast checks**
-Runs typecheck + lint + impacted tests at the end of each turn. Returns results as `additionalContext` so Claude sees them on the next turn. Never blocks. See `templates/git-workflow/hooks/stop-run-checks.sh`.
+Runs typecheck + lint + impacted tests at the end of each turn. Silent when everything passes. A failure is returned once as `additionalContext`, which continues the turn so Claude can fix it; if that continued turn ends still red, the report goes to you as a `systemMessage` and the turn ends. (Any `additionalContext` from a Stop hook continues the turn, so reporting success would mean an idle turn on every stop.) Never blocks. See `templates/git-workflow/hooks/stop-run-checks.sh`.
 
 **`PreCompact` — snapshot**
 Writes a summary of the session to `.claude/logs/` before compression happens. Recoverable record of what was done. See `templates/token-efficiency/hooks/pre-compact-snapshot.sh`.
