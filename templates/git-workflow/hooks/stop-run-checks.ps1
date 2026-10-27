@@ -11,6 +11,13 @@
 #      stays quiet during the brainstorming/planning phase.
 #   4. Background work still in flight (input carries a non-empty
 #      background_tasks array) -- the real stop comes later.
+#
+# An all-clear run emits nothing (any additionalContext from a Stop hook
+# continues the turn, so "lint: OK" on every stop meant an idle turn on every
+# stop). A failure is reported once: when the input's stop_hook_active is
+# true -- this stop ends a turn a Stop hook already continued -- a still-red
+# run goes out as a top-level systemMessage, which the user sees and which
+# ends the turn, instead of additionalContext, which would continue it again.
 $ErrorActionPreference = 'Continue'
 
 $projectDir = $env:CLAUDE_PROJECT_DIR
@@ -25,11 +32,17 @@ try {
     else { $raw = [Console]::In.ReadToEnd() }
 } catch { $raw = '' }
 
+# Report-once gate, read from the same input (see header).
+$stopHookActive = $false
+
 if (-not [string]::IsNullOrWhiteSpace($raw)) {
     try {
         $payload = $raw | ConvertFrom-Json
         if ($payload.PSObject.Properties.Name -contains 'background_tasks' -and $payload.background_tasks) {
             if (@($payload.background_tasks).Count -gt 0) { exit 0 }
+        }
+        if ($payload.PSObject.Properties.Name -contains 'stop_hook_active' -and $payload.stop_hook_active) {
+            $stopHookActive = $true
         }
     } catch { }
 }
@@ -61,6 +74,10 @@ function Get-ManifestFor {
 }
 
 $report = ''
+# Tracks whether anything actually failed. The report is built either way --
+# passing lines are useful context *alongside* a failure -- but it is only
+# emitted when this flips. See the gate below the loop.
+$anyFail = $false
 
 foreach ($check in $checks) {
     $label = $check.label
@@ -94,6 +111,7 @@ foreach ($check in $checks) {
         $report += "[stop-check] ${label}: OK`n"
     } else {
         $tail = ($output -split "`r?`n" | Select-Object -Last 30) -join "`n"
+        $anyFail = $true
         $report += "[stop-check] ${label}: FAIL (exit ${status})`n${tail}`n---`n"
     }
 }
@@ -101,11 +119,25 @@ foreach ($check in $checks) {
 # Emit decision JSON so Claude sees the report on the next turn. Built with
 # ConvertTo-Json so command output containing quotes or backslashes can't
 # produce malformed JSON.
-if (-not [string]::IsNullOrWhiteSpace($report)) {
-    $obj = [ordered]@{
-        hookSpecificOutput = [ordered]@{
-            hookEventName    = 'Stop'
-            additionalContext = $report
+#
+# Gated on $anyFail: a fully-passing run emits nothing. Reporting "lint: OK"
+# back on every stop costs context on every turn and tells Claude nothing it
+# can act on. Failures still carry the passing lines with them.
+#
+# Gated again on $stopHookActive: Claude already had this report once and the
+# checks are still red, so a second additionalContext would only buy another
+# turn of the same. systemMessage is shown to the user and ends the turn.
+if ($anyFail -and -not [string]::IsNullOrWhiteSpace($report)) {
+    if ($stopHookActive) {
+        $obj = [ordered]@{
+            systemMessage = "[stop-run-checks] still red after the fix attempt; the turn ends here.`n" + $report
+        }
+    } else {
+        $obj = [ordered]@{
+            hookSpecificOutput = [ordered]@{
+                hookEventName    = 'Stop'
+                additionalContext = $report
+            }
         }
     }
     Write-Output ($obj | ConvertTo-Json -Compress -Depth 5)
