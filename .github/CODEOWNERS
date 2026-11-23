@@ -21,6 +21,7 @@
 
 # CI integrity — the review gate itself lives here; tampering is a smell
 /.github/workflows/                     @tigers1997
+/AGENTS.md                              @tigers1997
 /.github/pull_request_template.md       @tigers1997
 
 # MIT carve-out boundary — different license rules apply to this subtree
