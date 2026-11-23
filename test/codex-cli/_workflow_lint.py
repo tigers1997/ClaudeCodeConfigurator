@@ -25,6 +25,59 @@ def _job(text, name, nxt=None):
     return text[start:end]
 
 
+STEP_KEYS = ("name", "id", "uses", "with", "env", "run", "if")
+
+
+def _unreadable_step_keys(job):
+    """Step-level keys this text lint cannot read (a quoted key, an unknown one). A step it cannot
+    read is a step it cannot vouch for, so it fails instead of passing."""
+    bad = []
+    for step in re.split(r"\n      - ", job)[1:]:
+        lines = step.splitlines()
+        keys = [lines[0]] + [ln.strip() for ln in lines[1:] if ln.strip() and len(ln) - len(ln.lstrip()) == 8]
+        bad += [k for k in keys if not re.match(r"(?:" + "|".join(STEP_KEYS) + r"):", k)]
+    return bad
+
+
+def _mapping(job, header):
+    """The non-blank lines of the block mapping under `header` (an exact line such as
+    "    permissions:"), or None when there is no such line. A blank line does not end a YAML
+    mapping; a non-blank line indented no deeper than the header does."""
+    lines = job.splitlines()
+    try:
+        i = next(k for k, ln in enumerate(lines) if ln == header)
+    except StopIteration:
+        return None
+    base = len(header) - len(header.lstrip())
+    out = []
+    for ln in lines[i + 1:]:
+        if not ln.strip():
+            continue
+        if len(ln) - len(ln.lstrip()) <= base:
+            break
+        out.append(ln.strip())
+    return out
+
+
+def _checkouts(job):
+    """Every checkout step of a job as a dict of its inputs (quoted keys unquoted). A layout this
+    cannot read gives an input named "?...", which no rule allows, so it fails instead of passing."""
+    out = []
+    for step in re.split(r"\n      - ", job):
+        if not re.search(r"uses:\s*actions/checkout@", step):
+            continue
+        mapping = _mapping(step, "        with:")
+        inputs = {} if mapping is not None else {"?no plain `with:` mapping": ""}
+        for ln in mapping or []:
+            k = re.match(r"(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\s*:\s*(.*)$", ln)
+            if k:
+                inputs[next(g for g in k.groups()[:3] if g)] = k.group(4).strip()
+            else:
+                inputs["?" + ln] = ""
+        out.append(inputs)
+    return out
+
+
 def _block(text, key, min_indent):
     """Lines of the `key: |` block scalar: every following line indented deeper
     than the key itself."""
@@ -61,19 +114,22 @@ def lint(text):
         review, comment = _job(text, "review", "comment"), _job(text, "comment")
     except ValueError:
         return problems + ["expected jobs `review` and `comment`"]
-    rperm = re.search(r"\n    permissions:\n((?:      \S.*\n)+)", review + "\n")
-    need(rperm and [x.strip() for x in rperm.group(1).splitlines()] == ["contents: read"],
-         "the review job must have exactly `contents: read`")
-    cperm = re.search(r"\n    permissions:\n((?:      \S.*\n)+)", comment + "\n")
-    need(cperm and sorted(x.strip() for x in cperm.group(1).splitlines()) == ["issues: write", "pull-requests: write"],
-         "the comment job must have exactly `issues: write` and `pull-requests: write`")
+    need(_mapping(review, "    permissions:") == ["contents: read"], "the review job must have exactly `contents: read`")
+    need(_mapping(comment, "    permissions:") == ["pull-requests: write"],
+         "the comment job must have exactly `pull-requests: write`")
     need("codex-action" not in comment and "secrets." not in comment,
          "the comment job must neither run Codex nor read secrets")
 
     # -- the review job only runs for same-repo, non-draft PRs --------------------
-    need("github.event.pull_request.head.repo.full_name == github.repository" in review,
+    cond = " ".join(_mapping(review, "    if: >-") or [])      # the job's own condition, not a step's
+    need(cond == "github.event.pull_request.draft == false && github.actor != 'dependabot[bot]' && "
+         "github.event.pull_request.head.repo.full_name == github.repository",
+         "the review job's `if:` must be exactly the three guards joined by `&&` (a `||` would admit forks, drafts or Dependabot)")
+    need("github.event.pull_request.head.repo.full_name == github.repository" in cond,
          "no same-repository guard on the review job")
-    need("github.event.pull_request.draft == false" in review, "drafts are not excluded")
+    need("github.event.pull_request.draft == false" in cond, "drafts are not excluded")
+    need("github.actor != 'dependabot[bot]'" in cond,
+         "Dependabot PRs are not skipped by the job's own condition: their runs get no Actions secrets, so the review could only fail")
     need(re.search(r"^concurrency:\n  group: .+\n  cancel-in-progress: true", text, re.M),
          "no concurrency group with cancel-in-progress")
     need("timeout-minutes:" in review, "the review job has no timeout")
@@ -84,10 +140,13 @@ def lint(text):
     for u in uses:
         need(re.search(r"@[0-9a-f]{40}$", u), f"`{u}` is not pinned to a 40-character commit SHA")
 
-    # -- checkout: the merge ref, no credentials left behind -----------------------
+    # -- checkout: this event's merge commit, no credentials left behind -------------
     need("persist-credentials: false" in review, "checkout must set persist-credentials: false")
-    need(re.search(r"ref: refs/pull/\$\{\{ github\.event\.pull_request\.number \}\}/merge", review),
-         "checkout must use the PR merge ref")
+    co = _checkouts(review)
+    need(len(co) == 1, "the review job must have exactly one checkout step: a second one can replace the worktree Codex reads")
+    need(co == [{"fetch-depth": "0", "persist-credentials": "false"}],
+         "checkout may only set `fetch-depth: 0` (the diff needs both commits) and `persist-credentials: false`, exactly those: a `ref`, "
+         "`repository`, `token` or `path` changes what Codex reads (refs/pull/N/merge moves; with no `ref` the default is this event's merge commit)")
 
     # -- Codex: read-only, key out of reach, reviewer cannot be rewritten ----------
     need(re.search(r'permission-profile: ":read-only"', review), "permission-profile must be \":read-only\"")
@@ -97,6 +156,19 @@ def lint(text):
     need('git show "$BASE_SHA:AGENTS.md"' in review, "review rules are not read from the base commit")
     need("--yolo" not in text and "--full-auto" not in text and "danger-full-access" not in text
          and "--dangerously-bypass" not in text, "a flag that disables the sandbox is present")
+
+    # -- every step is one the lint can read (a quoted `"uses":` key would hide a second checkout) -------
+    for jname, job in (("review", review), ("comment", comment)):
+        need(not _unreadable_step_keys(job),
+             f"the {jname} job has a step layout the lint cannot read: {_unreadable_step_keys(job)}")
+
+    # -- the checkout must be this event's merge commit, checked before Codex runs --------------------
+    i_co, i_chk, i_codex = review.find("actions/checkout@"), review.find("git rev-parse HEAD^2"), review.find("openai/codex-action@")
+    chk_step = next((s for s in re.split(r"\n      - ", review) if "git rev-parse HEAD^2" in s), "")
+    need(_mapping(chk_step, "        env:") == ["HEAD_SHA: ${{ github.event.pull_request.head.sha }}"],
+         "the merge-commit check must bind HEAD_SHA to the event's PR head sha (its fixture supplies its own, so only the lint sees the binding)")
+    need(0 <= i_co < i_chk < i_codex and '!= "$HEAD_SHA"' in review,
+         "the review job must check, after the checkout and before Codex, that the merge commit contains this event's PR head")
 
     # -- the prompt: no attacker-controlled text ------------------------------------
     prompt = _block(review, "prompt", 12)
@@ -135,8 +207,19 @@ def lint(text):
          "the comment lookup must match the posting bot and the marker at the start of the body")
     need("VERDICT\\u200b:" in comment,
          "the comment must neutralise `VERDICT:` so a scan of PR comments for a verdict cannot match it")
-    need("pulls.get" in comment and "process.env.HEAD_SHA" in comment,
-         "the comment job must skip a review whose PR head has moved on")
+    gh_step = next((s for s in re.split(r"\n      - ", comment) if re.search(r"uses:\s*actions/github-script@", s)), "")
+    script = _block(gh_step, "script", 12) or ""
+    used = set(re.findall(r"process\.env\.([A-Z_]+)", script))
+    mapped = {ln.split(":", 1)[0].strip() for ln in (_mapping(gh_step, "        env:") or [])}
+    env_values = dict((ln.split(":", 1)[0].strip(), ln.split(":", 1)[1].strip()) for ln in (_mapping(gh_step, "        env:") or []) if ":" in ln)
+    need(env_values.get("HEAD_SHA") == "${{ github.event.pull_request.head.sha }}"
+         and env_values.get("BASE_REF") == "${{ github.event.pull_request.base.ref }}",
+         "the comment step must map HEAD_SHA to the event's head sha and BASE_REF to the event's base ref (a base SHA there would discard every live review as stale)")
+    need(used and used <= mapped,
+         f"the comment script reads env vars its step does not map: {sorted(used - mapped)} (the fixture supplies its own, so only this check sees it)")
+    need("pulls.get" in comment and "process.env.HEAD_SHA" in comment
+         and "pr.data.base.ref" in comment and "process.env.BASE_REF" in comment,
+         "the comment job must skip a review whose PR head or base branch has moved on")
     # -- a key that is not an OpenAI key is never sent to the default endpoint ----------------------
     need('case "$CODEX_API_KEY" in' in review and "sk-*)" in review,
          "the key-shape guard is missing: a non-OpenAI key with no endpoint would be sent to api.openai.com")

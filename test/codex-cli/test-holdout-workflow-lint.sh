@@ -26,6 +26,18 @@ assert problems == [], "\n".join(problems)
 print("  shipped workflow: clean")
 
 CODEX_SHA = "306c6a196a99dcc6582530c396a19d2672d5e9ec"
+import re
+
+
+def move_env(t):
+    # move the github-script step's env mapping to a step before it
+    m = re.search(r"(        env:\n          REVIEW:.*?\n)(        with:\n)", t, re.S)
+    assert m, "env mapping not found"
+    t = t.replace(m.group(0), m.group(2))
+    return t.replace("    steps:\n      - name: Post or update the review comment\n",
+                     "    steps:\n      - name: Prepare\n        run: echo prepared\n" + m.group(1) + "\n      - name: Post or update the review comment\n")
+
+
 mutations = [
     ("pull_request_target trigger", lambda t: t.replace("on:\n  pull_request:\n", "on:\n  pull_request_target:\n"), "pull_request_target"),
     ("PR title in the prompt", lambda t: t.replace("You are the independent reviewer", "Title: ${{ github.event.pull_request.title }}\n            You are the independent reviewer"), "attacker-controlled `github.event.pull_request.title`"),
@@ -49,8 +61,30 @@ mutations = [
     ("lookup trusts any bot", lambda t: t.replace("c.user.login === 'github-actions[bot]'", "c.user.type === 'Bot'"), "match the posting bot"),
     ("marker anywhere in the body", lambda t: t.replace("c.body.startsWith(marker)", "c.body.includes(marker)"), "match the posting bot"),
     ("VERDICT not neutralised", lambda t: t.replace(".replace(/VERDICT:/gi, 'VERDICT\\u200b:')", ""), "neutralise `VERDICT:`"),
-    ("stale review published", lambda t: t.replace("github.rest.pulls.get", "github.rest.pulls.list"), "head has moved on"),
+    ("stale review published", lambda t: t.replace("github.rest.pulls.get", "github.rest.pulls.list"), "head or base branch has moved on"),
     ("key-shape guard removed", lambda t: t.replace('case "$CODEX_API_KEY" in', 'case "$NOT_THE_KEY" in'), "key-shape guard"),
+    ("comment job regains issues: write", lambda t: t.replace("    permissions:\n      pull-requests: write\n", "    permissions:\n      issues: write\n      pull-requests: write\n"), "exactly `pull-requests: write`"),
+    ("checkout names the moving merge ref", lambda t: t.replace("        with:\n          # No `ref:`.", "        with:\n          ref: refs/pull/${{ github.event.pull_request.number }}/merge\n          # No `ref:`."), "checkout may only set"),
+    ("checkout input hidden behind a quoted key", lambda t: t.replace("          fetch-depth: 0\n", "          \"ref\": main\n          fetch-depth: 0\n"), "checkout may only set"),
+    ("a blank line hides a ref", lambda t: t.replace("          fetch-depth: 0\n", "          fetch-depth: 0\n\n          ref: main\n"), "checkout may only set"),
+    ("quoted with key", lambda t: t.replace("        with:\n          # No `ref:`.", "        \"with\":\n          # No `ref:`."), "checkout may only set"),
+    ("a second checkout replaces the worktree", lambda t: t.replace("      - name: Load the review rules from the base commit\n", "      - name: Check out main instead\n        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          ref: main\n          fetch-depth: 0\n          persist-credentials: false\n\n      - name: Load the review rules from the base commit\n"), "exactly one checkout"),
+    ("a blank line hides issues: write", lambda t: t.replace("    permissions:\n      pull-requests: write\n", "    permissions:\n      pull-requests: write\n\n      issues: write\n"), "exactly `pull-requests: write`"),
+    ("a blank line hides a second review permission", lambda t: t.replace("    permissions:\n      contents: read\n", "    permissions:\n      contents: read\n\n      pull-requests: write\n"), "exactly `contents: read`"),
+    ("shallow checkout", lambda t: t.replace("          fetch-depth: 0\n", "          fetch-depth: 1\n"), "checkout may only set"),
+    ("BASE_REF not mapped", lambda t: t.replace("          BASE_REF: ${{ github.event.pull_request.base.ref }}\n", ""), "does not map"),
+    ("HEAD_SHA not mapped", lambda t: t.replace("          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n", ""), "does not map"),
+    ("a second checkout, spaced differently", lambda t: t.replace("      - name: Load the review rules from the base commit\n", "      - name: Check out main instead\n        uses:   actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          ref: main\n          fetch-depth: 0\n          persist-credentials: false\n\n      - name: Load the review rules from the base commit\n"), "exactly one checkout"),
+    ("env mapping on another step", move_env, "does not map"),
+    ("dependabot guard on the wrong step", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", "").replace("      - name: Check configuration\n", "      - name: Check configuration\n        if: github.actor != 'dependabot[bot]'\n"), "job's own condition"),
+    ("merge commit not checked", lambda t: t.replace("git rev-parse HEAD^2", "git rev-parse HEAD"), "merge commit contains this event's PR head"),
+    ("review condition becomes a disjunction", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", "      github.actor != 'dependabot[bot]' ||\n"), "must be exactly the three guards"),
+    ("BASE_REF wired to the base SHA", lambda t: t.replace("BASE_REF: ${{ github.event.pull_request.base.ref }}", "BASE_REF: ${{ github.event.pull_request.base.sha }}"), "must map HEAD_SHA"),
+    ("HEAD_SHA wired to the merge commit", lambda t: t.replace("HEAD_SHA: ${{ github.event.pull_request.head.sha }}", "HEAD_SHA: ${{ github.sha }}"), "must map HEAD_SHA"),
+    ("a quoted step key hides a second checkout", lambda t: t.replace("      - name: Load the review rules from the base commit\n", "      - name: Check out main instead\n        \"uses\": actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          ref: main\n\n      - name: Load the review rules from the base commit\n"), "step layout the lint cannot read"),
+    ("the merge check's own HEAD_SHA wired to the merge commit", lambda t: t.replace("        env:\n          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n        run: |\n          # GitHub can hand a job", "        env:\n          HEAD_SHA: ${{ github.sha }}\n        run: |\n          # GitHub can hand a job"), "merge-commit check must bind HEAD_SHA"),
+    ("retargeted review published", lambda t: t.replace(" || pr.data.base.ref !== process.env.BASE_REF", ""), "head or base branch has moved on"),
+    ("dependabot not skipped", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", ""), "Dependabot PRs are not skipped"),
     ("secret combined with an untrusted expression", lambda t: t.replace("ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}", "ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || github.head_ref }}"), "secret used outside an env/with mapping value"),
 ]
 for name, mutate, expect in mutations:

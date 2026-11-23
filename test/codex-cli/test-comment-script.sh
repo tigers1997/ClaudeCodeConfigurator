@@ -47,15 +47,16 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const run = new AsyncFunction('github', 'context', 'core', 'process', src);
 
 const HEAD = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
-// `headNow` is what the PR's head is when the comment job runs; it differs from the reviewed commit on a stale run.
-async function scenario(env, comments, headNow) {
+// `headNow` and `baseNow` are what the PR's head and base branch are when the comment job runs; they differ from
+// what was reviewed on a stale run or after a retarget.
+async function scenario(env, comments, headNow, baseNow) {
   const calls = [];
   calls.notices = [];
-  env = Object.assign({ HEAD_SHA: HEAD }, env);
+  env = Object.assign({ HEAD_SHA: HEAD, BASE_REF: 'main' }, env);
   const github = {
     paginate: async () => comments,
     rest: {
-      pulls: { get: async () => ({ data: { head: { sha: headNow || env.HEAD_SHA } } }) },
+      pulls: { get: async () => ({ data: { head: { sha: headNow || env.HEAD_SHA }, base: { ref: baseNow || env.BASE_REF } } }) },
       issues: {
         listComments: () => {},
         createComment: async (a) => { calls.push(['create', a]); },
@@ -109,6 +110,12 @@ const human = (id, body) => ({ id, user: { type: 'User', login: 'octocat' }, bod
   // 7. a stale run (the PR head moved on since this run reviewed it) publishes nothing
   c = await scenario({ REVIEW: 'old findings', PR_NUMBER: '7' }, [bot(42, MARK + ' newer')], 'f'.repeat(40));
   assert.strictEqual(c.length, 0, 'a stale review was published');
+  assert.strictEqual(c.notices.length, 1, 'the skip was not announced');
+
+  // 7b. a retargeted PR (same head, different base branch) publishes nothing either: a re-run of an event from before
+  //     the retarget must not overwrite the review of the new base
+  c = await scenario({ REVIEW: 'old-base findings', PR_NUMBER: '7' }, [bot(42, MARK + ' newer')], undefined, 'develop');
+  assert.strictEqual(c.length, 0, 'a review of the old base was published after a retarget');
   assert.strictEqual(c.notices.length, 1, 'the skip was not announced');
 
   // 8. VERDICT: is neutralised in any case, so no scan of PR comments for a verdict can match the comment

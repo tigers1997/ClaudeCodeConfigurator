@@ -41,7 +41,7 @@ model_reasoning_effort = "medium"
 
 - Do not copy `[profiles.review]` tables from older guides. Since Codex 0.134.0, `--profile` errors if `config.toml` still contains them.
 - A profile name with no file is reported to be treated as an empty layer, not an error. If `--profile review` seems to change nothing, check the file name.
-- The model names above were current when this was scaffolded (`gpt-6.2-astra` and `gpt-6.2-sol`, released 2026-11-17). Change them in `.claude-config.json` (`codex_review_model`, `codex_bulk_model`) and re-run `cc-configure`, or edit the files directly.
+- The model names above were current when this was scaffolded (`gpt-6.2-astra` and `gpt-6.2-sol`, released 2026-11-17). To change them, edit `model` in `~/.codex/config.toml`, `~/.codex/review.config.toml` and `~/.codex/bulk.config.toml`; the PR review in CI takes its model from the `CODEX_REVIEW_MODEL` repository variable. `cc-configure` does not write to `~/.codex`, and re-running it on a project that already has this guide keeps your copy by default (`--on-collision=skip`) and stages the new one in `.claude-retrofit/incoming/docs/`, so `codex_review_model` and `codex_bulk_model` in `.claude-config.json` only change what a newly scaffolded guide shows.
 
 ## 4. Smoke test
 
