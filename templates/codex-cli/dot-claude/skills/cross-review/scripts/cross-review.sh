@@ -69,8 +69,11 @@ Report each finding as Critical (must fix), Warning (should fix) or Suggestion, 
 
 echo "cross-review: reviewing the diff against $base_ref (${base:0:12}) with codex, read-only and ephemeral..." >&2
 
+# With a prompt argument, `codex exec` still reads piped stdin, appends it to the
+# prompt and waits for it to end. Claude Code's Bash tool hands a command an open
+# pipe, so without `</dev/null` this call would never start. The prompt is complete.
 # ${arr[@]+...} keeps an empty array legal under `set -u` on bash 3.2 (macOS).
-codex exec --sandbox read-only --ephemeral ${profile_args[@]+"${profile_args[@]}"} -o "$out" "$prompt"
+codex exec --sandbox read-only --ephemeral ${profile_args[@]+"${profile_args[@]}"} -o "$out" "$prompt" </dev/null
 
 echo >&2
 echo "cross-review: report saved to $out" >&2

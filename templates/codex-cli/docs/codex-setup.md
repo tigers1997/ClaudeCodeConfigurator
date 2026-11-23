@@ -52,6 +52,8 @@ codex exec --profile review --sandbox read-only --ephemeral "Reply with the sing
 
 Both should print `OK`. Do this before trusting a review, and again after upgrading Codex.
 
+Run these in a terminal. In a script, a CI step or Claude Code's Bash tool, add `< /dev/null`: with a prompt argument `codex exec` still reads piped input, appends it to the prompt and waits for it to end, so a command whose input is an open pipe never starts (`/cross-review` already does this).
+
 ## 5. Use it
 
 - **In Claude Code:** `/cross-review` (if the `cross_review` option is on). It asks permission, runs `codex exec` read-only over this branch's diff, then Claude re-checks each finding against the code before showing it.

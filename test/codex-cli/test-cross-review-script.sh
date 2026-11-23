@@ -2,9 +2,12 @@
 # cross-review.sh against a STUB `codex` that records its arguments. This pins
 # how the script calls Codex (read-only, ephemeral, report to a file, a profile
 # only when the profile file exists, never a flag that lifts the sandbox) and
-# its refusals (default branch, empty diff, missing base, missing codex). It does
-# NOT run the real Codex CLI: what the real binary does with these arguments is
-# taken from its documentation (learn.chatgpt.com/docs/non-interactive-mode).
+# its refusals (default branch, empty diff, missing base, missing codex), and that
+# stdin is closed: the real `codex exec` appends piped stdin to the prompt and waits
+# for it to end, so run from a tool that gives commands an open pipe (Claude Code's
+# Bash tool does) the script would hang. A stub cannot block, so it records which
+# stdin it got. It does NOT run the real Codex CLI; the arguments were checked once
+# by hand against Codex 0.171.0 with no credentials, not on every run.
 set -euo pipefail
 
 tmp=$(mktemp -d)
@@ -28,6 +31,11 @@ mkdir -p "$tmp/bin"
 cat > "$tmp/bin/codex" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\0' "$@" > "$STUB_ARGS"
+# Like the real binary, care about stdin, which it appends to the prompt and waits to
+# see end. A stdin the script closed (</dev/null) reads as end-of-file at once (status
+# 1); the caller's input does not (data, or a timeout if it is an open pipe).
+IFS= read -r -t 1 _line; rc=$?
+if [ "$rc" -eq 1 ]; then echo closed > "$STUB_STDIN"; else echo inherited > "$STUB_STDIN"; fi
 out=""
 while [ $# -gt 0 ]; do
   case "$1" in -o) out="$2"; shift 2 ;; *) shift ;; esac
@@ -37,8 +45,10 @@ echo "FAKE REVIEW"
 STUB
 chmod +x "$tmp/bin/codex"
 
-run() { (cd "$repo" && env PATH="$tmp/bin:$PATH" STUB_ARGS="$tmp/args" CODEX_HOME="$tmp/codex-home" \
-            TMPDIR="$tmp" bash "$script" "$@" 2>&1); }
+# The caller's stdin is a real, non-/dev/null input, as an agent harness gives a command.
+printf 'caller input\n' > "$tmp/caller-input"
+run() { (cd "$repo" && env PATH="$tmp/bin:$PATH" STUB_ARGS="$tmp/args" STUB_STDIN="$tmp/stdin" \
+            CODEX_HOME="$tmp/codex-home" TMPDIR="$tmp" bash "$script" "$@" 2>&1) < "$tmp/caller-input"; }
 
 # argcheck 'python expression over a (the argument list) and base' 'failure message'
 argcheck() {
@@ -62,6 +72,8 @@ argcheck "a[a.index('--sandbox') + 1] == 'read-only'" "--sandbox read-only is mi
 argcheck "'--ephemeral' in a" "--ephemeral is missing"
 argcheck "'-o' in a and a[a.index('-o') + 1].startswith(('/', '.'))" "-o <report file> is missing"
 argcheck "'--profile' not in a" "--profile passed although no review.config.toml exists"
+[ "$(cat "$tmp/stdin" 2>/dev/null)" = closed ] \
+    || { echo "FAIL: codex exec was left reading the caller's stdin; it appends piped input to the prompt and waits for it to end, so the call needs </dev/null"; exit 1; }
 argcheck "not ({'--full-auto', '--yolo', '--dangerously-bypass-approvals-and-sandbox', '--ask-for-approval', '-a', 'danger-full-access', 'workspace-write'} & set(a))" "a sandbox-lifting flag was passed"
 argcheck "('git diff ' + base) in a[-1]" "the prompt does not name the merge-base diff"
 argcheck "'Code Review Rules' in a[-1]" "the prompt does not point at the Code Review Rules"
