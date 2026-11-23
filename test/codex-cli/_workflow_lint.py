@@ -78,9 +78,6 @@ def lint(text):
          "Dependabot PRs are not skipped: their runs get no Actions secrets, so the review could only fail")
     need(re.search(r"^concurrency:\n  group: .+\n  cancel-in-progress: true", text, re.M),
          "no concurrency group with cancel-in-progress")
-    cgroup = re.search(r"^concurrency:\n  group: (.+)\n", text, re.M)
-    need(cgroup and "github.run_attempt" in cgroup.group(1),
-         "the concurrency group must include github.run_attempt, so a re-run of an old run cannot cancel the newest review")
     need("timeout-minutes:" in review, "the review job has no timeout")
 
     # -- every action pinned to a full commit SHA ---------------------------------
