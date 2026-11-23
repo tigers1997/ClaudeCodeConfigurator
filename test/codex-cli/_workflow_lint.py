@@ -25,28 +25,43 @@ def _job(text, name, nxt=None):
     return text[start:end]
 
 
-def _checkout_inputs(job):
-    """Keys of the checkout step's `with:` mapping, quoted or not; None without a checkout step.
-    A layout this cannot read (no plain `with:` line, a line that is not a key) yields a marker
-    that is not an allowed key, so it fails the lint instead of passing it."""
+def _mapping(job, header):
+    """The non-blank lines of the block mapping under `header` (an exact line such as
+    "    permissions:"), or None when there is no such line. A blank line does not end a YAML
+    mapping; a non-blank line indented no deeper than the header does."""
+    lines = job.splitlines()
+    try:
+        i = next(k for k, ln in enumerate(lines) if ln == header)
+    except StopIteration:
+        return None
+    base = len(header) - len(header.lstrip())
+    out = []
+    for ln in lines[i + 1:]:
+        if not ln.strip():
+            continue
+        if len(ln) - len(ln.lstrip()) <= base:
+            break
+        out.append(ln.strip())
+    return out
+
+
+def _checkouts(job):
+    """Every checkout step of a job as a dict of its inputs (quoted keys unquoted). A layout this
+    cannot read gives an input named "?...", which no rule allows, so it fails instead of passing."""
+    out = []
     for step in re.split(r"\n      - ", job):
         if "uses: actions/checkout@" not in step:
             continue
-        lines = step.splitlines()
-        try:
-            i = next(k for k, ln in enumerate(lines) if ln == "        with:")
-        except StopIteration:
-            return ["?no plain `with:` mapping"]
-        keys = []
-        for ln in lines[i + 1:]:
-            if not ln.strip():
-                continue                      # a blank line does not end a YAML mapping
-            if len(ln) - len(ln.lstrip()) <= 8:
-                break                         # the mapping ended
-            k = re.match(r"\s+(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\s*:", ln)
-            keys.append(next(g for g in k.groups() if g) if k else "?" + ln.strip())
-        return keys
-    return None
+        mapping = _mapping(step, "        with:")
+        inputs = {} if mapping is not None else {"?no plain `with:` mapping": ""}
+        for ln in mapping or []:
+            k = re.match(r"(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\s*:\s*(.*)$", ln)
+            if k:
+                inputs[next(g for g in k.groups()[:3] if g)] = k.group(4).strip()
+            else:
+                inputs["?" + ln] = ""
+        out.append(inputs)
+    return out
 
 
 def _block(text, key, min_indent):
@@ -85,11 +100,8 @@ def lint(text):
         review, comment = _job(text, "review", "comment"), _job(text, "comment")
     except ValueError:
         return problems + ["expected jobs `review` and `comment`"]
-    rperm = re.search(r"\n    permissions:\n((?:      \S.*\n)+)", review + "\n")
-    need(rperm and [x.strip() for x in rperm.group(1).splitlines()] == ["contents: read"],
-         "the review job must have exactly `contents: read`")
-    cperm = re.search(r"\n    permissions:\n((?:      \S.*\n)+)", comment + "\n")
-    need(cperm and [x.strip() for x in cperm.group(1).splitlines()] == ["pull-requests: write"],
+    need(_mapping(review, "    permissions:") == ["contents: read"], "the review job must have exactly `contents: read`")
+    need(_mapping(comment, "    permissions:") == ["pull-requests: write"],
          "the comment job must have exactly `pull-requests: write`")
     need("codex-action" not in comment and "secrets." not in comment,
          "the comment job must neither run Codex nor read secrets")
@@ -112,10 +124,11 @@ def lint(text):
 
     # -- checkout: this event's merge commit, no credentials left behind -------------
     need("persist-credentials: false" in review, "checkout must set persist-credentials: false")
-    ci = _checkout_inputs(review)
-    need(ci is not None and set(ci) <= {"fetch-depth", "persist-credentials"},
-         "checkout may only set fetch-depth and persist-credentials: a `ref`, `repository`, `token` or `path` changes what Codex reads "
-         "(refs/pull/N/merge moves; with no `ref` the default is this event's merge commit)")
+    co = _checkouts(review)
+    need(len(co) == 1, "the review job must have exactly one checkout step: a second one can replace the worktree Codex reads")
+    need(co == [{"fetch-depth": "0", "persist-credentials": "false"}],
+         "checkout may only set `fetch-depth: 0` (the diff needs both commits) and `persist-credentials: false`, exactly those: a `ref`, "
+         "`repository`, `token` or `path` changes what Codex reads (refs/pull/N/merge moves; with no `ref` the default is this event's merge commit)")
 
     # -- Codex: read-only, key out of reach, reviewer cannot be rewritten ----------
     need(re.search(r'permission-profile: ":read-only"', review), "permission-profile must be \":read-only\"")
@@ -163,6 +176,11 @@ def lint(text):
          "the comment lookup must match the posting bot and the marker at the start of the body")
     need("VERDICT\\u200b:" in comment,
          "the comment must neutralise `VERDICT:` so a scan of PR comments for a verdict cannot match it")
+    script = _block(comment, "script", 12) or ""
+    used = set(re.findall(r"process\.env\.([A-Z_]+)", script))
+    mapped = {ln.split(":", 1)[0].strip() for ln in (_mapping(comment, "        env:") or [])}
+    need(used and used <= mapped,
+         f"the comment script reads env vars its step does not map: {sorted(used - mapped)} (the fixture supplies its own, so only this check sees it)")
     need("pulls.get" in comment and "process.env.HEAD_SHA" in comment
          and "pr.data.base.ref" in comment and "process.env.BASE_REF" in comment,
          "the comment job must skip a review whose PR head or base branch has moved on")
