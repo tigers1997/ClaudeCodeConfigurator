@@ -61,6 +61,7 @@ Which modules operationalize which docs:
 | `experiments-memory` | Doc 08 (nested `memory/experiments/CLAUDE.md` — zero-cost lazy loading) |
 | `agents-md` | Doc 12 (`AGENTS.md` as the shared source of truth, `CLAUDE.md` as an `@AGENTS.md` bridge) |
 | `gemini-cli` | Doc 12 (`GEMINI.md` importing `AGENTS.md`) |
+| `codex-cli` | Doc 12 (Codex CLI as an independent reviewer: `docs/codex-setup.md`, `/cross-review`, optional PR workflow) |
 
 ## Guiding principles
 

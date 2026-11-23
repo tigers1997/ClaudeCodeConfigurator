@@ -31,7 +31,7 @@ jobs:
       - name: Smoke-test every opt-in module combination
         run: |
           set -e
-          for mod in multi-agent github-actions lockdown experiments-memory mcp ui agents-md gemini-cli; do
+          for mod in multi-agent github-actions lockdown experiments-memory mcp ui agents-md gemini-cli codex-cli; do
             target=$(mktemp -d)
             echo "--- scaffolding core + $mod into $target"
             python3 configure.py --yes --modules "core,$mod" --dry-run --dir "$target"
@@ -61,12 +61,26 @@ jobs:
           actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
           diff --strip-trailing-cr <(echo "$actual") examples/harness-gemini/expected-tree.txt \
             || { echo "snapshot drift for harness-gemini"; exit 1; }
-          echo "harness snapshot matches"
+          target=$(mktemp -d)
+          python3 configure.py --persona solo-experienced --yes --harness codex --codex-ci --dir "$target" >/dev/null
+          actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
+          diff --strip-trailing-cr <(echo "$actual") examples/harness-codex/expected-tree.txt \
+            || { echo "snapshot drift for harness-codex"; exit 1; }
+          echo "harness snapshots match"
 
       - name: agents-md fixture tests
         run: |
           set -e
           for t in test/agents-md/test-*.sh; do
+            bash "$t"
+          done
+
+      # Executes the generated workflow's github-script JavaScript with node, which
+      # the Ubuntu runner image ships, and parses the generated TOML with tomllib.
+      - name: codex-cli fixture tests
+        run: |
+          set -e
+          for t in test/codex-cli/test-*.sh; do
             bash "$t"
           done
 
@@ -261,3 +275,9 @@ jobs:
             diff --strip-trailing-cr <(echo "$actual") "examples/persona-$p/expected-tree.txt" \
               || { echo "snapshot drift for persona=$p on ${{ matrix.os }}"; exit 1; }
           done
+
+      # cross-review.sh uses the ${arr[@]+"${arr[@]}"} idiom because macOS ships
+      # bash 3.2, where expanding an empty array under `set -u` is an error.
+      - name: cross-review script (bash 3.2)
+        if: runner.os == 'macOS'
+        run: bash test/codex-cli/test-cross-review-script.sh

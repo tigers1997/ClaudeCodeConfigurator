@@ -1,0 +1,11 @@
+{
+  "//": "Merged into .claude/settings.json when the codex-cli module's cross_review flag is on. /cross-review sends repository content to another vendor, so every Codex invocation asks first, whether Claude calls `codex` directly or runs the skill's script (which calls it internally: a rule on `codex exec` alone would never see that call).",
+  "permissions": {
+    "ask": [
+      "Bash(codex exec:*)",
+      "Bash(codex review:*)",
+      "Bash(.claude/skills/cross-review/scripts/cross-review.sh:*)",
+      "Bash(./.claude/skills/cross-review/scripts/cross-review.sh:*)"
+    ]
+  }
+}
