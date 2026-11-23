@@ -77,6 +77,8 @@ Anything that reaches a tenant: `pac auth | org | admin | solution import | expo
 | Fabric | `mcp_fabric` | `@microsoft/fabric-mcp` 1.8.0, started `--read-only`. Node 22+. Maturity is not labelled consistently. |
 | Power BI Modeling | `mcp_powerbi_modeling` | `@microsoft/powerbi-modeling-mcp` 1.0.1. **Can edit models.** Linux and Windows only (no macOS). You must accept its EULA yourself; the scaffold never passes `--accept-eula`. |
 
+**What `--read-only` does.** Checked on the two pinned versions by starting each server with no credentials and reading the commands it advertises: with the flag, Azure MCP 3.0.0 lists 226 of the 402 commands its tools list without it (`appconfig_kv_set`, `appconfig_kv_delete` and `appservice_webapp_change-state` are gone) and Fabric MCP 1.8.0 lists 42 of the 85 it lists without it (`core_create-item`, `core_delete-item`, `core_create-workspace` and `core_delete-workspace` are gone). Three Azure tools, `azd`, `arm` and `foundry`, hand commands to other servers and could not be inspected without credentials, and what happens when a tool is actually called was not exercised. So do not rely on the flag alone: sign in with a read-only identity (Azure Reader; a Viewer role in the Fabric workspace) for anything an agent can reach, and look again after changing a pin. The Power BI Modeling server has no read-only mode: 18 of its 22 tools are marked as not read-only.
+
 The Dataverse MCP needs a per-organisation URL and tenant admin consent, so it is not generated.
 
 ## Microsoft's own agent skills (optional)
