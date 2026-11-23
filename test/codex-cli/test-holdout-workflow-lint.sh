@@ -26,6 +26,18 @@ assert problems == [], "\n".join(problems)
 print("  shipped workflow: clean")
 
 CODEX_SHA = "306c6a196a99dcc6582530c396a19d2672d5e9ec"
+import re
+
+
+def move_env(t):
+    # move the github-script step's env mapping to a step before it
+    m = re.search(r"(        env:\n          REVIEW:.*?\n)(        with:\n)", t, re.S)
+    assert m, "env mapping not found"
+    t = t.replace(m.group(0), m.group(2))
+    return t.replace("    steps:\n      - name: Post or update the review comment\n",
+                     "    steps:\n      - name: Prepare\n        run: echo prepared\n" + m.group(1) + "\n      - name: Post or update the review comment\n")
+
+
 mutations = [
     ("pull_request_target trigger", lambda t: t.replace("on:\n  pull_request:\n", "on:\n  pull_request_target:\n"), "pull_request_target"),
     ("PR title in the prompt", lambda t: t.replace("You are the independent reviewer", "Title: ${{ github.event.pull_request.title }}\n            You are the independent reviewer"), "attacker-controlled `github.event.pull_request.title`"),
@@ -62,6 +74,9 @@ mutations = [
     ("shallow checkout", lambda t: t.replace("          fetch-depth: 0\n", "          fetch-depth: 1\n"), "checkout may only set"),
     ("BASE_REF not mapped", lambda t: t.replace("          BASE_REF: ${{ github.event.pull_request.base.ref }}\n", ""), "does not map"),
     ("HEAD_SHA not mapped", lambda t: t.replace("          HEAD_SHA: ${{ github.event.pull_request.head.sha }}\n", ""), "does not map"),
+    ("a second checkout, spaced differently", lambda t: t.replace("      - name: Load the review rules from the base commit\n", "      - name: Check out main instead\n        uses:   actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          ref: main\n          fetch-depth: 0\n          persist-credentials: false\n\n      - name: Load the review rules from the base commit\n"), "exactly one checkout"),
+    ("env mapping on another step", move_env, "does not map"),
+    ("dependabot guard on the wrong step", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", "").replace("      - name: Check configuration\n", "      - name: Check configuration\n        if: github.actor != 'dependabot[bot]'\n"), "job's own condition"),
     ("retargeted review published", lambda t: t.replace(" || pr.data.base.ref !== process.env.BASE_REF", ""), "head or base branch has moved on"),
     ("dependabot not skipped", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", ""), "Dependabot PRs are not skipped"),
     ("secret combined with an untrusted expression", lambda t: t.replace("ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}", "ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || github.head_ref }}"), "secret used outside an env/with mapping value"),

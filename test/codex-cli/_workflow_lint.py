@@ -50,7 +50,7 @@ def _checkouts(job):
     cannot read gives an input named "?...", which no rule allows, so it fails instead of passing."""
     out = []
     for step in re.split(r"\n      - ", job):
-        if "uses: actions/checkout@" not in step:
+        if not re.search(r"uses:\s*actions/checkout@", step):
             continue
         mapping = _mapping(step, "        with:")
         inputs = {} if mapping is not None else {"?no plain `with:` mapping": ""}
@@ -107,11 +107,12 @@ def lint(text):
          "the comment job must neither run Codex nor read secrets")
 
     # -- the review job only runs for same-repo, non-draft PRs --------------------
-    need("github.event.pull_request.head.repo.full_name == github.repository" in review,
+    cond = " ".join(_mapping(review, "    if: >-") or [])      # the job's own condition, not a step's
+    need("github.event.pull_request.head.repo.full_name == github.repository" in cond,
          "no same-repository guard on the review job")
-    need("github.event.pull_request.draft == false" in review, "drafts are not excluded")
-    need("github.actor != 'dependabot[bot]'" in review,
-         "Dependabot PRs are not skipped: their runs get no Actions secrets, so the review could only fail")
+    need("github.event.pull_request.draft == false" in cond, "drafts are not excluded")
+    need("github.actor != 'dependabot[bot]'" in cond,
+         "Dependabot PRs are not skipped by the job's own condition: their runs get no Actions secrets, so the review could only fail")
     need(re.search(r"^concurrency:\n  group: .+\n  cancel-in-progress: true", text, re.M),
          "no concurrency group with cancel-in-progress")
     need("timeout-minutes:" in review, "the review job has no timeout")
@@ -176,9 +177,10 @@ def lint(text):
          "the comment lookup must match the posting bot and the marker at the start of the body")
     need("VERDICT\\u200b:" in comment,
          "the comment must neutralise `VERDICT:` so a scan of PR comments for a verdict cannot match it")
-    script = _block(comment, "script", 12) or ""
+    gh_step = next((s for s in re.split(r"\n      - ", comment) if re.search(r"uses:\s*actions/github-script@", s)), "")
+    script = _block(gh_step, "script", 12) or ""
     used = set(re.findall(r"process\.env\.([A-Z_]+)", script))
-    mapped = {ln.split(":", 1)[0].strip() for ln in (_mapping(comment, "        env:") or [])}
+    mapped = {ln.split(":", 1)[0].strip() for ln in (_mapping(gh_step, "        env:") or [])}
     need(used and used <= mapped,
          f"the comment script reads env vars its step does not map: {sorted(used - mapped)} (the fixture supplies its own, so only this check sees it)")
     need("pulls.get" in comment and "process.env.HEAD_SHA" in comment
