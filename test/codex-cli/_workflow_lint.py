@@ -25,6 +25,20 @@ def _job(text, name, nxt=None):
     return text[start:end]
 
 
+def _checkout_inputs(job):
+    """Keys of the checkout step's `with:` mapping, quoted or not; None without a checkout step."""
+    for step in re.split(r"\n      - ", job):
+        if "uses: actions/checkout@" not in step:
+            continue
+        w = re.search(r"\n        with:\n((?:          [^\n]*\n?)+)", step + "\n")
+        keys = []
+        for ln in (w.group(1).splitlines() if w else []):
+            k = re.match(r"\s+(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\s*:", ln)
+            keys.append(next(g for g in k.groups() if g) if k else "?" + ln.strip())
+        return keys
+    return None
+
+
 def _block(text, key, min_indent):
     """Lines of the `key: |` block scalar: every following line indented deeper
     than the key itself."""
@@ -88,8 +102,10 @@ def lint(text):
 
     # -- checkout: this event's merge commit, no credentials left behind -------------
     need("persist-credentials: false" in review, "checkout must set persist-credentials: false")
-    need(not re.search(r"^\s+ref:", review, re.M),
-         "checkout must not name a ref: refs/pull/N/merge moves, and the default is this event's merge commit")
+    ci = _checkout_inputs(review)
+    need(ci is not None and set(ci) <= {"fetch-depth", "persist-credentials"},
+         "checkout may only set fetch-depth and persist-credentials: a `ref`, `repository`, `token` or `path` changes what Codex reads "
+         "(refs/pull/N/merge moves; with no `ref` the default is this event's merge commit)")
 
     # -- Codex: read-only, key out of reach, reviewer cannot be rewritten ----------
     need(re.search(r'permission-profile: ":read-only"', review), "permission-profile must be \":read-only\"")
@@ -137,8 +153,9 @@ def lint(text):
          "the comment lookup must match the posting bot and the marker at the start of the body")
     need("VERDICT\\u200b:" in comment,
          "the comment must neutralise `VERDICT:` so a scan of PR comments for a verdict cannot match it")
-    need("pulls.get" in comment and "process.env.HEAD_SHA" in comment,
-         "the comment job must skip a review whose PR head has moved on")
+    need("pulls.get" in comment and "process.env.HEAD_SHA" in comment
+         and "pr.data.base.ref" in comment and "process.env.BASE_REF" in comment,
+         "the comment job must skip a review whose PR head or base branch has moved on")
     # -- a key that is not an OpenAI key is never sent to the default endpoint ----------------------
     need('case "$CODEX_API_KEY" in' in review and "sk-*)" in review,
          "the key-shape guard is missing: a non-OpenAI key with no endpoint would be sent to api.openai.com")

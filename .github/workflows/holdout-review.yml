@@ -13,13 +13,15 @@
 #   - The Codex job can read the repo and nothing else (`contents: read`). The
 #     job that posts the comment cannot read secrets or run Codex.
 #   - Review rules are read from the BASE commit, and Codex's own AGENTS.md
-#     loading is switched off for the run, so editing AGENTS.md in a PR does not
-#     change that PR's review. (A PR that also edits this workflow can: see "What
-#     it does not protect against" in docs/holdout-review.md.)
+#     loading is switched off for the run, so editing AGENTS.md in a PR changes
+#     what the reviewer reads, not the rules it applies. (A PR that also edits this
+#     workflow can change them: see "What it does not protect against" in
+#     docs/holdout-review.md.)
 #   - PR title, body, branch names and commit messages never enter the prompt:
 #     they are attacker-controlled text.
 #   - The comment is found by its author and a leading marker, names the commit it
-#     reviewed, is not posted if the PR head has moved on, and cannot carry a
+#     reviewed, is not posted if the PR head has moved on or the PR was retargeted,
+#     and cannot carry a
 #     `VERDICT:` text that another workflow's scan of PR comments could mistake
 #     for its own.
 #   - A key that is not an OpenAI key is refused when no endpoint is set, because
@@ -98,7 +100,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           # The rules come from the base commit, never from the PR's tree: editing
-          # AGENTS.md in a PR must not change that PR's review.
+          # AGENTS.md in a PR must not change the rules its review applies.
           rules="$(git show "$BASE_SHA:AGENTS.md" 2>/dev/null | awk '/^## Code Review Rules/{f=1; next} /^## /{f=0} f' || true)"
           if [ -z "$(printf '%s' "$rules" | tr -d '[:space:]')" ]; then
             rules="The base branch has no Code Review Rules section. Use general code-review judgment: intent, correctness, tests, security, contracts."
@@ -149,16 +151,18 @@ jobs:
           REVIEW: ${{ needs.review.outputs.message }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         with:
           script: |
             const marker = '<!-- holdout-review -->';
             const { owner, repo } = context.repo;
             const issue_number = Number(process.env.PR_NUMBER);
             // A re-run of an older event must not overwrite a newer review: publish only
-            // while the PR head is still the commit this run reviewed.
+            // while the PR head is still the commit this run reviewed and the PR still
+            // targets the branch it was reviewed against.
             const pr = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
-            if (pr.data.head.sha !== process.env.HEAD_SHA) {
-              core.notice(`The PR head moved on from ${process.env.HEAD_SHA.slice(0, 7)}; not publishing a stale review.`);
+            if (pr.data.head.sha !== process.env.HEAD_SHA || pr.data.base.ref !== process.env.BASE_REF) {
+              core.notice(`The PR head or base moved on from ${process.env.HEAD_SHA.slice(0, 7)} on ${process.env.BASE_REF}; not publishing a stale review.`);
               return;
             }
             // The review is model output over untrusted input. Neutralise @mentions so it
