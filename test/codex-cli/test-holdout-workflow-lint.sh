@@ -46,6 +46,11 @@ mutations = [
     ("no concurrency", lambda t: t.replace("concurrency:\n  group: holdout-review-${{ github.event.pull_request.number }}\n  cancel-in-progress: true\n", ""), "concurrency group"),
     ("no timeout", lambda t: t.replace("    timeout-minutes: 20\n", ""), "no timeout"),
     ("endpoint from a variable only", lambda t: t.replace("secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT", "vars.CODEX_RESPONSES_ENDPOINT"), "read from a secret first"),
+    ("lookup trusts any bot", lambda t: t.replace("c.user.login === 'github-actions[bot]'", "c.user.type === 'Bot'"), "match the posting bot"),
+    ("marker anywhere in the body", lambda t: t.replace("c.body.startsWith(marker)", "c.body.includes(marker)"), "match the posting bot"),
+    ("VERDICT not neutralised", lambda t: t.replace(".replace(/VERDICT:/gi, 'VERDICT\\u200b:')", ""), "neutralise `VERDICT:`"),
+    ("stale review published", lambda t: t.replace("github.rest.pulls.get", "github.rest.pulls.list"), "head has moved on"),
+    ("key-shape guard removed", lambda t: t.replace('case "$CODEX_API_KEY" in', 'case "$NOT_THE_KEY" in'), "key-shape guard"),
     ("secret combined with an untrusted expression", lambda t: t.replace("ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}", "ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || github.head_ref }}"), "secret used outside an env/with mapping value"),
 ]
 for name, mutate, expect in mutations:

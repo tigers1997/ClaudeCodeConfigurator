@@ -129,4 +129,15 @@ def lint(text):
          "the endpoint must be read from a secret first: a variable is printed in the run log, which is public in a public repository")
     need(text.count("vars.CODEX_RESPONSES_ENDPOINT") == text.count(pair),
          "the endpoint is read from a variable somewhere without the secret in front of it")
+
+    # -- the comment: its author, a leading marker, the commit it reviewed, and no verdict text ------
+    need("github-actions[bot]" in comment and "startsWith(marker)" in comment,
+         "the comment lookup must match the posting bot and the marker at the start of the body")
+    need("VERDICT\\u200b:" in comment,
+         "the comment must neutralise `VERDICT:` so a scan of PR comments for a verdict cannot match it")
+    need("pulls.get" in comment and "process.env.HEAD_SHA" in comment,
+         "the comment job must skip a review whose PR head has moved on")
+    # -- a key that is not an OpenAI key is never sent to the default endpoint ----------------------
+    need('case "$CODEX_API_KEY" in' in review and "sk-*)" in review,
+         "the key-shape guard is missing: a non-OpenAI key with no endpoint would be sent to api.openai.com")
     return problems
