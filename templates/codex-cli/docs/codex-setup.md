@@ -21,7 +21,7 @@ Pin a version you have tested. Provider support moves with releases, and Microso
 
 - **OpenAI:** sign in as described in the Codex docs (learn.chatgpt.com/docs). For `codex exec` in automation, Codex reads `CODEX_API_KEY`; set it only on the one command that needs it, never for a whole job.
 - **Azure OpenAI / Microsoft Foundry:** `model` is the name of **your deployment**, not the model's own name. Use the v1 `base_url` (`.../openai/v1`, no `api-version`). `wire_api = "responses"` is the only value Codex accepts. `env_key` names an environment variable (`export AZURE_OPENAI_API_KEY=...`); never put the key in the file. Microsoft states that Entra ID sign-in is not available for Codex, so this is API-key only.
-- **Known issue (unconfirmed):** openai/codex#62753 reports `gpt-6.2-sol` failing through Foundry on Codex 0.169 to 0.171 with an invalid tool-schema error, while `gpt-6.1-sol` works. Smoke-test your deployment (step 4) and keep the Codex version pinned.
+- **Known issue (not reproduced):** openai/codex#62753 reports `gpt-6.2-sol` failing through Foundry on Codex 0.169 to 0.171 with an invalid tool-schema error, while `gpt-6.1-sol` works. On 2026-11-23 a smoke test with `gpt-6.2-sol`, one with `gpt-6.2-astra` and a `/cross-review` run all passed through a Foundry resource on Codex 0.171.0, so the report may be specific to a deployment or already fixed. Smoke-test your own deployment (step 4) and keep the Codex version pinned.
 
 ## 3. Profiles: `~/.codex/<name>.config.toml`
 
