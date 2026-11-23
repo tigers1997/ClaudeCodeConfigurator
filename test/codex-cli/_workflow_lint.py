@@ -119,6 +119,14 @@ def lint(text):
     # -- secrets only as `KEY: ${{ secrets.X }}` mapping values ------------------------
     for ln in text.splitlines():
         if "secrets." in ln and not ln.lstrip().startswith("#"):
-            need(re.match(r"^\s+[A-Za-z_-]+: \$\{\{ secrets\.[A-Z_]+ \}\}\s*$", ln),
+            need(re.match(r"^\s+[A-Za-z_-]+: \$\{\{ secrets\.[A-Z_]+( \|\| vars\.[A-Z_]+)? \}\}\s*$", ln),
                  f"secret used outside an env/with mapping value: {ln.strip()}")
+
+    # -- the Azure endpoint is read from a SECRET first ------------------------------
+    # A variable's value is printed in the run log, and a public repository's logs are public.
+    pair = "secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT"
+    need(f"responses-api-endpoint: ${{{{ {pair} }}}}" in review,
+         "the endpoint must be read from a secret first: a variable is printed in the run log, which is public in a public repository")
+    need(text.count("vars.CODEX_RESPONSES_ENDPOINT") == text.count(pair),
+         "the endpoint is read from a variable somewhere without the secret in front of it")
     return problems

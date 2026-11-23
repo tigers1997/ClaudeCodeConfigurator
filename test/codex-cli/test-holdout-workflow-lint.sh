@@ -45,6 +45,8 @@ mutations = [
     ("sandbox-off flag", lambda t: t.replace("codex-args: '[\"-c\", \"project_doc_max_bytes=0\"]'", "codex-args: '[\"--yolo\"]'"), "a flag that disables the sandbox"),
     ("no concurrency", lambda t: t.replace("concurrency:\n  group: holdout-review-${{ github.event.pull_request.number }}\n  cancel-in-progress: true\n", ""), "concurrency group"),
     ("no timeout", lambda t: t.replace("    timeout-minutes: 20\n", ""), "no timeout"),
+    ("endpoint from a variable only", lambda t: t.replace("secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT", "vars.CODEX_RESPONSES_ENDPOINT"), "read from a secret first"),
+    ("secret combined with an untrusted expression", lambda t: t.replace("ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}", "ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || github.head_ref }}"), "secret used outside an env/with mapping value"),
 ]
 for name, mutate, expect in mutations:
     mutated = mutate(text)

@@ -193,7 +193,7 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - Skip (`[ - ]`) unless `docs/codex-setup.md` or `.claude/skills/cross-review/SKILL.md` exists. Codex reads its own config from `$CODEX_HOME` (default `~/.codex`; `%USERPROFILE%\.codex` on Windows), and a repository cannot set a provider there, so this check reads the user-level files.
 - Read `~/.codex/config.toml` (`Grep` for a line starting `[profiles.` or `profile =`). Since Codex 0.134.0, `--profile` no longer reads those: it errors while they remain. Found → `[ ✗ ] Codex profiles: ~/.codex/config.toml still uses the removed [profiles.*] form → move each profile to ~/.codex/<name>.config.toml with top-level keys (docs/codex-setup.md § 3)`.
 - `~/.codex/review.config.toml` exists → `[ ✓ ] Codex review profile: ~/.codex/review.config.toml`. Absent → `[ ⚠ ] Codex review profile: none, so /cross-review uses your default Codex model → create ~/.codex/review.config.toml (docs/codex-setup.md § 3)`. A profile name with no file is not an error in Codex, so a typo in the file name looks like success.
-- `.github/workflows/holdout-review.yml` exists → add one line `[ - ] Holdout review workflow: needs the CODEX_API_KEY secret (and on Azure CODEX_RESPONSES_ENDPOINT and CODEX_REVIEW_MODEL variables); this check cannot see repository secrets`.
+- `.github/workflows/holdout-review.yml` exists → add one line `[ - ] Holdout review workflow: needs the CODEX_API_KEY secret (and on Azure CODEX_RESPONSES_ENDPOINT, a secret in a public repository, and the CODEX_REVIEW_MODEL variable); this check cannot see repository secrets`.
 
 ## Output format
 
