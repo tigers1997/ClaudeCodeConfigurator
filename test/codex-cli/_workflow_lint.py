@@ -26,13 +26,23 @@ def _job(text, name, nxt=None):
 
 
 def _checkout_inputs(job):
-    """Keys of the checkout step's `with:` mapping, quoted or not; None without a checkout step."""
+    """Keys of the checkout step's `with:` mapping, quoted or not; None without a checkout step.
+    A layout this cannot read (no plain `with:` line, a line that is not a key) yields a marker
+    that is not an allowed key, so it fails the lint instead of passing it."""
     for step in re.split(r"\n      - ", job):
         if "uses: actions/checkout@" not in step:
             continue
-        w = re.search(r"\n        with:\n((?:          [^\n]*\n?)+)", step + "\n")
+        lines = step.splitlines()
+        try:
+            i = next(k for k, ln in enumerate(lines) if ln == "        with:")
+        except StopIteration:
+            return ["?no plain `with:` mapping"]
         keys = []
-        for ln in (w.group(1).splitlines() if w else []):
+        for ln in lines[i + 1:]:
+            if not ln.strip():
+                continue                      # a blank line does not end a YAML mapping
+            if len(ln) - len(ln.lstrip()) <= 8:
+                break                         # the mapping ended
             k = re.match(r"\s+(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\s*:", ln)
             keys.append(next(g for g in k.groups() if g) if k else "?" + ln.strip())
         return keys

@@ -54,6 +54,8 @@ mutations = [
     ("comment job regains issues: write", lambda t: t.replace("    permissions:\n      pull-requests: write\n", "    permissions:\n      issues: write\n      pull-requests: write\n"), "exactly `pull-requests: write`"),
     ("checkout names the moving merge ref", lambda t: t.replace("        with:\n          # No `ref:`.", "        with:\n          ref: refs/pull/${{ github.event.pull_request.number }}/merge\n          # No `ref:`."), "checkout may only set"),
     ("checkout input hidden behind a quoted key", lambda t: t.replace("          fetch-depth: 0\n", "          \"ref\": main\n          fetch-depth: 0\n"), "checkout may only set"),
+    ("a blank line hides a ref", lambda t: t.replace("          fetch-depth: 0\n", "          fetch-depth: 0\n\n          ref: main\n"), "checkout may only set"),
+    ("quoted with key", lambda t: t.replace("        with:\n          # No `ref:`.", "        \"with\":\n          # No `ref:`."), "checkout may only set"),
     ("retargeted review published", lambda t: t.replace(" || pr.data.base.ref !== process.env.BASE_REF", ""), "head or base branch has moved on"),
     ("dependabot not skipped", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", ""), "Dependabot PRs are not skipped"),
     ("secret combined with an untrusted expression", lambda t: t.replace("ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}", "ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || github.head_ref }}"), "secret used outside an env/with mapping value"),

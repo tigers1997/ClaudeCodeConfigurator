@@ -157,14 +157,6 @@ jobs:
             const marker = '<!-- holdout-review -->';
             const { owner, repo } = context.repo;
             const issue_number = Number(process.env.PR_NUMBER);
-            // A re-run of an older event must not overwrite a newer review: publish only
-            // while the PR head is still the commit this run reviewed and the PR still
-            // targets the branch it was reviewed against.
-            const pr = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
-            if (pr.data.head.sha !== process.env.HEAD_SHA || pr.data.base.ref !== process.env.BASE_REF) {
-              core.notice(`The PR head or base moved on from ${process.env.HEAD_SHA.slice(0, 7)} on ${process.env.BASE_REF}; not publishing a stale review.`);
-              return;
-            }
             // The review is model output over untrusted input. Neutralise @mentions so it
             // cannot ping people or teams, and VERDICT: so a workflow that scans PR comments
             // for a verdict cannot mistake it for one; keep it under the comment limit.
@@ -173,6 +165,15 @@ jobs:
             const body = `${marker}\n### Holdout review\n\nReviewed commit ${process.env.HEAD_SHA.slice(0, 12)}.\n\n${text}\n\n<sub>Independent model review. Advisory only and it can be wrong: check a finding before acting on it. Source: .github/workflows/holdout-review.yml</sub>`;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
             const mine = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.startsWith(marker));
+            // A re-run of an older event must not overwrite a newer review: publish only
+            // while the PR head is still the commit this run reviewed and the PR still
+            // targets the branch it was reviewed against. Checked right before the write,
+            // so the window is short; a change in the last instant can still slip through.
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
+            if (pr.data.head.sha !== process.env.HEAD_SHA || pr.data.base.ref !== process.env.BASE_REF) {
+              core.notice(`The PR head or base moved on from ${process.env.HEAD_SHA.slice(0, 7)} on ${process.env.BASE_REF}; not publishing a stale review.`);
+              return;
+            }
             if (mine) {
               await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
             } else {
