@@ -1,0 +1,22 @@
+table Sales
+
+	measure 'Total Sales' = SUM(Sales[Amount])
+		formatString: #,0
+
+	column Amount
+		dataType: double
+		sourceColumn: Amount
+		summarizeBy: sum
+
+	column DateKey
+		dataType: int64
+		sourceColumn: DateKey
+		summarizeBy: none
+
+	partition Sales = m
+		mode: import
+		source =
+				let
+					Source = #table(type table [Amount = number, DateKey = Int64.Type], {{1, 20240101}})
+				in
+					Source

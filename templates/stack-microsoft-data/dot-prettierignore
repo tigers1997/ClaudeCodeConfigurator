@@ -1,0 +1,4 @@
+# Written by Fabric, Power BI and Power Platform tooling; those tools define the
+# format, and the format-on-write hook must not reformat what they own.
+fabric/
+power-platform/

@@ -1,0 +1,14 @@
+table Date
+
+	column DateKey
+		dataType: int64
+		sourceColumn: DateKey
+		summarizeBy: none
+
+	partition Date = m
+		mode: import
+		source =
+				let
+					Source = #table(type table [DateKey = Int64.Type], {{20240101}})
+				in
+					Source

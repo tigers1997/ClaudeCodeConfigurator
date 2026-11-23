@@ -1,0 +1,25 @@
+{
+  "//": "Merged into .claude/settings.json by the stack-microsoft-data module. The offline validators are allowed; anything that reaches a tenant is not. `ask` beats `allow`, so a later `Bash(pac:*)` in a local settings file still prompts. Rule names checked against the real tools on 2026-11-23: pac 2.16.1 (`pac solution` has 18 subcommands, only pack, unpack, init, add-reference and create-settings work without a tenant; `pac auth token` prints an access token) and the Fabric CLI (`fab rm` deletes workspaces, items and files).",
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/validate.sh:*)",
+      "Bash(python3 scripts/check_fabric_items.py:*)",
+      "Bash(dotnet tool restore)"
+    ],
+    "ask": [
+      "Bash(pac:*)",
+      "Bash(dotnet tool run pac:*)",
+      "Bash(fab:*)",
+      "Bash(az:*)",
+      "Edit(**/.platform)"
+    ],
+    "deny": [
+      "Bash(pac solution delete:*)",
+      "Bash(pac admin delete:*)",
+      "Bash(pac admin reset:*)",
+      "Bash(pac auth token:*)",
+      "Bash(fab rm:*)",
+      "Bash(az * delete:*)"
+    ]
+  }
+}
