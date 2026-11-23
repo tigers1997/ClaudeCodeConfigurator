@@ -4161,7 +4161,7 @@ def main():
         if holdout_ci:
             next_steps.append(
                 "PR review workflow: add the CODEX_API_KEY secret (and on Azure the "
-                "CODEX_RESPONSES_ENDPOINT and CODEX_REVIEW_MODEL variables); see "
+                "CODEX_RESPONSES_ENDPOINT secret and the CODEX_REVIEW_MODEL variable); see "
                 "docs/holdout-review.md.")
     if bridge_warnings:
         next_steps.append(

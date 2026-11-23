@@ -10,8 +10,10 @@ Repository **Settings → Secrets and variables → Actions**:
 |---|---|---|
 | Secret | `CODEX_API_KEY` | Your OpenAI API key, or your Azure OpenAI key |
 | Variable | `CODEX_REVIEW_MODEL` | The model to review with. On Azure this is your **deployment name**. Suggested: `{{codex_review_model}}` |
-| Variable | `CODEX_RESPONSES_ENDPOINT` | Azure only: `https://<resource>.openai.azure.com/openai/v1/responses` (the full URL, including `/v1/responses`). Leave it unset for OpenAI. |
+| Secret (a variable in a private repository) | `CODEX_RESPONSES_ENDPOINT` | Azure only: `https://<resource>.openai.azure.com/openai/v1/responses` (the full URL, including `/v1/responses`). Leave it unset for OpenAI. |
 | Variable | `CODEX_REVIEW_EFFORT` | Optional: `low`, `medium` or `high` (default `high`) |
+
+**Make the endpoint a secret in a public repository.** The run log prints a step's inputs, a variable's value is not masked, and a public repository's logs are public, so a variable would show your Azure resource name in every run. The workflow reads the secret first and falls back to a variable of the same name.
 
 The workflow fails fast with a clear error when the secret is missing, or when the endpoint is set without a model. Run the smoke test in `docs/codex-setup.md` against the same model first: a deployment that does not answer there will not answer here.
 

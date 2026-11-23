@@ -3,8 +3,9 @@
 # in place. Advisory only; it never fails the PR.
 #
 # SETUP: docs/holdout-review.md. You need one repository secret (CODEX_API_KEY)
-# and, on Azure, two repository variables (CODEX_RESPONSES_ENDPOINT and
-# CODEX_REVIEW_MODEL).
+# and, on Azure, the endpoint (CODEX_RESPONSES_ENDPOINT: a secret, which a public
+# repository needs because a variable's value is printed in the run log; a variable
+# also works in a private one) and the variable CODEX_REVIEW_MODEL.
 #
 # The security shape, in one place:
 #   - `pull_request` only (never `pull_request_target`), and only for PRs from
@@ -46,7 +47,7 @@ jobs:
       - name: Check configuration
         env:
           CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
-          ENDPOINT: ${{ vars.CODEX_RESPONSES_ENDPOINT }}
+          ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}
           MODEL: ${{ vars.CODEX_REVIEW_MODEL }}
         run: |
           if [ -z "$CODEX_API_KEY" ]; then
@@ -88,7 +89,7 @@ jobs:
         uses: openai/codex-action@306c6a196a99dcc6582530c396a19d2672d5e9ec # v1.14
         with:
           openai-api-key: ${{ secrets.CODEX_API_KEY }}
-          responses-api-endpoint: ${{ vars.CODEX_RESPONSES_ENDPOINT }}
+          responses-api-endpoint: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}
           model: ${{ vars.CODEX_REVIEW_MODEL }}
           effort: ${{ vars.CODEX_REVIEW_EFFORT || 'high' }}
           permission-profile: ":read-only"
