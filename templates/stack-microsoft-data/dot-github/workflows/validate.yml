@@ -1,0 +1,58 @@
+# Runs the offline validators (scripts/validate.sh) on every pull request and on
+# pushes to the default branch. Read-only: no secrets, no tenant access.
+#
+# --strict makes a tier whose tool is missing FAIL instead of being skipped, so a
+# runner without .NET, Node or pac cannot turn this into a green check that
+# validated nothing. What the tiers do and do not prove is in
+# docs/microsoft-data-stack.md: in particular nothing here validates DAX or M.
+#
+# Deployment is deliberately not generated: it is tenant-specific. Microsoft's
+# shape is OIDC federated credentials (azure/login with `id-token: write`) and
+# fabric-cicd or microsoft/powerplatform-actions; see the docs page.
+#
+# Actions are pinned by commit SHA (the comments name the version). Update them
+# on purpose.
+
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: ["{{default_branch}}"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the .NET 10 SDK (TMDL parse, pac)
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node (PBIR validator)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Set up uv (only when the repo has Python)
+        if: hashFiles('pyproject.toml') != ''
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Restore the pinned tools (pac)
+        run: dotnet tool restore
+
+      - name: Validate (strict, so a skipped tier fails)
+        run: ./scripts/validate.sh --strict

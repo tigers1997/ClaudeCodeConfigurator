@@ -219,6 +219,34 @@ Pairs Claude Code with OpenAI's Codex CLI as an independent reviewer from anothe
 - flag `cross_review`
 - flag `holdout_ci`
 
+## `stack-microsoft-data`
+
+Source layout, contract and headless validation for repos of Fabric items, Power BI projects (TMDL, PBIR) and Power Platform solutions, built by coding agents.
+
+| Template | Installs to |
+|---|---|
+| `stack-microsoft-data/SPEC.md` | `SPEC.md` |
+| `stack-microsoft-data/fabric/README.md` | `fabric/README.md` |
+| `stack-microsoft-data/power-platform/README.md` | `power-platform/README.md` |
+| `stack-microsoft-data/docs/microsoft-data-stack.md` | `docs/microsoft-data-stack.md` |
+| `stack-microsoft-data/dot-claude/rules/powerbi-tmdl.md` | `.claude/rules/powerbi-tmdl.md` |
+| `stack-microsoft-data/dot-claude/rules/powerbi-report.md` | `.claude/rules/powerbi-report.md` |
+| `stack-microsoft-data/dot-claude/rules/fabric-items.md` | `.claude/rules/fabric-items.md` |
+| `stack-microsoft-data/dot-claude/rules/power-platform.md` | `.claude/rules/power-platform.md` |
+| `stack-microsoft-data/scripts/validate.sh` | `scripts/validate.sh` |
+| `stack-microsoft-data/scripts/tmdl-check.cs` | `scripts/tmdl-check.cs` |
+| `stack-microsoft-data/scripts/check_fabric_items.py` | `scripts/check_fabric_items.py` |
+| `stack-microsoft-data/scripts/report_diagnostics.py` | `scripts/report_diagnostics.py` |
+| `stack-microsoft-data/dot-config/dotnet-tools.json` | `.config/dotnet-tools.json` |
+| `stack-microsoft-data/ruff.toml` | `ruff.toml` |
+| `stack-microsoft-data/dot-prettierignore` | `.prettierignore` |
+
+- `stack-microsoft-data/settings-patch.json` merges into `.claude/settings.json`
+- `stack-microsoft-data/gitignore.append` appends to `.gitignore`
+- `stack-microsoft-data/gitattributes.append` appends to `.gitattributes`
+- depends on `agents-md`
+- flag `ci_validate`
+
 ## How settings merge works
 
 Several modules contribute `hooks` entries, and they all land in one

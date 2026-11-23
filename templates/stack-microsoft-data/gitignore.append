@@ -1,0 +1,4 @@
+
+# Power BI local state: machine-specific caches and settings, never source
+**/.pbi/localSettings.json
+**/.pbi/cache.abf

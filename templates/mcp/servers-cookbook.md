@@ -41,6 +41,12 @@ When bumping versions:
 | `github` (GitHub's official remote MCP) | `https://api.githubcopilot.com/mcp/` (no version — server-side) |
 | `@playwright/mcp` | `0.0.70` |
 | `@upstash/context7-mcp` | `2.1.8` |
+| `microsoft-learn` (Microsoft's remote docs MCP; `stack-microsoft-data`) | `https://learn.microsoft.com/api/mcp` (`type: http`, no auth, no version — server-side) |
+| `@azure/mcp` (`azure`; `stack-microsoft-data`, opt-in) | `3.0.0`, started with `server start --read-only` |
+| `@microsoft/fabric-mcp` (`fabric`; `stack-microsoft-data`, opt-in) | `1.8.0`, started with `server start --read-only` |
+| `@microsoft/powerbi-modeling-mcp` (`powerbi-modeling`; `stack-microsoft-data`, opt-in) | `1.0.1`, started with `--start`. It builds and modifies semantic models, and its README documents no read-only mode (only `--start`, `--accept-eula`, `--help`, `--use-version`). The scaffold never passes `--accept-eula`, so you accept Microsoft's terms yourself on first run. |
+
+The four Microsoft servers are written by `compute_mcp_json()` only (they have no file under `templates/mcp/`), so bump them there.
 
 **Deprecated / removed:** `@modelcontextprotocol/server-github` is end-of-life (upstream removed it from the modelcontextprotocol/servers repo). Replaced by GitHub's official remote HTTP MCP, which uses a `type: http` config with `Authorization: Bearer ${GITHUB_TOKEN}` rather than `npx`.
 

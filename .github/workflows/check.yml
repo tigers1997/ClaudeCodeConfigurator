@@ -31,7 +31,7 @@ jobs:
       - name: Smoke-test every opt-in module combination
         run: |
           set -e
-          for mod in multi-agent github-actions lockdown experiments-memory mcp ui agents-md gemini-cli codex-cli; do
+          for mod in multi-agent github-actions lockdown experiments-memory mcp ui agents-md gemini-cli codex-cli stack-microsoft-data; do
             target=$(mktemp -d)
             echo "--- scaffolding core + $mod into $target"
             python3 configure.py --yes --modules "core,$mod" --dry-run --dir "$target"
@@ -81,6 +81,29 @@ jobs:
         run: |
           set -e
           for t in test/codex-cli/test-*.sh; do
+            bash "$t"
+          done
+
+      - name: Stack snapshot tests
+        run: |
+          set -e
+          target=$(mktemp -d)
+          python3 configure.py --persona solo-experienced --yes --stack microsoft-data --dir "$target" >/dev/null
+          actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
+          diff --strip-trailing-cr <(echo "$actual") examples/stack-microsoft-data/expected-tree.txt \
+            || { echo "snapshot drift for stack-microsoft-data"; exit 1; }
+          echo "stack snapshot matches"
+
+      # Hermetic: stub tools only, no network. The two tests that need the real
+      # .NET / Node / pac / ruff / prettier run in the `microsoft-data-real-tools`
+      # job below, so a NuGet or npm outage cannot turn this required check red.
+      - name: stack-microsoft-data fixture tests
+        run: |
+          set -e
+          for t in test/stack-microsoft-data/test-*.sh; do
+            case "$t" in
+              */test-real-tools.sh|*/test-format-protection.sh) continue ;;
+            esac
             bash "$t"
           done
 
@@ -281,3 +304,57 @@ jobs:
       - name: cross-review script (bash 3.2)
         if: runner.os == 'macOS'
         run: bash test/codex-cli/test-cross-review-script.sh
+
+  # The Microsoft data stack's validators against the REAL tools: the .NET 10 TMDL
+  # parse, the PBIR validator (Node 20+), `pac solution pack`, and the ruff /
+  # prettier exclusions that keep the format-on-write hook off Fabric sources.
+  # The hermetic tests in `check` pin the wrapper's logic against stubs; this job
+  # is the only place the wrapper meets what the tools actually print.
+  #
+  # Deliberately NOT named `check` and not `needs: check`: it downloads from
+  # nuget.org and the npm registry, and an outage there must not block merges, so
+  # it is informational until the maintainer adds it to MainBrnchRuleset and
+  # docs/governance/branch-protection.json. REQUIRE_REAL_TOOLS=1 makes a missing
+  # tool a failure here instead of a skip, so this job cannot go green on nothing.
+  microsoft-data-real-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up the .NET 10 SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # The versions the shipped templates pin: pac in
+      # templates/stack-microsoft-data/dot-config/dotnet-tools.json (restored from
+      # that file, so this cannot drift from it); the formatters are pinned here.
+      - name: Install pac and the formatters
+        run: |
+          set -e
+          dotnet tool restore --tool-manifest templates/stack-microsoft-data/dot-config/dotnet-tools.json
+          python3 -m pip install --quiet ruff==0.17.6
+          npm install --global --ignore-scripts prettier@3.6.2
+
+      - name: Validators against the real tools
+        env:
+          REQUIRE_REAL_TOOLS: "1"
+        run: |
+          set -e
+          bash test/stack-microsoft-data/test-real-tools.sh
+          bash test/stack-microsoft-data/test-format-protection.sh
+          bash test/stack-microsoft-data/test-existing-config.sh

@@ -75,6 +75,10 @@ Codex stops adding instruction files once the combined text reaches `project_doc
 - **Other vendors' models.** Claude Code cannot route to non-Claude models through any gateway, and a subagent cannot run another vendor's model. A second harness is a separate process: a person running `codex`, a CI job, or a script that shells out. That is how the `codex-cli` module's cross-vendor reviewer works.
 - **Do not put model-routing instructions in `CLAUDE.md` or `AGENTS.md`.** They load every turn, and the model cannot switch its own model. Write the role-to-model table where humans read it (`docs/`).
 
+## Stack types and harnesses
+
+A stack type ([doc 13](13-stack-types.md)) adds its own review rules to `AGENTS.md`, under the **Code Review Rules** heading that Codex's GitHub review reads, and depends on `agents-md`. Choosing a stack type therefore also makes the repository readable by the other tools in the table above, even when you picked no other harness.
+
 ## Trust
 
 - An `AGENTS.md` that arrives in a pull request is untrusted input to any agent that reads it. A CI job that runs an agent over a PR must not give it secrets the PR can reach.

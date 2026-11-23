@@ -1,0 +1,7 @@
+# Fabric Git integration normalises CRLF to LF when it commits item folders. Pin
+# LF here so a Windows checkout does not create line-ending churn in source it
+# will normalise again. text=auto leaves binary files alone.
+fabric/** text=auto eol=lf
+power-platform/** text=auto eol=lf
+*.msapp binary
+*.pbix binary

@@ -39,6 +39,8 @@ Everything in this kit is a structured choice about which levers to pull and how
 10. **[Getting started](11-getting-started.md)** — two end-to-end walkthroughs: brand-new project (with `superpowers` brainstorming first) and existing-project retrofit (with `/retrofit` for staged-conflict resolution). Read this first.
 11. **[Multi-harness projects](12-multi-harness.md)** — one source of truth for Claude Code and other agent tools: who reads `CLAUDE.md` vs `AGENTS.md` vs `GEMINI.md`, the `@AGENTS.md` bridge, the 32 KiB Codex budget, and what a repository can and cannot control about which model does what
 
+12. **[Stack types](13-stack-types.md)** — presets that also install files: how `--stack` works, what a stack module carries (validators, path-scoped rules, permissions, review rules), and the checklist for adding one; the first is Microsoft data & BI (Fabric, Power BI, Power Platform)
+
 (`07-backlog.md` is local-only, gitignored — project roadmap notes.)
 
 ## Modules → docs mapping
@@ -62,6 +64,7 @@ Which modules operationalize which docs:
 | `agents-md` | Doc 12 (`AGENTS.md` as the shared source of truth, `CLAUDE.md` as an `@AGENTS.md` bridge) |
 | `gemini-cli` | Doc 12 (`GEMINI.md` importing `AGENTS.md`) |
 | `codex-cli` | Doc 12 (Codex CLI as an independent reviewer: `docs/codex-setup.md`, `/cross-review`, optional PR workflow) |
+| `stack-microsoft-data` | Doc 13 (a stack type: `scripts/validate.sh` tiers, path-scoped rules, `SPEC.md`, review rules, `docs/microsoft-data-stack.md`) |
 
 ## Guiding principles
 

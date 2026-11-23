@@ -20,6 +20,7 @@ Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.c
 - **`token-efficiency-pro`** — standard POSIX tools (`awk`, `tail`, `wc`)
 - **`mcp`** — `npx` (Node) or `uvx` (Python) depending on which MCP servers you enable; `./claude-ctx` wrapper needs `bash` and the `claude` CLI on PATH
 - **`codex-cli`** — the `codex` CLI on PATH for `/cross-review` (`npm install -g @openai/codex`; `docs/codex-setup.md` covers install, provider and pinning), plus `bash` and `git` for its script. The optional PR workflow needs a `CODEX_API_KEY` repository secret and GitHub-hosted Ubuntu runners.
+- **`stack-microsoft-data`** — for `scripts/validate.sh`, each tier needs its own tool and is skipped when the tool is absent: the **.NET 10 SDK** (the TMDL parse, and `pac` as the pinned local tool via `dotnet tool restore`), **Node 20+** (the PBIR validator, fetched at a pinned version by `npx`), and `uv` (the Python tier). `--strict`, which the generated CI workflow uses, turns a skipped tier into a failure.
 
 ## Platform support
 
@@ -61,6 +62,7 @@ cc-configure --persona solo-newer --yes    # one-shot for newer coders
 cc-configure --persona small-team --yes    # one-shot, team kit
 cc-configure --persona small-team --yes --harness gemini   # also serve Gemini CLI via a shared AGENTS.md
 cc-configure --persona small-team --yes --harness codex --codex-ci   # Codex as cross-vendor reviewer + PR workflow
+cc-configure --persona small-team --yes --stack microsoft-data   # Fabric / Power BI / Power Platform: validators, rules, SPEC.md
 cc-configure --yes                         # reuse existing .claude-config.json
 cc-configure --dry-run                     # preview without writing
 cc-configure --whats-new                   # what a re-run would pick up (reads .claude/.cc-manifest.json)
@@ -122,13 +124,14 @@ The Tech-stack section leads with a **stack preset** picker. Selecting one prefi
 | `Python (pip + venv)` | Python 3.12 / FastAPI / pip / pytest / black / mypy |
 | `Go` | Go 1.22 / stdlib net/http / `go mod` / `go test` / gofmt / `go vet` |
 | `Rust` | Rust 1.82 / axum / cargo / rustfmt / clippy |
+| `Microsoft data & BI (Fabric / Power BI / Power Platform)` | A stack **type**, not just a language: DAX / Power Query M / Power Fx / PySpark, with its own validators, rules, `SPEC.md` and review checklist. Also turns on the `stack-microsoft-data` module (below). See [`docs/13`](docs/13-stack-types.md). |
 | `Custom / keep current` | No-op — leave every downstream field as shown |
 
-Picking `Python (uv)` flips `cmd_test` from `pnpm test` to `uv run pytest`, etc. Override individual fields after the preset if needed.
+Picking `Python (uv)` flips `cmd_test` from `pnpm test` to `uv run pytest`, etc. Override individual fields after the preset if needed. `--stack <slug>` (`node-ts`, `python-uv`, `go`, `microsoft-data`, ...) picks one non-interactively and answers quick mode's third question.
 
 ## Modules
 
-There are 15 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
+There are 16 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
 
 | Module | What it installs |
 | --- | --- |
@@ -146,6 +149,7 @@ There are 15 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-p
 | **agents-md** | Opt-in (`--harness agents-md`, or quick-mode question 4). Serves other agent tools from one shared file: `AGENTS.md` holds the harness-neutral project memory (commands, style, testing, **Agent roles**, **Code Review Rules**) that Codex CLI, Cursor, Copilot's agent, Zed, Windsurf, Amp, Aider and others read directly, and `CLAUDE.md` becomes a bridge whose first line is `@AGENTS.md` plus the Claude Code specifics. Claude Code reads `AGENTS.md` only when no `CLAUDE.md` exists, so the import is what shares it. A Claude-only scaffold is unchanged. `--check` fails if the two templates drift from `core/CLAUDE.md` or `AGENTS.md` renders over 20 KiB (Codex truncates its AGENTS.md chain at 32 KiB). See [`docs/12-multi-harness.md`](docs/12-multi-harness.md). |
 | **gemini-cli** | Opt-in (`--harness gemini`; depends on `agents-md`). A `GEMINI.md` that imports `AGENTS.md`, because Gemini CLI reads `GEMINI.md` by default and `AGENTS.md` only when `context.fileName` lists it. |
 | **codex-cli** | Opt-in (`--harness codex`; depends on `agents-md`). Pairs Claude Code with OpenAI's Codex CLI as an **independent reviewer** from another model family. Writes `docs/codex-setup.md` (the user-level `~/.codex` config for OpenAI or Azure/Microsoft Foundry, `review` and `bulk` profile files, a smoke test, version pinning, known caveats). A repository cannot set a Codex provider, so no `.codex/config.toml` is shipped. Flag **`cross_review`** (default on) adds `/cross-review`: a script runs `codex exec --sandbox read-only --ephemeral` over the branch diff and Claude re-checks each finding against the code; Codex calls are `ask` rules because repository content leaves the machine. Flag **`holdout_ci`** (`--codex-ci`, default off) adds `.github/workflows/holdout-review.yml` on `openai/codex-action`, SHA-pinned, read-only, same-repo PRs only, review rules read from the base commit, one advisory comment updated in place; needs a `CODEX_API_KEY` secret (`docs/holdout-review.md` lists what it does and does not protect against). Model names (`codex_review_model`, `codex_bulk_model`) are form fields: on Azure `model` is your deployment name. |
+| **stack-microsoft-data** | Turned on by the `Microsoft data & BI` stack preset (`--stack microsoft-data`; depends on `agents-md`), for a repository that *is* Microsoft Fabric / Power BI / Power Platform source. `scripts/validate.sh` validates offline in tiers: `models` (TMDL structure, parsed by Microsoft's own `TmdlSerializer` on the .NET 10 SDK), `report` (PBIR schema, through Microsoft's validator at a pinned version), `solution` (`pac solution pack`, whose exit-0 "components are not defined" message is treated as the failure it is), `repo` (`.platform` identity: a copied item that keeps its `logicalId` fails, as do tracked Power BI cache files; hardcoded environment coordinates warn: Dataverse, workspace, tenant and XMLA URLs) and `python`. A tier whose tool is missing prints `SKIP`, one that ran and found a problem prints `FAIL`, `--changed` keeps the Stop hook quiet and fast, and `--strict` makes a skip fail. **It does not validate DAX or M**, and the generated `docs/microsoft-data-stack.md` says so. Also writes four path-scoped rules (TMDL, PBIR, Fabric items, Power Platform), `SPEC.md` (the contract that Fabric, the model, the reports and Power Platform share), `ruff.toml` and `.prettierignore` so the format hook leaves Fabric and solution sources alone, a settings patch (validators allowed; `pac`, `fab`, `az` ask; deletes denied), review rules spliced into `AGENTS.md`, and Microsoft MCP toggles (Learn on; Azure, Fabric and Power BI Modeling opt-in, pinned, read-only where the server has the flag). Flag **`ci_validate`** (default on) adds `.github/workflows/validate.yml`: read-only, SHA-pinned, `validate.sh --strict` on pull requests. Added to an existing repository, it warns when your `ruff.toml`, `.prettierignore` or `.config/dotnet-tools.json` lacks the lines the stack needs, and when its `ruff.toml` would shadow `[tool.ruff]` in `pyproject.toml`. See [`docs/13`](docs/13-stack-types.md). |
 
 ## Token-efficiency presets
 
@@ -193,6 +197,11 @@ All five preflight checks are silent on a clean default scaffold; informational 
                         AGENTS.md as the shared source of truth and makes
                         CLAUDE.md a bridge that imports it. See
                         docs/12-multi-harness.md.
+--stack NAME            Stack preset, by slug or full name: node-ts | node-js |
+                        python-uv | python-poetry | python-pip | go | rust |
+                        microsoft-data | custom. Prefills the stack's commands
+                        and design answers; microsoft-data also turns on the
+                        stack-microsoft-data module. See docs/13-stack-types.md.
 --codex-ci              Also write .github/workflows/holdout-review.yml (Codex
                         reviews each same-repo PR, advisory only). Needs
                         --harness codex and a CODEX_API_KEY repo secret; see
@@ -242,7 +251,7 @@ configure.py        # the CLI
 config_schema.py    # modules + form fields + stack presets
 install.sh          # installer
 templates/          # raw source for every file the CLI writes
-docs/               # 13-part knowledge base (00-overview → 12-multi-harness;
+docs/               # 14-part knowledge base (00-overview → 13-stack-types;
                     #  07-backlog.md is gitignored as local-only roadmap)
 ```
 
