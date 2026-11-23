@@ -9,7 +9,7 @@ Instructions for coding agents working in this repository (Codex, Cursor, Copilo
 ## Commands
 
 - `python3 configure.py --check` checks the module registry and the templates. It must pass.
-- `bash test/<module>/test-*.sh`, run from the repository root, are the fixture tests. CI runs all of them.
+- `for t in test/<module>/test-*.sh; do bash "$t"; done`, run from the repository root, runs one module's fixture tests; `test/` has one directory per module. CI runs the directories that `.github/workflows/check.yml` lists, one step each, so a new module's tests need a step there.
 - `python3 configure.py --persona solo-experienced --yes --dir <scratch>` scaffolds into a scratch directory so you can read the output.
 
 ## Code Review Rules
