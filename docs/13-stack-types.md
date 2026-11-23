@@ -35,6 +35,10 @@ cc-configure --stack python-uv         # a plain preset: values only, no module
 - **Files the repository may already own.** A stack module that writes a shared config file (`ruff.toml`, `.prettierignore`, `.config/dotnet-tools.json`) meets the user's own copy in a retrofit: the default collision strategy keeps theirs and stages yours, so the lines your stack depends on can silently be missing. Add a check to the warnings block of `configure.py` (`check_stack_microsoft_config` is the example) that fires only when an existing file lacks those lines, so it stays quiet on a fresh target and on a re-run, and record it in the retrofit report. Also check what your file *shadows*: ruff reads one config file, and `ruff.toml` outranks `[tool.ruff]` in `pyproject.toml`.
 - **Never pre-approve a command that reaches a tenant or an account.** The settings patch allows the offline validators and puts everything live under `ask` or `deny`. Nothing third-party is vendored; pin versions, and never accept a licence on the user's behalf.
 - **Say what is not validated.** The generated doc has a table of what each tier proves and what it cannot (for Microsoft: nothing offline checks DAX or M), with an access date on every source.
+- **Do not ship a directory named `lib/`.** This repository's `.gitignore` carries `lib/`, as do many users', so `git add -A` silently drops `scripts/lib/*.py` and the scaffold is missing files. Put helpers beside the script, and check a new template directory with `git status --ignored` before you commit it.
+- **Shipped Python is linted by the user's tools.** ruff's *default* rules flagged both Microsoft helpers (`EXE001`, `FURB167`, `PLW1510` on ruff 0.17.6), so a user's first `./scripts/validate.sh python` would have failed on files they did not write. Keep shipped Python clean under `ruff check --isolated` and ruff-formatted, and pin it in a test (`test-format-protection.sh` does).
+- **A shipped workflow must be valid YAML, and CI does not parse YAML.** An unquoted `: ` in a step name made `validate.yml` invalid, and only `actionlint` noticed. Quote step names that contain a colon; `test-workflow.sh` carries a plain-scalar lint for the class.
+- **`--check` cannot reach the runtime paths of `configure.py`.** A new warning function shipped with a missing `import re` and crashed every Microsoft scaffold; the test that runs the function caught it at once. Every new function needs a test that executes it (`configure.py` imports `re` locally, per function).
 
 ## Checklist
 
@@ -43,7 +47,7 @@ cc-configure --stack python-uv         # a plain preset: values only, no module
 3. Add a `target_path_for` rule only if you introduce a new `dot-` prefixed directory (`dot-claude`, `dot-github` and `dot-config` exist).
 4. Write the validators as scripts the project owns, with a stub-based test that pins the wrapper's logic (tier selection, skip versus fail versus strict, each tool's real messages) and a real-tool test that skips when the tool is absent. Put the real-tool test in its own CI job, as `microsoft-data-real-tools` does: it depends on package registries, so it must not be a required check.
 5. Commit a small real fixture, run every validator against it, then break it in each way you claim to catch and confirm the failure. Pin in a test the things you found that the tools do **not** catch.
-6. Add `examples/stack-<slug>/` (a saved `.claude-config.json` and `expected-tree.txt`) and a snapshot step in `.github/workflows/check.yml`, a smoke-loop entry, and a CHANGELOG entry that states what was and was not verified.
+6. Add `examples/stack-<slug>/` (a saved `.claude-config.json` and `expected-tree.txt`) and a snapshot step in `.github/workflows/check.yml`, a smoke-loop entry, and a short CHANGELOG entry that says what was not verified (the verification record belongs in the PR description).
 7. Regenerate the index: `python3 configure.py --write-index`.
 
 ## Not built yet
