@@ -358,3 +358,49 @@ jobs:
           bash test/stack-microsoft-data/test-real-tools.sh
           bash test/stack-microsoft-data/test-format-protection.sh
           bash test/stack-microsoft-data/test-existing-config.sh
+
+  # The codex-cli module against the REAL Codex CLI, newest release: the flags the
+  # script and the workflow use, profile overlays, provider handling, the AGENTS.md
+  # switch-off, and that cross-review.sh starts when its caller's stdin is an open
+  # pipe (the way Claude Code's Bash tool runs it). The hermetic tests in `check` run
+  # a stub, which cannot see any of that; this job is where the module meets the
+  # binary. No credentials: Codex reaches api.openai.com and gets a 401, and every
+  # case reads only what Codex prints first.
+  #
+  # Deliberately NOT named `check` and not `needs: check`: it downloads from the npm
+  # registry, and a Codex release that changes behaviour should turn this job red
+  # without blocking merges, so it is informational until the maintainer adds it to
+  # MainBrnchRuleset and docs/governance/branch-protection.json. REQUIRE_REAL_TOOLS=1
+  # makes a missing CLI a failure here instead of a skip, so this job cannot go
+  # green on nothing.
+  codex-real-cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # The newest release on purpose: this is the canary for Codex changing under the
+      # module. Install scripts are off; the platform binary is an optional dependency.
+      - name: Install the Codex CLI
+        run: |
+          set -e
+          npm install --global --ignore-scripts @openai/codex@latest
+          codex --version
+
+      - name: The module against the real CLI
+        env:
+          REQUIRE_REAL_TOOLS: "1"
+        run: bash test/codex-cli/test-real-codex.sh
