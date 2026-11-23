@@ -25,6 +25,20 @@ def _job(text, name, nxt=None):
     return text[start:end]
 
 
+STEP_KEYS = ("name", "id", "uses", "with", "env", "run", "if")
+
+
+def _unreadable_step_keys(job):
+    """Step-level keys this text lint cannot read (a quoted key, an unknown one). A step it cannot
+    read is a step it cannot vouch for, so it fails instead of passing."""
+    bad = []
+    for step in re.split(r"\n      - ", job)[1:]:
+        lines = step.splitlines()
+        keys = [lines[0]] + [ln.strip() for ln in lines[1:] if ln.strip() and len(ln) - len(ln.lstrip()) == 8]
+        bad += [k for k in keys if not re.match(r"(?:" + "|".join(STEP_KEYS) + r"):", k)]
+    return bad
+
+
 def _mapping(job, header):
     """The non-blank lines of the block mapping under `header` (an exact line such as
     "    permissions:"), or None when there is no such line. A blank line does not end a YAML
@@ -143,8 +157,16 @@ def lint(text):
     need("--yolo" not in text and "--full-auto" not in text and "danger-full-access" not in text
          and "--dangerously-bypass" not in text, "a flag that disables the sandbox is present")
 
+    # -- every step is one the lint can read (a quoted `"uses":` key would hide a second checkout) -------
+    for jname, job in (("review", review), ("comment", comment)):
+        need(not _unreadable_step_keys(job),
+             f"the {jname} job has a step layout the lint cannot read: {_unreadable_step_keys(job)}")
+
     # -- the checkout must be this event's merge commit, checked before Codex runs --------------------
     i_co, i_chk, i_codex = review.find("actions/checkout@"), review.find("git rev-parse HEAD^2"), review.find("openai/codex-action@")
+    chk_step = next((s for s in re.split(r"\n      - ", review) if "git rev-parse HEAD^2" in s), "")
+    need(_mapping(chk_step, "        env:") == ["HEAD_SHA: ${{ github.event.pull_request.head.sha }}"],
+         "the merge-commit check must bind HEAD_SHA to the event's PR head sha (its fixture supplies its own, so only the lint sees the binding)")
     need(0 <= i_co < i_chk < i_codex and '!= "$HEAD_SHA"' in review,
          "the review job must check, after the checkout and before Codex, that the merge commit contains this event's PR head")
 
