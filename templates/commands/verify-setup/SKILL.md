@@ -188,6 +188,13 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - Codex concatenates `AGENTS.md` files from the repo root down to the working directory and silently truncates the chain at 32768 bytes (`project_doc_max_bytes`). Size the root file with `wc -c AGENTS.md`: over 32768 → `[ ✗ ] AGENTS.md budget: N bytes; Codex drops the rest of the chain at 32768 → trim, or move directory-specific detail into nested AGENTS.md files`; over 24576 → `[ ⚠ ] AGENTS.md budget: N bytes, under 8 KiB left for nested files`; otherwise `[ ✓ ] AGENTS.md budget: N of 32768 bytes`.
 - `GEMINI.md` exists → it must contain a line `@./AGENTS.md`, or `.gemini/settings.json` must list `AGENTS.md` under `context.fileName`; otherwise `[ ⚠ ] Gemini CLI: GEMINI.md does not import AGENTS.md, and Gemini CLI reads GEMINI.md, not AGENTS.md, by default`. Otherwise `[ ✓ ] Gemini CLI: reads AGENTS.md`.
 
+### 19. Codex setup (user scope)
+
+- Skip (`[ - ]`) unless `docs/codex-setup.md` or `.claude/skills/cross-review/SKILL.md` exists. Codex reads its own config from `$CODEX_HOME` (default `~/.codex`; `%USERPROFILE%\.codex` on Windows), and a repository cannot set a provider there, so this check reads the user-level files.
+- Read `~/.codex/config.toml` (`Grep` for a line starting `[profiles.` or `profile =`). Since Codex 0.134.0, `--profile` no longer reads those: it errors while they remain. Found → `[ ✗ ] Codex profiles: ~/.codex/config.toml still uses the removed [profiles.*] form → move each profile to ~/.codex/<name>.config.toml with top-level keys (docs/codex-setup.md § 3)`.
+- `~/.codex/review.config.toml` exists → `[ ✓ ] Codex review profile: ~/.codex/review.config.toml`. Absent → `[ ⚠ ] Codex review profile: none, so /cross-review uses your default Codex model → create ~/.codex/review.config.toml (docs/codex-setup.md § 3)`. A profile name with no file is not an error in Codex, so a typo in the file name looks like success.
+- `.github/workflows/holdout-review.yml` exists → add one line `[ - ] Holdout review workflow: needs the CODEX_API_KEY secret (and on Azure CODEX_RESPONSES_ENDPOINT and CODEX_REVIEW_MODEL variables); this check cannot see repository secrets`.
+
 ## Output format
 
 ```
@@ -215,6 +222,7 @@ PROJECT /absolute/path/here
 [ ✓ ] Plan mode: prompts for shell commands
 [ ✓ ] AGENTS.md bridge: CLAUDE.md imports AGENTS.md
 [ ✓ ] AGENTS.md budget: 4434 of 32768 bytes
+[ ⚠ ] Codex review profile: none, so /cross-review uses your default Codex model
 
 Suggested next actions:
 1. Extract frontend-specific rules from CLAUDE.md (lines 45–78) into .claude/rules/frontend.md with paths: "src/frontend/**"

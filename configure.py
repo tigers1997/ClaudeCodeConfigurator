@@ -500,6 +500,73 @@ def compute_recommended_plugins(form_values):
     return "\n".join(lines)
 
 
+# -----------------------------------------------------------------------------
+# Codex CLI (codex-cli module)
+# -----------------------------------------------------------------------------
+CODEX_PROVIDER_LABELS = {
+    "openai": "the OpenAI API",
+    "azure": "Azure OpenAI / Microsoft Foundry",
+}
+CODEX_EFFORTS = ("low", "medium", "high")
+# What a Codex model or Azure deployment name looks like. Anything else is
+# almost certainly a typo or a paste accident, and the value is written inside
+# a TOML string in docs/codex-setup.md.
+CODEX_NAME_RE = r"^[A-Za-z0-9][A-Za-z0-9._:/@-]*$"
+
+
+def codex_user_config(form_values: dict) -> str:
+    """The `~/.codex/config.toml` text for docs/codex-setup.md, by provider.
+
+    It is user-level on purpose: Codex ignores model_provider(s), profile(s) and
+    base-URL keys in a project's .codex/config.toml, so a repository cannot (and
+    must not) carry them. The Azure shape is the one Microsoft's Codex guide
+    shows: `model` is the DEPLOYMENT name, the v1 base_url needs no api-version,
+    and wire_api = "responses" is the only value Codex accepts."""
+    provider = (form_values.get("codex_provider") or "openai").strip().lower()
+    bulk = form_values.get("codex_bulk_model") or "gpt-6.2-sol"
+    if provider == "azure":
+        return (
+            "# ~/.codex/config.toml\n"
+            f'model = "{bulk}"   # your Azure DEPLOYMENT name, not the model family\n'
+            'model_provider = "azure"\n'
+            'model_reasoning_effort = "medium"\n'
+            "\n"
+            "[model_providers.azure]\n"
+            'name = "Azure OpenAI"\n'
+            'base_url = "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/v1"\n'
+            'env_key = "AZURE_OPENAI_API_KEY"\n'
+            'wire_api = "responses"'
+        )
+    return (
+        "# ~/.codex/config.toml (optional once you are signed in: the built-in `openai`\n"
+        "# provider needs no provider block)\n"
+        f'model = "{bulk}"\n'
+        'model_reasoning_effort = "medium"'
+    )
+
+
+def check_codex_fields(form_values: dict) -> list:
+    """Warnings for codex_* answers that would render a broken or misleading
+    docs/codex-setup.md. Warning-only: nothing here reaches a script or a
+    workflow, only TOML snippets in a Markdown doc."""
+    import re
+    fv = form_values or {}
+    out = []
+    provider = (fv.get("codex_provider") or "openai").strip().lower()
+    if provider not in CODEX_PROVIDER_LABELS:
+        out.append(f"codex_provider {provider!r} is not one of {', '.join(CODEX_PROVIDER_LABELS)}; "
+                   "docs/codex-setup.md falls back to openai")
+    for key in ("codex_review_model", "codex_bulk_model"):
+        val = fv.get(key) or ""
+        if not re.match(CODEX_NAME_RE, val):
+            out.append(f"{key} {val!r} does not look like a model or deployment name (letters, "
+                       "digits and . _ : / @ - only); it is written into TOML in docs/codex-setup.md")
+    effort = fv.get("codex_review_effort") or ""
+    if effort not in CODEX_EFFORTS:
+        out.append(f"codex_review_effort {effort!r} is not one of {', '.join(CODEX_EFFORTS)}")
+    return out
+
+
 def compute_placeholders(form_values: dict, selected: set, module_flags: dict = None) -> dict:
     v = dict(form_values)
     v["goals"] = lines_to_bullets(v.get("goals", ""))
@@ -528,6 +595,10 @@ def compute_placeholders(form_values: dict, selected: set, module_flags: dict = 
     # "stack-specific" table from the user's form answers.
     v["recommended_plugins"] = compute_recommended_plugins(form_values)
     v["generation_date"] = time.strftime("%Y-%m-%d")
+    # codex-cli module: provider-specific user-level config for docs/codex-setup.md.
+    provider = (form_values.get("codex_provider") or "openai").strip().lower()
+    v["codex_provider_label"] = CODEX_PROVIDER_LABELS.get(provider, CODEX_PROVIDER_LABELS["openai"])
+    v["codex_provider_config"] = codex_user_config(form_values)
     return v
 
 
@@ -3160,7 +3231,7 @@ def prompt_modules(selected: set):
 
 
 def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = False,
-                      harness_arg: list = None) -> dict:
+                      harness_arg: list = None, codex_ci_arg: bool = False) -> dict:
     """6-question happy-path intake. Persona drives module/flag/form defaults.
 
     `skip_persona_q` is set by the v1-NOTICE branch in main(), which has
@@ -3171,7 +3242,8 @@ def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = Fa
     `harness_arg` is the parsed --harness value (None when the flag is absent).
     The persona question replaces `selected` wholesale, so a --harness already
     applied in main() would be lost; the answer is re-applied at the harness
-    question instead of asking it."""
+    question instead of asking it. Picking Codex adds one follow-up (the PR
+    review workflow), pre-answered by `codex_ci_arg` (--codex-ci)."""
     print(bold("=" * 60))
     print(bold("  Claude Code project configurator \u2014 quick mode"))
     print(bold("=" * 60))
@@ -3214,6 +3286,19 @@ def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = Fa
     if harness_arg is None:
         harness_arg = _ask_harnesses(saved_harnesses)
     initial["selected"] = apply_harnesses(initial["selected"], harness_arg)
+    if "codex-cli" in initial["selected"]:
+        cflags = initial.setdefault("module_flags", {}).setdefault("codex-cli", {})
+        if codex_ci_arg:
+            cflags["holdout_ci"] = True
+        else:
+            current = bool(cflags.get("holdout_ci", False))
+            raw = _input("  Also add the PR review workflow (Codex comments on each pull request; "
+                         "needs a repo secret and costs a model run per push)? "
+                         f"[{'Y/n' if current else 'y/N'}]: ").strip().lower()
+            if raw in ("y", "yes"):
+                cflags["holdout_ci"] = True
+            elif raw in ("n", "no"):
+                cflags["holdout_ci"] = False
 
     # Q5: repo url (optional). Empty default is intentional — a [TODO:]
     # placeholder gets stamped later by normalize_conditional_placeholders.
@@ -3428,6 +3513,11 @@ def parse_args():
                         "the saved harness set. Adds AGENTS.md as the shared source of "
                         "truth and turns CLAUDE.md into a bridge that imports it "
                         "(docs/12-multi-harness.md).".format(" | ".join(HARNESSES)))
+    p.add_argument("--codex-ci", action="store_true",
+                   help="Also write .github/workflows/holdout-review.yml (Codex reviews each "
+                        "same-repo pull request, advisory only). Needs the codex harness "
+                        "(--harness codex) and a CODEX_API_KEY repo secret; see "
+                        "docs/holdout-review.md.")
     p.add_argument("--yes", action="store_true",
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
     p.add_argument("--dry-run", action="store_true", help="Show what would be written and exit")
@@ -3699,11 +3789,18 @@ def main():
         # When the v1-NOTICE branch already prompted for a persona, skip Q1
         # in quick_interactive so the menu doesn't appear twice.
         config = quick_interactive(target_dir, initial, skip_persona_q=is_v1_config,
-                                   harness_arg=harness_arg)
+                                   harness_arg=harness_arg, codex_ci_arg=args.codex_ci)
 
     # Resolve any declared module dependencies before saving or scaffolding,
     # so we never generate an inconsistent set.
     config["selected"] = resolve_dependencies(config["selected"])
+    if args.codex_ci:
+        if "codex-cli" not in config["selected"]:
+            print(bold(red("[ ERROR ]")),
+                  "--codex-ci needs the codex harness: add --harness codex", file=sys.stderr)
+            sys.exit(2)
+        config.setdefault("module_flags", {}).setdefault("codex-cli", {})["holdout_ci"] = True
+    holdout_ci = bool(config.get("module_flags", {}).get("codex-cli", {}).get("holdout_ci", False))
 
     # --- save-config flow ---
     if args.save_config_only:
@@ -3770,6 +3867,12 @@ def main():
     # The doc the [TODO:] placeholders land in, and a retrofit CLAUDE.md that
     # would leave the new AGENTS.md unread (surfaced again in NEXT STEPS and
     # the retrofit report below).
+    if "codex-cli" in config["selected"]:
+        for w in check_codex_fields(config["formValues"]):
+            module_warnings.append(("codex-cli", w))
+        if holdout_ci:
+            for w in check_github_remote(target_dir):
+                module_warnings.append(("codex-cli", w))
     project_doc = "AGENTS.md" if "agents-md" in config["selected"] else "CLAUDE.md"
     bridge_warnings = []
     if "agents-md" in config["selected"]:
@@ -3866,6 +3969,15 @@ def main():
             "AGENTS.md is the shared source of truth for every harness and CLAUDE.md "
             "imports it (`@AGENTS.md`): edit project facts in AGENTS.md, keep CLAUDE.md "
             "for Claude Code specifics, and commit both.")
+    if "codex-cli" in config["selected"]:
+        next_steps.append(
+            "Codex: set up ~/.codex as docs/codex-setup.md describes (a repository cannot set "
+            "the provider), then run its smoke test before trusting a review.")
+        if holdout_ci:
+            next_steps.append(
+                "PR review workflow: add the CODEX_API_KEY secret (and on Azure the "
+                "CODEX_RESPONSES_ENDPOINT and CODEX_REVIEW_MODEL variables); see "
+                "docs/holdout-review.md.")
     if bridge_warnings:
         next_steps.append(
             "Add `@AGENTS.md` to your existing CLAUDE.md so Claude Code reads AGENTS.md "

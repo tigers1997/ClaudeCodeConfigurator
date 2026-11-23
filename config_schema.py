@@ -346,6 +346,34 @@ MODULES = [
         ],
         "dependsOn": ["agents-md"],
     },
+    {
+        "id": "codex-cli",
+        "title": "Codex CLI (cross-vendor review, provider setup, optional PR review workflow)",
+        "description": "Pairs Claude Code with OpenAI's Codex CLI as an independent reviewer from another model family. Writes docs/codex-setup.md: the user-level provider config for OpenAI or Azure/Microsoft Foundry, review and bulk profile files, a smoke test, version pinning and the known Foundry caveats. A repository cannot set a Codex provider (project config ignores those keys by design), so this module ships no .codex/config.toml. Codex reads the shared AGENTS.md, so it depends on agents-md. See docs/12-multi-harness.md.",
+        "paths": [
+            "codex-cli/docs/codex-setup.md",
+        ],
+        "dependsOn": ["agents-md"],
+        "flags": {
+            "cross_review": {
+                "default": True,
+                "description": "Add the /cross-review skill: a script runs `codex exec` read-only over the branch diff and Claude re-checks every finding against the code before showing it. It sends repository content to the Codex provider, so Codex invocations are `ask` rules in .claude/settings.json.",
+                "extraPaths": {True: [
+                    "codex-cli/dot-claude/skills/cross-review/SKILL.md",
+                    "codex-cli/dot-claude/skills/cross-review/scripts/cross-review.sh",
+                ]},
+                "extraSettingsPatch": {True: "codex-cli/settings-patch.cross-review.json"},
+            },
+            "holdout_ci": {
+                "default": False,
+                "description": "Add .github/workflows/holdout-review.yml (openai/codex-action, SHA-pinned): Codex reviews each same-repo pull request read-only and one comment is kept up to date. Advisory, never a merge gate. Needs a CODEX_API_KEY repository secret and costs a model run per push; docs/holdout-review.md has the setup and the residual risks.",
+                "extraPaths": {True: [
+                    "codex-cli/dot-github/workflows/holdout-review.yml",
+                    "codex-cli/docs/holdout-review.md",
+                ]},
+            },
+        },
+    },
 ]
 
 
@@ -448,12 +476,16 @@ PERSONAS = {
 # modules --harness adds or removes.
 HARNESSES = {
     "agents-md": {
-        "title": "Other AGENTS.md readers (Codex CLI, Cursor, Copilot's agent, Zed, Windsurf, Amp, Aider, ...)",
+        "title": "Other AGENTS.md readers (Cursor, Copilot's agent, Zed, Windsurf, Amp, Aider, ...)",
         "module": "agents-md",
     },
     "gemini": {
         "title": "Gemini CLI",
         "module": "gemini-cli",
+    },
+    "codex": {
+        "title": "Codex CLI (cross-vendor reviewer: provider setup, /cross-review, optional PR workflow)",
+        "module": "codex-cli",
     },
 }
 
@@ -1218,6 +1250,25 @@ FORM_SCHEMA = [
              "options": ["fable", "sonnet", "haiku", "opus"], "default": "fable",
              "help": "fable = Claude Fable 5, needs Claude Code 2.1.170+; pick "
                      "sonnet for older CC or tighter cost postures."},
+        ],
+    },
+    {
+        "id": "codex",
+        "title": "Codex CLI (read only when the codex-cli module is on)",
+        "fields": [
+            {"key": "codex_provider", "label": "Codex provider", "type": "select",
+             "options": ["openai", "azure"], "default": "openai",
+             "help": "openai = the OpenAI API. azure = Azure OpenAI / Microsoft Foundry (v1 "
+                     "endpoint). Shapes the user-level config template in docs/codex-setup.md; "
+                     "a repository cannot set a Codex provider itself."},
+            {"key": "codex_review_model", "label": "Reviewer model (Azure: your deployment name)",
+             "type": "text", "default": "gpt-6.2-astra",
+             "help": "On Azure this must be the name of YOUR deployment of the model, which is "
+                     "not necessarily the model's own name. Smoke-test it (docs/codex-setup.md)."},
+            {"key": "codex_bulk_model", "label": "Bulk-edit model (Azure: your deployment name)",
+             "type": "text", "default": "gpt-6.2-sol"},
+            {"key": "codex_review_effort", "label": "Reviewer reasoning effort", "type": "select",
+             "options": ["low", "medium", "high"], "default": "high"},
         ],
     },
 ]

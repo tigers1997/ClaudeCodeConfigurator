@@ -19,6 +19,7 @@ Headless CLI that generates Claude Code project scaffolding — `CLAUDE.md`, `.c
 - **`safety`** — standard POSIX tools (`grep`, `tr`, etc.). The package-availability gate also uses **`jq`**, and bounds each probe with `timeout` (GNU coreutils) or `gtimeout` where present — without a timeout binary the probe simply runs unbounded, and without `jq` the gate stands down rather than guessing.
 - **`token-efficiency-pro`** — standard POSIX tools (`awk`, `tail`, `wc`)
 - **`mcp`** — `npx` (Node) or `uvx` (Python) depending on which MCP servers you enable; `./claude-ctx` wrapper needs `bash` and the `claude` CLI on PATH
+- **`codex-cli`** — the `codex` CLI on PATH for `/cross-review` (`npm install -g @openai/codex`; `docs/codex-setup.md` covers install, provider and pinning), plus `bash` and `git` for its script. The optional PR workflow needs a `CODEX_API_KEY` repository secret and GitHub-hosted Ubuntu runners.
 
 ## Platform support
 
@@ -59,13 +60,14 @@ cc-configure --detailed                    # full 55-field intake (v1 behavior)
 cc-configure --persona solo-newer --yes    # one-shot for newer coders
 cc-configure --persona small-team --yes    # one-shot, team kit
 cc-configure --persona small-team --yes --harness gemini   # also serve Gemini CLI via a shared AGENTS.md
+cc-configure --persona small-team --yes --harness codex --codex-ci   # Codex as cross-vendor reviewer + PR workflow
 cc-configure --yes                         # reuse existing .claude-config.json
 cc-configure --dry-run                     # preview without writing
 cc-configure --whats-new                   # what a re-run would pick up (reads .claude/.cc-manifest.json)
 cc-configure --help                        # full flags
 ```
 
-Quick mode asks **six questions**: persona, project name, stack preset, other AI harnesses, repo URL, license. The persona pre-picks modules + flags + sensible defaults; documentation fields default to bracketed `[TODO: ...]` placeholders the user fills in later.
+Quick mode asks **six questions**: persona, project name, stack preset, other AI harnesses (picking Codex adds one follow-up: the PR review workflow), repo URL, license. The persona pre-picks modules + flags + sensible defaults; documentation fields default to bracketed `[TODO: ...]` placeholders the user fills in later.
 
 ### Personas
 
@@ -126,7 +128,7 @@ Picking `Python (uv)` flips `cmd_test` from `pnpm test` to `uv run pytest`, etc.
 
 ## Modules
 
-There are 14 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
+There are 15 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
 
 | Module | What it installs |
 | --- | --- |
@@ -143,6 +145,7 @@ There are 14 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-p
 | **experiments-memory** | Opt-in only. Lazy-loaded `memory/experiments/CLAUDE.md` defines a 5-section format (hypothesis/setup/result/conclusion/follow-ups) for logging experiments. Zero context cost until Claude reads files in that folder. |
 | **agents-md** | Opt-in (`--harness agents-md`, or quick-mode question 4). Serves other agent tools from one shared file: `AGENTS.md` holds the harness-neutral project memory (commands, style, testing, **Agent roles**, **Code Review Rules**) that Codex CLI, Cursor, Copilot's agent, Zed, Windsurf, Amp, Aider and others read directly, and `CLAUDE.md` becomes a bridge whose first line is `@AGENTS.md` plus the Claude Code specifics. Claude Code reads `AGENTS.md` only when no `CLAUDE.md` exists, so the import is what shares it. A Claude-only scaffold is unchanged. `--check` fails if the two templates drift from `core/CLAUDE.md` or `AGENTS.md` renders over 20 KiB (Codex truncates its AGENTS.md chain at 32 KiB). See [`docs/12-multi-harness.md`](docs/12-multi-harness.md). |
 | **gemini-cli** | Opt-in (`--harness gemini`; depends on `agents-md`). A `GEMINI.md` that imports `AGENTS.md`, because Gemini CLI reads `GEMINI.md` by default and `AGENTS.md` only when `context.fileName` lists it. |
+| **codex-cli** | Opt-in (`--harness codex`; depends on `agents-md`). Pairs Claude Code with OpenAI's Codex CLI as an **independent reviewer** from another model family. Writes `docs/codex-setup.md` (the user-level `~/.codex` config for OpenAI or Azure/Microsoft Foundry, `review` and `bulk` profile files, a smoke test, version pinning, known caveats). A repository cannot set a Codex provider, so no `.codex/config.toml` is shipped. Flag **`cross_review`** (default on) adds `/cross-review`: a script runs `codex exec --sandbox read-only --ephemeral` over the branch diff and Claude re-checks each finding against the code; Codex calls are `ask` rules because repository content leaves the machine. Flag **`holdout_ci`** (`--codex-ci`, default off) adds `.github/workflows/holdout-review.yml` on `openai/codex-action`, SHA-pinned, read-only, same-repo PRs only, review rules read from the base commit, one advisory comment updated in place; needs a `CODEX_API_KEY` secret (`docs/holdout-review.md` lists what it does and does not protect against). Model names (`codex_review_model`, `codex_bulk_model`) are form fields: on Azure `model` is your deployment name. |
 
 ## Token-efficiency presets
 
@@ -184,11 +187,16 @@ All five preflight checks are silent on a clean default scaffold; informational 
                         token-efficiency-pro, commands-core, agents) still
                         accepted; each emits a [ DEPRECATED ] line.
 --harness LIST          Agent tools to serve besides Claude Code, comma-
-                        separated: agents-md | gemini. Replaces the saved
-                        harness set ("claude-code" or "none" = Claude Code
-                        only); other modules are untouched. Adds AGENTS.md as
-                        the shared source of truth and makes CLAUDE.md a
-                        bridge that imports it. See docs/12-multi-harness.md.
+                        separated: agents-md | gemini | codex. Replaces the
+                        saved harness set ("claude-code" or "none" = Claude
+                        Code only); other modules are untouched. Adds
+                        AGENTS.md as the shared source of truth and makes
+                        CLAUDE.md a bridge that imports it. See
+                        docs/12-multi-harness.md.
+--codex-ci              Also write .github/workflows/holdout-review.yml (Codex
+                        reviews each same-repo PR, advisory only). Needs
+                        --harness codex and a CODEX_API_KEY repo secret; see
+                        docs/holdout-review.md.
 --yes                   Accept defaults / saved config
 --dry-run               Preview without writing (informational only — bypasses
                         the retrofit-abort behavior)

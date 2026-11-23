@@ -207,6 +207,18 @@ Lets Gemini CLI read the shared instructions.
 
 - depends on `agents-md`
 
+## `codex-cli`
+
+Pairs Claude Code with OpenAI's Codex CLI as an independent reviewer from another model family.
+
+| Template | Installs to |
+|---|---|
+| `codex-cli/docs/codex-setup.md` | `docs/codex-setup.md` |
+
+- depends on `agents-md`
+- flag `cross_review`
+- flag `holdout_ci`
+
 ## How settings merge works
 
 Several modules contribute `hooks` entries, and they all land in one
