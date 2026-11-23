@@ -108,6 +108,9 @@ def lint(text):
 
     # -- the review job only runs for same-repo, non-draft PRs --------------------
     cond = " ".join(_mapping(review, "    if: >-") or [])      # the job's own condition, not a step's
+    need(cond == "github.event.pull_request.draft == false && github.actor != 'dependabot[bot]' && "
+         "github.event.pull_request.head.repo.full_name == github.repository",
+         "the review job's `if:` must be exactly the three guards joined by `&&` (a `||` would admit forks, drafts or Dependabot)")
     need("github.event.pull_request.head.repo.full_name == github.repository" in cond,
          "no same-repository guard on the review job")
     need("github.event.pull_request.draft == false" in cond, "drafts are not excluded")
@@ -139,6 +142,11 @@ def lint(text):
     need('git show "$BASE_SHA:AGENTS.md"' in review, "review rules are not read from the base commit")
     need("--yolo" not in text and "--full-auto" not in text and "danger-full-access" not in text
          and "--dangerously-bypass" not in text, "a flag that disables the sandbox is present")
+
+    # -- the checkout must be this event's merge commit, checked before Codex runs --------------------
+    i_co, i_chk, i_codex = review.find("actions/checkout@"), review.find("git rev-parse HEAD^2"), review.find("openai/codex-action@")
+    need(0 <= i_co < i_chk < i_codex and '!= "$HEAD_SHA"' in review,
+         "the review job must check, after the checkout and before Codex, that the merge commit contains this event's PR head")
 
     # -- the prompt: no attacker-controlled text ------------------------------------
     prompt = _block(review, "prompt", 12)
@@ -181,6 +189,10 @@ def lint(text):
     script = _block(gh_step, "script", 12) or ""
     used = set(re.findall(r"process\.env\.([A-Z_]+)", script))
     mapped = {ln.split(":", 1)[0].strip() for ln in (_mapping(gh_step, "        env:") or [])}
+    env_values = dict((ln.split(":", 1)[0].strip(), ln.split(":", 1)[1].strip()) for ln in (_mapping(gh_step, "        env:") or []) if ":" in ln)
+    need(env_values.get("HEAD_SHA") == "${{ github.event.pull_request.head.sha }}"
+         and env_values.get("BASE_REF") == "${{ github.event.pull_request.base.ref }}",
+         "the comment step must map HEAD_SHA to the event's head sha and BASE_REF to the event's base ref (a base SHA there would discard every live review as stale)")
     need(used and used <= mapped,
          f"the comment script reads env vars its step does not map: {sorted(used - mapped)} (the fixture supplies its own, so only this check sees it)")
     need("pulls.get" in comment and "process.env.HEAD_SHA" in comment
