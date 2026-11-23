@@ -65,8 +65,8 @@ def lint(text):
     need(rperm and [x.strip() for x in rperm.group(1).splitlines()] == ["contents: read"],
          "the review job must have exactly `contents: read`")
     cperm = re.search(r"\n    permissions:\n((?:      \S.*\n)+)", comment + "\n")
-    need(cperm and sorted(x.strip() for x in cperm.group(1).splitlines()) == ["issues: write", "pull-requests: write"],
-         "the comment job must have exactly `issues: write` and `pull-requests: write`")
+    need(cperm and [x.strip() for x in cperm.group(1).splitlines()] == ["pull-requests: write"],
+         "the comment job must have exactly `pull-requests: write`")
     need("codex-action" not in comment and "secrets." not in comment,
          "the comment job must neither run Codex nor read secrets")
 
@@ -74,8 +74,13 @@ def lint(text):
     need("github.event.pull_request.head.repo.full_name == github.repository" in review,
          "no same-repository guard on the review job")
     need("github.event.pull_request.draft == false" in review, "drafts are not excluded")
+    need("github.actor != 'dependabot[bot]'" in review,
+         "Dependabot PRs are not skipped: their runs get no Actions secrets, so the review could only fail")
     need(re.search(r"^concurrency:\n  group: .+\n  cancel-in-progress: true", text, re.M),
          "no concurrency group with cancel-in-progress")
+    cgroup = re.search(r"^concurrency:\n  group: (.+)\n", text, re.M)
+    need(cgroup and "github.run_attempt" in cgroup.group(1),
+         "the concurrency group must include github.run_attempt, so a re-run of an old run cannot cancel the newest review")
     need("timeout-minutes:" in review, "the review job has no timeout")
 
     # -- every action pinned to a full commit SHA ---------------------------------
@@ -84,10 +89,10 @@ def lint(text):
     for u in uses:
         need(re.search(r"@[0-9a-f]{40}$", u), f"`{u}` is not pinned to a 40-character commit SHA")
 
-    # -- checkout: the merge ref, no credentials left behind -----------------------
+    # -- checkout: this event's merge commit, no credentials left behind -------------
     need("persist-credentials: false" in review, "checkout must set persist-credentials: false")
-    need(re.search(r"ref: refs/pull/\$\{\{ github\.event\.pull_request\.number \}\}/merge", review),
-         "checkout must use the PR merge ref")
+    need(not re.search(r"^\s+ref:", review, re.M),
+         "checkout must not name a ref: refs/pull/N/merge moves, and the default is this event's merge commit")
 
     # -- Codex: read-only, key out of reach, reviewer cannot be rewritten ----------
     need(re.search(r'permission-profile: ":read-only"', review), "permission-profile must be \":read-only\"")

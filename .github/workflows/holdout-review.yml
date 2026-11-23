@@ -13,7 +13,9 @@
 #   - The Codex job can read the repo and nothing else (`contents: read`). The
 #     job that posts the comment cannot read secrets or run Codex.
 #   - Review rules are read from the BASE commit, and Codex's own AGENTS.md
-#     loading is switched off for the run, so a PR cannot rewrite its reviewer.
+#     loading is switched off for the run, so a PR cannot change the rules it is
+#     reviewed against. (It can still edit this workflow: see "What it does not
+#     protect against" in docs/holdout-review.md.)
 #   - PR title, body, branch names and commit messages never enter the prompt:
 #     they are attacker-controlled text.
 #   - The comment is found by its author and a leading marker, names the commit it
@@ -22,6 +24,8 @@
 #     for its own.
 #   - A key that is not an OpenAI key is refused when no endpoint is set, because
 #     the action would send it to api.openai.com.
+#   - Dependabot PRs are skipped: GitHub gives Dependabot-triggered runs no Actions
+#     secrets, so a review could only fail its configuration check.
 #   - Actions are pinned by commit SHA. Update them deliberately.
 #
 # To limit when it runs, add a `paths:` filter under `pull_request:`.
@@ -34,14 +38,17 @@ on:
 
 permissions: {}
 
+# A push cancels the review of the push before it. A re-run is a new attempt, so
+# re-running an old run cannot cancel the review of the newest push.
 concurrency:
-  group: holdout-review-${{ github.event.pull_request.number }}
+  group: holdout-review-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
   cancel-in-progress: true
 
 jobs:
   review:
     if: >-
       github.event.pull_request.draft == false &&
+      github.actor != 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -79,7 +86,9 @@ jobs:
       - name: Check out the PR merge commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          # No `ref:`. On a pull_request event checkout then takes the merge commit this
+          # event was created for, not whatever refs/pull/N/merge points at by the time
+          # the job starts, so the files Codex reads match the SHAs in the prompt.
           fetch-depth: 0
           persist-credentials: false
 
@@ -89,7 +98,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           # The rules come from the base commit, never from the PR: a PR must
-          # not be able to rewrite its own reviewer.
+          # not be able to change the rules it is reviewed against.
           rules="$(git show "$BASE_SHA:AGENTS.md" 2>/dev/null | awk '/^## Code Review Rules/{f=1; next} /^## /{f=0} f' || true)"
           if [ -z "$(printf '%s' "$rules" | tr -d '[:space:]')" ]; then
             rules="The base branch has no Code Review Rules section. Use general code-review judgment: intent, correctness, tests, security, contracts."
@@ -132,7 +141,6 @@ jobs:
     if: needs.review.result == 'success' && needs.review.outputs.message != ''
     runs-on: ubuntu-latest
     permissions:
-      issues: write
       pull-requests: write
     steps:
       - name: Post or update the review comment

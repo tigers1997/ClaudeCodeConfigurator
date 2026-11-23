@@ -43,7 +43,7 @@ mutations = [
     ("secret echoed in a run body", lambda t: t.replace('echo "::error::Repository secret CODEX_API_KEY is not set (see docs/holdout-review.md)."', 'echo "${{ secrets.CODEX_API_KEY }}"'), "secret used outside an env/with mapping value"),
     ("secret handed to the comment job", lambda t: t.replace("          PR_NUMBER: ${{ github.event.pull_request.number }}", "          PR_NUMBER: ${{ github.event.pull_request.number }}\n          LEAK: ${{ secrets.CODEX_API_KEY }}"), "neither run Codex nor read secrets"),
     ("sandbox-off flag", lambda t: t.replace("codex-args: '[\"-c\", \"project_doc_max_bytes=0\"]'", "codex-args: '[\"--yolo\"]'"), "a flag that disables the sandbox"),
-    ("no concurrency", lambda t: t.replace("concurrency:\n  group: holdout-review-${{ github.event.pull_request.number }}\n  cancel-in-progress: true\n", ""), "concurrency group"),
+    ("no concurrency", lambda t: t.replace("concurrency:\n  group: holdout-review-${{ github.event.pull_request.number }}-${{ github.run_attempt }}\n  cancel-in-progress: true\n", ""), "concurrency group"),
     ("no timeout", lambda t: t.replace("    timeout-minutes: 20\n", ""), "no timeout"),
     ("endpoint from a variable only", lambda t: t.replace("secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT", "vars.CODEX_RESPONSES_ENDPOINT"), "read from a secret first"),
     ("lookup trusts any bot", lambda t: t.replace("c.user.login === 'github-actions[bot]'", "c.user.type === 'Bot'"), "match the posting bot"),
@@ -51,6 +51,10 @@ mutations = [
     ("VERDICT not neutralised", lambda t: t.replace(".replace(/VERDICT:/gi, 'VERDICT\\u200b:')", ""), "neutralise `VERDICT:`"),
     ("stale review published", lambda t: t.replace("github.rest.pulls.get", "github.rest.pulls.list"), "head has moved on"),
     ("key-shape guard removed", lambda t: t.replace('case "$CODEX_API_KEY" in', 'case "$NOT_THE_KEY" in'), "key-shape guard"),
+    ("comment job regains issues: write", lambda t: t.replace("    permissions:\n      pull-requests: write\n", "    permissions:\n      issues: write\n      pull-requests: write\n"), "exactly `pull-requests: write`"),
+    ("re-runs share the concurrency group", lambda t: t.replace("-${{ github.run_attempt }}\n", "\n"), "github.run_attempt"),
+    ("checkout names the moving merge ref", lambda t: t.replace("        with:\n          # No `ref:`.", "        with:\n          ref: refs/pull/${{ github.event.pull_request.number }}/merge\n          # No `ref:`."), "must not name a ref"),
+    ("dependabot not skipped", lambda t: t.replace("      github.actor != 'dependabot[bot]' &&\n", ""), "Dependabot PRs are not skipped"),
     ("secret combined with an untrusted expression", lambda t: t.replace("ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || vars.CODEX_RESPONSES_ENDPOINT }}", "ENDPOINT: ${{ secrets.CODEX_RESPONSES_ENDPOINT || github.head_ref }}"), "secret used outside an env/with mapping value"),
 ]
 for name, mutate, expect in mutations:
