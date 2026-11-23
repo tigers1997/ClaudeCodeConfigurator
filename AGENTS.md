@@ -22,5 +22,5 @@ These are what pull requests are held to. The Claude gate in `.github/workflows/
 4. **Workflow safety.** In `.github/workflows/` and in workflow templates: an action the PR adds or changes is pinned to a full commit SHA with its version in a trailing comment, as `holdout-review.yml` does (older tag pins on lines the PR does not touch are not findings), least-privilege `permissions`, no `pull_request_target`, no untrusted text (PR title, body, branch name, commit messages) in a shell command or a prompt, and secrets used only as `env` or `with` values.
 5. **Scope.** One logical change per PR. Recommend a split when a PR mixes unrelated changes.
 6. **CHANGELOG.** A user-visible change (feat, fix, breaking) needs an entry under `## Unreleased`, in the single-bullet style of its neighbours. Docs and chore PRs may skip it. Commit messages follow Conventional Commits.
-7. **Settings schema hygiene.** A key added to a `settings.json` template must exist in the published Claude Code settings schema (SchemaStore), and the PR must say where it was checked.
+7. **Settings schema hygiene.** A key added to a `settings.json` template must exist in the published Claude Code settings schema (SchemaStore). Flag a key you cannot confirm.
 8. **Claims match checks.** A doc or CHANGELOG line that says something was verified must say how, and must say what was not verified.
