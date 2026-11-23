@@ -374,6 +374,41 @@ MODULES = [
             },
         },
     },
+    {
+        "id": "stack-microsoft-data",
+        "title": "Microsoft data & BI stack (Fabric, Power BI, Power Platform)",
+        "description": "Source layout, contract and headless validation for repos of Fabric items, Power BI projects (TMDL, PBIR) and Power Platform solutions, built by coding agents. Writes SPEC.md (the contract), fabric/ and power-platform/ layout notes, four path-scoped rules that state what an agent may edit, and scripts/validate.sh: tiered offline checks (TMDL structure through the TOM parser, PBIR schema, .platform identity files, `pac solution pack`) that report SKIP or FAIL and never a false pass. The offline checks do NOT validate DAX or M, and the docs say so with evidence. Live-tenant commands (pac, fab, az) are `ask` permission rules; destructive ones are denied. Pins `pac` in a .NET tool manifest. Prefilled by the Microsoft data & BI stack preset. Depends on agents-md. See docs/13-stack-types.md.",
+        "paths": [
+            "stack-microsoft-data/SPEC.md",
+            "stack-microsoft-data/fabric/README.md",
+            "stack-microsoft-data/power-platform/README.md",
+            "stack-microsoft-data/docs/microsoft-data-stack.md",
+            "stack-microsoft-data/dot-claude/rules/powerbi-tmdl.md",
+            "stack-microsoft-data/dot-claude/rules/powerbi-report.md",
+            "stack-microsoft-data/dot-claude/rules/fabric-items.md",
+            "stack-microsoft-data/dot-claude/rules/power-platform.md",
+            "stack-microsoft-data/scripts/validate.sh",
+            "stack-microsoft-data/scripts/tmdl-check.cs",
+            "stack-microsoft-data/scripts/check_fabric_items.py",
+            "stack-microsoft-data/scripts/report_diagnostics.py",
+            "stack-microsoft-data/dot-config/dotnet-tools.json",
+            "stack-microsoft-data/ruff.toml",
+            "stack-microsoft-data/dot-prettierignore",
+        ],
+        "settingsPatch": "stack-microsoft-data/settings-patch.json",
+        "gitignoreSource": "stack-microsoft-data/gitignore.append",
+        "gitattributesSource": "stack-microsoft-data/gitattributes.append",
+        "dependsOn": ["agents-md"],
+        "flags": {
+            "ci_validate": {
+                "default": True,
+                "description": "Add .github/workflows/validate.yml: runs `./scripts/validate.sh --strict` on every pull request, so a tier whose tool is missing FAILS in CI instead of being skipped. Actions are SHA-pinned; contents: read only, no secrets.",
+                "extraPaths": {True: [
+                    "stack-microsoft-data/dot-github/workflows/validate.yml",
+                ]},
+            },
+        },
+    },
 ]
 
 
@@ -1007,7 +1042,73 @@ STACK_PRESETS = {
         "cmd_typecheck": "cargo check",
         "cmd_build": "cargo build --release",
     },
+    # A stack TYPE, not a language: the whole repo is Fabric / Power BI / Power
+    # Platform source, validated headlessly by scripts/validate.sh (installed by
+    # the stack-microsoft-data module, which STACK_PRESET_EXTRAS turns on). The
+    # design and style answers are overridden too: the web-app defaults ("Session
+    # cookies via NextAuth", "React state + URL") would actively mislead an agent
+    # here. Only free-text and allow_custom fields are set, because prompt_select
+    # resets a value that is not among a plain select's options. "language" says
+    # PySpark rather than Python on purpose: compute_recommended_plugins keys off
+    # the word and would suggest Python-app plugins that do not apply.
+    "Microsoft data & BI (Fabric / Power BI / Power Platform)": {
+        "language": "DAX, Power Query M, Power Fx, T-SQL, PySpark",
+        "framework": "Microsoft Fabric, Power BI (PBIP: TMDL + PBIR), Power Platform (solutions, canvas apps, Power Automate)",
+        "package_manager": "uv",
+        "test_runner": "pytest for Python/PySpark logic; ./scripts/validate.sh for source-format checks",
+        "formatter": "ruff format (Python only: Fabric notebooks, TMDL, PBIR and solution files are never reformatted)",
+        "typechecker": "./scripts/validate.sh models report (TMDL structure + PBIR schema, offline)",
+        "build_tool": "pac solution pack (through ./scripts/validate.sh solution)",
+        "cmd_install": "dotnet tool restore",
+        "cmd_dev": "",
+        "cmd_test": "./scripts/validate.sh --changed python",
+        "cmd_lint": "./scripts/validate.sh --changed repo solution",
+        "cmd_typecheck": "./scripts/validate.sh --changed models report",
+        "cmd_build": "./scripts/validate.sh solution",
+        "database": "Microsoft Fabric OneLake (lakehouse, warehouse) and Dataverse",
+        "deployment": "Microsoft Fabric workspaces and Power Platform environments (Dev, Test, Prod) on Azure",
+        "clis": "git, gh, az, pac, fab, dotnet, node, uv",
+        "architecture": "Contract-first: SPEC.md defines the tables, columns, measures, environment variables, connection references and flows that Fabric, the semantic model, reports and Power Platform share.",
+        "state_mgmt": "Dataverse holds transactional state, Fabric OneLake holds analytical state; flows never bulk-copy data into Fabric.",
+        "auth": "Microsoft Entra ID: service principals or managed identities through OIDC federated credentials; no secrets in the repository.",
+        "observability": "Fabric monitoring hub, Azure Monitor / Log Analytics, Power Platform analytics.",
+        "naming": "Business-friendly names for semantic-model objects, snake_case in Python; names are defined in SPEC.md.",
+        "common_instructions": ("Contract first: update SPEC.md before renaming or removing any table, column, measure, environment variable or connection reference, then update every consumer.\n"
+                                "Run ./scripts/validate.sh after edits under fabric/ or power-platform/. It checks structure only, never DAX or M.\n"
+                                "Live-tenant commands (pac auth/import/export/check, fab, az) need a human: ask first.\n"
+                                "Never commit tenant IDs, workspace GUIDs, environment URLs, connection IDs or credentials: use environment variables, connection references and deployment settings."),
+        "known_gotchas": ("A .platform logicalId is the item's identity: never change it, and give a copied item folder a new logicalId and displayName.\n"
+                          "Hand-editing extracted Power Platform solution files is unsupported except in specific cases; round-trip through a dev environment instead.\n"
+                          "pac solution pack exits 0 even when a component's files are missing; validate.sh fails on that message, so do not trust a bare pac exit code."),
+        "mcp_ms_learn": True,
+    },
     "Custom / keep current": None,  # no-op sentinel
+}
+
+# Modules a stack preset turns on, beyond the form values it prefills. A stack
+# module belongs to exactly one preset: applying any other preset removes it
+# (apply_stack_extras in configure.py), while shared infrastructure such as
+# agents-md stays, pulled in by the module's dependsOn. `review_rules` names a
+# fragment under templates/ that fills the {{stack_review_rules}} slot of
+# AGENTS.md's Code Review Rules.
+STACK_PRESET_EXTRAS = {
+    "Microsoft data & BI (Fabric / Power BI / Power Platform)": {
+        "modules": ["stack-microsoft-data"],
+        "review_rules": "stack-microsoft-data/review-rules.md",
+    },
+}
+
+# Short names for --stack (the full preset name also works, case-insensitively).
+STACK_SLUGS = {
+    "node-ts": "Node + TypeScript (pnpm)",
+    "node-js": "Node + JavaScript (npm)",
+    "python-uv": "Python (uv)",
+    "python-poetry": "Python (poetry)",
+    "python-pip": "Python (pip + venv)",
+    "go": "Go",
+    "rust": "Rust",
+    "microsoft-data": "Microsoft data & BI (Fabric / Power BI / Power Platform)",
+    "custom": "Custom / keep current",
 }
 _DEFAULT_STACK = "Node + TypeScript (pnpm)"
 _STACK_DEFAULTS = STACK_PRESETS[_DEFAULT_STACK]
@@ -1213,6 +1314,20 @@ FORM_SCHEMA = [
             {"key": "mcp_context7",
              "label": "MCP: context7 (live library docs \u2014 stops API hallucinations)",
              "type": "checkbox", "default": True},
+            {"key": "mcp_ms_learn",
+             "label": "MCP: Microsoft Learn (official Microsoft docs; remote, no auth)",
+             "type": "checkbox", "default": False,
+             "help": "On by default for the Microsoft data & BI stack preset."},
+            {"key": "mcp_azure",
+             "label": "MCP: Azure (read-only; uses your az login; Node 22+)",
+             "type": "checkbox", "default": False},
+            {"key": "mcp_fabric",
+             "label": "MCP: Microsoft Fabric (read-only; Entra sign-in; Node 22+)",
+             "type": "checkbox", "default": False},
+            {"key": "mcp_powerbi_modeling",
+             "label": "MCP: Power BI Modeling (can edit models; Linux/Windows only; needs YOUR EULA acceptance)",
+             "type": "checkbox", "default": False,
+             "help": "The scaffold never passes --accept-eula for you: read and accept the EULA yourself."},
         ],
     },
     {
@@ -1284,6 +1399,9 @@ def target_path_for(template_rel: str):
     rest_path = "/".join(rest)
     rest_path = rest_path.replace("dot-claude/", ".claude/")
     rest_path = rest_path.replace("dot-github/", ".github/")
+    rest_path = rest_path.replace("dot-config/", ".config/")
+    if rest_path == "dot-prettierignore":
+        return ".prettierignore"
     if module == "mcp" and rest_path == "mcp.json":
         return ".mcp.json"
     if module == "mcp" and rest_path == "servers-cookbook.md":

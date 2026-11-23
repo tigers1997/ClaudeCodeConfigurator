@@ -1,0 +1,6 @@
+# Fabric notebooks keep Fabric's own source format (cell and metadata markers), so
+# ruff must never reformat or auto-fix them. force-exclude makes the exclusion
+# apply even to a file passed on the command line, which is how the
+# format-on-write hook calls ruff; without it the exclusion is silently ignored.
+force-exclude = true
+extend-exclude = ["fabric/**/notebook-content.py"]

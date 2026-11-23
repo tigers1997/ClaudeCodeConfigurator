@@ -34,6 +34,7 @@ try:
         CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, _DEFAULT_STACK,
         target_path_for, PERSONAS, KNOWN_HOOK_EVENTS, RESERVED_SKILL_NAMES,
         RESERVED_SKILL_NAME_EXCEPTIONS, HARNESSES, AGENTS_MD_SPLIT_HEADINGS,
+        STACK_PRESET_EXTRAS, STACK_SLUGS,
     )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
@@ -454,6 +455,8 @@ def compute_recommended_plugins(form_values):
     if "shopify" in framework_l:
         rows.append(("shopify-ai-toolkit", "18 development skills for the Shopify platform"))
 
+    if (form_values.get("stack_preset") or "").startswith("Microsoft data"):
+        rows.append(("microsoft-docs", "Official Microsoft + Azure docs lookup"))
     if form_values.get("mcp_github"):
         rows.append(("github", "Official GitHub MCP (replaces the configurator's wired version)"))
     if form_values.get("mcp_playwright") and not any(r[0] == "playwright" for r in rows):
@@ -599,6 +602,13 @@ def compute_placeholders(form_values: dict, selected: set, module_flags: dict = 
     provider = (form_values.get("codex_provider") or "openai").strip().lower()
     v["codex_provider_label"] = CODEX_PROVIDER_LABELS.get(provider, CODEX_PROVIDER_LABELS["openai"])
     v["codex_provider_config"] = codex_user_config(form_values)
+    # A stack type's own Code Review Rules, appended to AGENTS.md's list. Empty
+    # (so the template renders exactly as it did) unless the stack's module is on.
+    extras = STACK_PRESET_EXTRAS.get(form_values.get("stack_preset")) or {}
+    rules = ""
+    if extras.get("review_rules") and set(extras["modules"]) <= set(selected):
+        rules = "\n" + (TEMPLATE_DIR / extras["review_rules"]).read_text(encoding="utf-8").strip("\n") + "\n"
+    v["stack_review_rules"] = rules
     return v
 
 
@@ -1301,6 +1311,21 @@ def run_check() -> int:
             elif first_writer[tgt] == m["id"]:
                 err(f"MODULES[{m['id']}]", f"overridesTargets lists {tgt}, but no earlier module writes it")
 
+    # --- 1c. Stack presets: every extras entry names a real preset, real modules
+    # and (if given) an existing review-rules fragment; every slug resolves.
+    for pname, extra in STACK_PRESET_EXTRAS.items():
+        if pname not in STACK_PRESETS:
+            err(f"STACK_PRESET_EXTRAS[{pname}]", "is not a key of STACK_PRESETS")
+        for mid in extra.get("modules", []):
+            if mid not in module_ids:
+                err(f"STACK_PRESET_EXTRAS[{pname}]", f"references unknown module: {mid}")
+        frag = extra.get("review_rules")
+        if frag and not (TEMPLATE_DIR / frag).is_file():
+            err(f"STACK_PRESET_EXTRAS[{pname}]", f"review_rules fragment missing: templates/{frag}")
+    for slug, pname in STACK_SLUGS.items():
+        if pname not in STACK_PRESETS:
+            err(f"STACK_SLUGS[{slug}]", f"names a preset that does not exist: {pname}")
+
     # --- 2. PERSONAS registry integrity ---
     mod_ids = {m["id"] for m in MODULES}
     for pname, pdef in PERSONAS.items():
@@ -1964,6 +1989,68 @@ def check_github_remote(target_dir) -> list:
             f"no GitHub remote detected. `git remote -v` shows: {existing}"
         )
     return warnings
+
+
+def check_stack_microsoft_config(target_dir) -> list:
+    """Warn when the stack-microsoft-data module's shared config files would not
+    do their job in an existing repository.
+
+    Three of its files are ones a repo often owns already: ruff.toml,
+    .prettierignore and .config/dotnet-tools.json. By default (--on-collision
+    skip) yours is kept and ours is staged, so the lines the stack depends on
+    can silently be missing: without the ruff exclusion the format-on-write hook
+    rewrites Fabric notebooks, without the prettier ignores it reformats sources
+    Fabric and pac own, and without the pac pin `validate.sh solution` skips.
+    A ruff.toml also outranks [tool.ruff] in pyproject.toml (checked against
+    ruff 0.17.6), so writing ours would silently drop the user's ruff settings.
+    Silent on a fresh target and when the existing files already carry the
+    stack's lines, so a re-run of a project this tool scaffolded stays quiet."""
+    import re
+    target = Path(target_dir)
+
+    def read(rel):
+        try:
+            return (target / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+
+    def ruff_ok(text):
+        return bool(re.search(r"^\s*force-exclude\s*=\s*true\b", text, re.M)) \
+            and "fabric/**/notebook-content.py" in text
+
+    out = []
+    ruff, dotruff = read("ruff.toml"), read(".ruff.toml")
+    if ruff is not None and not ruff_ok(ruff):
+        out.append("ruff.toml already exists without the stack's lines. Add `force-exclude = true` "
+                   "and `extend-exclude = [\"fabric/**/notebook-content.py\"]`, or the format-on-write "
+                   "hook rewrites Fabric notebooks. Which copy lands depends on --on-collision "
+                   "(default: yours is kept and the stack's is staged in .claude-retrofit/incoming/).")
+    if dotruff is not None and not ruff_ok(dotruff):
+        out.append(".ruff.toml outranks ruff.toml, so ruff never reads the stack's ruff.toml. Add "
+                   "`force-exclude = true` and `extend-exclude = [\"fabric/**/notebook-content.py\"]` to it.")
+    pyproject = read("pyproject.toml")
+    if ruff is None and dotruff is None and pyproject is not None \
+            and re.search(r"^\[tool\.ruff", pyproject, re.M):
+        out.append("pyproject.toml has a [tool.ruff] table, and the ruff.toml this module writes outranks "
+                   "it, so ruff would stop reading your settings. Make `extend = \"pyproject.toml\"` the "
+                   "first line of ruff.toml to keep them.")
+    prettier = read(".prettierignore")
+    if prettier is not None:
+        lines = {ln.strip() for ln in prettier.splitlines()}
+        if not {"fabric/", "power-platform/"} <= lines:
+            out.append(".prettierignore already exists without `fabric/` and `power-platform/`. Add "
+                       "them, or the format-on-write hook reformats sources that Fabric and pac own.")
+    tools = read(".config/dotnet-tools.json")
+    if tools is not None:
+        try:
+            have = "microsoft.powerapps.cli.tool" in {k.lower() for k in json.loads(tools).get("tools", {})}
+        except (ValueError, AttributeError):
+            have = False
+        if not have:
+            out.append(".config/dotnet-tools.json already exists without the pinned `pac` tool. Add the "
+                       "`microsoft.powerapps.cli.tool` entry from the stack's version, or "
+                       "`./scripts/validate.sh solution` is skipped unless `pac` is on PATH.")
+    return out
 
 
 def check_agents_md_bridge(target_dir, claude_md_strategy: str, force: bool = False) -> list:
@@ -2792,6 +2879,30 @@ def compute_mcp_json(form_values: dict) -> str:
             "command": "npx",
             "args": ["-y", "@upstash/context7-mcp@2.1.8"]
         }
+    # Microsoft stack (versions read from the npm registry 2026-11-23; `--help` of
+    # each confirms the flags). Remote Learn needs no auth. The two Azure-family
+    # servers start read-only. The Power BI Modeling server can EDIT models and
+    # needs the user's own EULA acceptance, so --accept-eula is never passed here.
+    if form_values.get("mcp_ms_learn"):
+        servers["microsoft-learn"] = {
+            "type": "http",
+            "url": "https://learn.microsoft.com/api/mcp"
+        }
+    if form_values.get("mcp_azure"):
+        servers["azure"] = {
+            "command": "npx",
+            "args": ["-y", "@azure/mcp@3.0.0", "server", "start", "--read-only"]
+        }
+    if form_values.get("mcp_fabric"):
+        servers["fabric"] = {
+            "command": "npx",
+            "args": ["-y", "@microsoft/fabric-mcp@1.8.0", "server", "start", "--read-only"]
+        }
+    if form_values.get("mcp_powerbi_modeling"):
+        servers["powerbi-modeling"] = {
+            "command": "npx",
+            "args": ["-y", "@microsoft/powerbi-modeling-mcp@1.0.1", "--start"]
+        }
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
@@ -3150,6 +3261,32 @@ def apply_stack_preset(form_values: dict):
     form_values.update(overrides)
 
 
+# Modules that belong to exactly one stack preset. Applying a preset removes the
+# others' (a stale stack module would keep validating a stack the project left).
+STACK_MODULES = {m for e in STACK_PRESET_EXTRAS.values() for m in e["modules"]}
+
+
+def apply_stack_extras(selected, preset) -> set:
+    """Turn on the modules `preset` carries and turn off every OTHER stack's.
+    Shared infrastructure the stack module depends on (agents-md) arrives by
+    dependsOn and is deliberately left in place when the preset changes: it may
+    have been chosen as a harness in its own right."""
+    out = set(selected) - STACK_MODULES
+    out.update((STACK_PRESET_EXTRAS.get(preset) or {}).get("modules", ()))
+    return resolve_dependencies(out)
+
+
+def resolve_stack_arg(value: str) -> str:
+    """--stack value -> preset name. Accepts a slug (microsoft-data, python-uv,
+    ...) or the full preset name, case-insensitively. Raises ValueError with the
+    valid slugs otherwise; the caller prints [ ERROR ] and exits 2."""
+    v = (value or "").strip().lower()
+    for slug, name in STACK_SLUGS.items():
+        if v == slug or v == name.lower():
+            return name
+    raise ValueError("--stack: unknown stack {!r} (known: {})".format(value, ", ".join(STACK_SLUGS)))
+
+
 def prompt_section(section, form_values):
     print()
     print(bold(blue(f"[ {section['title'].upper()} ]")))
@@ -3231,7 +3368,8 @@ def prompt_modules(selected: set):
 
 
 def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = False,
-                      harness_arg: list = None, codex_ci_arg: bool = False) -> dict:
+                      harness_arg: list = None, codex_ci_arg: bool = False,
+                      stack_arg: str = None) -> dict:
     """6-question happy-path intake. Persona drives module/flag/form defaults.
 
     `skip_persona_q` is set by the v1-NOTICE branch in main(), which has
@@ -3243,7 +3381,9 @@ def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = Fa
     The persona question replaces `selected` wholesale, so a --harness already
     applied in main() would be lost; the answer is re-applied at the harness
     question instead of asking it. Picking Codex adds one follow-up (the PR
-    review workflow), pre-answered by `codex_ci_arg` (--codex-ci)."""
+    review workflow), pre-answered by `codex_ci_arg` (--codex-ci). `stack_arg`
+    is the preset name resolved from --stack: it answers the stack question,
+    for the same reason (the persona question replaces `selected`)."""
     print(bold("=" * 60))
     print(bold("  Claude Code project configurator \u2014 quick mode"))
     print(bold("=" * 60))
@@ -3272,15 +3412,19 @@ def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = Fa
     fv = initial["formValues"]
     fv["project_name"] = _input(f"  Project name [{fv.get('project_name', target_dir.name)}]: ").strip() or fv.get("project_name", target_dir.name)
 
-    # Q3: stack preset
-    stack_keys = list(STACK_PRESETS.keys())
-    print("  Stack preset:")
-    for i, sk in enumerate(stack_keys, 1):
-        print(f"    {i}) {sk}")
-    raw = _input(f"  pick [1-{len(stack_keys)}, default={stack_keys.index(fv.get('stack_preset', _DEFAULT_STACK)) + 1}]: ").strip()
-    if raw.isdigit() and 1 <= int(raw) <= len(stack_keys):
-        fv["stack_preset"] = stack_keys[int(raw) - 1]
+    # Q3: stack preset (a stack TYPE can also turn modules on)
+    if stack_arg:
+        fv["stack_preset"] = stack_arg
+    else:
+        stack_keys = list(STACK_PRESETS.keys())
+        print("  Stack preset:")
+        for i, sk in enumerate(stack_keys, 1):
+            print(f"    {i}) {sk}")
+        raw = _input(f"  pick [1-{len(stack_keys)}, default={stack_keys.index(fv.get('stack_preset', _DEFAULT_STACK)) + 1}]: ").strip()
+        if raw.isdigit() and 1 <= int(raw) <= len(stack_keys):
+            fv["stack_preset"] = stack_keys[int(raw) - 1]
     apply_stack_preset(fv)
+    initial["selected"] = apply_stack_extras(initial["selected"], fv.get("stack_preset"))
 
     # Q4: other agent harnesses. Enter keeps what a saved config already picks.
     if harness_arg is None:
@@ -3367,6 +3511,9 @@ def interactive(target_dir: Path, initial: dict) -> dict:
     for section in FORM_SCHEMA:
         prompt_section(section, form_values)
 
+    # The stack answer may have changed: bring its module along (or drop the old
+    # stack's) so the checklist below starts from the right defaults.
+    selected = apply_stack_extras(selected, form_values.get("stack_preset"))
     selected = prompt_modules(selected)
     return {"formValues": form_values, "selected": selected}
 
@@ -3513,6 +3660,11 @@ def parse_args():
                         "the saved harness set. Adds AGENTS.md as the shared source of "
                         "truth and turns CLAUDE.md into a bridge that imports it "
                         "(docs/12-multi-harness.md).".format(" | ".join(HARNESSES)))
+    p.add_argument("--stack", metavar="NAME",
+                   help="Stack preset, by slug or full name: {}. Prefills the stack, commands "
+                        "and design answers, and turns on the modules a stack TYPE carries "
+                        "(microsoft-data adds stack-microsoft-data). Applied after --modules, "
+                        "so the stack's module is always present.".format(" | ".join(STACK_SLUGS)))
     p.add_argument("--codex-ci", action="store_true",
                    help="Also write .github/workflows/holdout-review.yml (Codex reviews each "
                         "same-repo pull request, advisory only). Needs the codex harness "
@@ -3760,6 +3912,18 @@ def main():
         # Stored here; rendered as [ DEPRECATED ] / [ MODULE WARNINGS ] blocks.
         initial.setdefault("_deprecations", []).extend(deprecations)
         initial.setdefault("_module_arg_warnings", []).extend(mod_warnings)
+    # --stack runs after --persona / --modules so the stack's own module is always
+    # present, and before --harness so a harness cannot drop what the stack needs.
+    stack_arg = None
+    if args.stack:
+        try:
+            stack_arg = resolve_stack_arg(args.stack)
+        except ValueError as e:
+            print(bold(red("[ ERROR ]")), str(e), file=sys.stderr)
+            sys.exit(2)
+        initial["formValues"]["stack_preset"] = stack_arg
+        apply_stack_preset(initial["formValues"])
+        initial["selected"] = apply_stack_extras(initial.get("selected", set()), stack_arg)
     # --harness runs after --persona / --modules so it can add or drop the
     # harness modules (and only those) on top of whatever they picked.
     harness_arg = None
@@ -3789,7 +3953,8 @@ def main():
         # When the v1-NOTICE branch already prompted for a persona, skip Q1
         # in quick_interactive so the menu doesn't appear twice.
         config = quick_interactive(target_dir, initial, skip_persona_q=is_v1_config,
-                                   harness_arg=harness_arg, codex_ci_arg=args.codex_ci)
+                                   harness_arg=harness_arg, codex_ci_arg=args.codex_ci,
+                                   stack_arg=stack_arg)
 
     # Resolve any declared module dependencies before saving or scaffolding,
     # so we never generate an inconsistent set.
@@ -3859,6 +4024,8 @@ def main():
 
     # Surface module-level prerequisites that can't be fixed by the configurator.
     module_warnings = []
+    stack_config_warnings = (check_stack_microsoft_config(target_dir)
+                             if "stack-microsoft-data" in config["selected"] else [])
     for w in initial.get("_module_arg_warnings", []):
         module_warnings.append(("--modules", w))
     if "github-actions" in config["selected"]:
@@ -3867,6 +4034,19 @@ def main():
     # The doc the [TODO:] placeholders land in, and a retrofit CLAUDE.md that
     # would leave the new AGENTS.md unread (surfaced again in NEXT STEPS and
     # the retrofit report below).
+    if "stack-microsoft-data" in config["selected"]:
+        ci_validate = config.get("module_flags", {}).get("stack-microsoft-data", {}).get("ci_validate", True)
+        if ci_validate:
+            for w in check_github_remote(target_dir):
+                module_warnings.append(("stack-microsoft-data", w))
+        for w in stack_config_warnings:
+            module_warnings.append(("stack-microsoft-data", w))
+        fv = config["formValues"]
+        if "mcp" not in config["selected"] and any(
+                fv.get(k) for k in ("mcp_ms_learn", "mcp_azure", "mcp_fabric", "mcp_powerbi_modeling")):
+            module_warnings.append(("stack-microsoft-data",
+                                    "Microsoft MCP servers are enabled but the mcp module is not, so no "
+                                    ".mcp.json is written. Add it with --modules +mcp."))
     if "codex-cli" in config["selected"]:
         for w in check_codex_fields(config["formValues"]):
             module_warnings.append(("codex-cli", w))
@@ -3969,6 +4149,11 @@ def main():
             "AGENTS.md is the shared source of truth for every harness and CLAUDE.md "
             "imports it (`@AGENTS.md`): edit project facts in AGENTS.md, keep CLAUDE.md "
             "for Claude Code specifics, and commit both.")
+    if "stack-microsoft-data" in config["selected"]:
+        next_steps.append(
+            "Microsoft stack: install the validators (.NET 10 SDK, Node 20+, then `dotnet tool restore`; "
+            "docs/microsoft-data-stack.md), fill in SPEC.md, and run ./scripts/validate.sh. The offline "
+            "checks cover structure only: they do not validate DAX or M.")
     if "codex-cli" in config["selected"]:
         next_steps.append(
             "Codex: set up ~/.codex as docs/codex-setup.md describes (a repository cannot set "
@@ -3982,6 +4167,11 @@ def main():
         next_steps.append(
             "Add `@AGENTS.md` to your existing CLAUDE.md so Claude Code reads AGENTS.md "
             "— see [ MODULE WARNINGS ] above.")
+    if stack_config_warnings:
+        next_steps.append(
+            "Merge the stack's lines into your existing ruff, prettier and dotnet tools "
+            "config — see [ MODULE WARNINGS ] above; without them the format hook can rewrite "
+            "Fabric sources.")
     if not args.dry_run and not (target_dir / ".git").is_dir():
         next_steps.append(
             "No git repo here yet — `git init -b main && git add . && "
@@ -4104,7 +4294,7 @@ def main():
     # Write the retrofit report up-front so its path joins the wrote group
     # rather than landing between backed-up and saved-config lines.
     report_path = write_retrofit_report(target_dir, merge_messages, collision_report,
-                                        notes=bridge_warnings)
+                                        notes=bridge_warnings + stack_config_warnings)
 
     # Per-task MCP profile alternates render as a single grouped line so
     # they don't visually crowd the active .mcp.json among regular writes.

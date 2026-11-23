@@ -103,7 +103,7 @@ there are none.
 4. **Security:** secrets or tokens in code or logs, injection, missing
    authorization, unsafe deserialization, new dependencies.
 5. **Contracts:** public APIs, schemas and docs stay consistent with the code.
-
+{{stack_review_rules}}
 ## Maintaining this file
 
 This file is shared by every agent harness, so keep it harness-neutral: no
