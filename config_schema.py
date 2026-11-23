@@ -325,6 +325,27 @@ MODULES = [
             },
         },
     },
+    {
+        "id": "agents-md",
+        "title": "Cross-harness instructions (AGENTS.md + CLAUDE.md bridge)",
+        "description": "Shares one set of project instructions across agent tools. AGENTS.md holds the harness-neutral facts (commands, style, testing, review rules) that Codex, Gemini CLI, Cursor, Copilot's agent and other AGENTS.md readers load directly, and CLAUDE.md becomes a bridge that starts with `@AGENTS.md` and keeps only the Claude Code specifics. Claude Code reads AGENTS.md only when no CLAUDE.md exists, so the import line is what shares it. Off by default: a Claude-only scaffold keeps its single CLAUDE.md. See docs/12-multi-harness.md.",
+        "paths": [
+            "agents-md/AGENTS.md",
+            "agents-md/CLAUDE.md",
+        ],
+        # agents-md/CLAUDE.md replaces core/CLAUDE.md at the same target. Any
+        # other two modules writing one target is a registry bug (--check).
+        "overridesTargets": ["CLAUDE.md"],
+    },
+    {
+        "id": "gemini-cli",
+        "title": "Gemini CLI adapter (GEMINI.md imports AGENTS.md)",
+        "description": "Lets Gemini CLI read the shared instructions. A GEMINI.md imports AGENTS.md, because Gemini CLI reads GEMINI.md by default and AGENTS.md only when `context.fileName` lists it; the import needs no Gemini settings and does not depend on folder trust. Depends on agents-md.",
+        "paths": [
+            "gemini-cli/GEMINI.md",
+        ],
+        "dependsOn": ["agents-md"],
+    },
 ]
 
 
@@ -417,6 +438,31 @@ PERSONAS = {
         "use_placeholders_for": [],
     },
 }
+
+
+# ---- harnesses ----
+# Agent harnesses a scaffolded repo can serve besides Claude Code, which is
+# always on. Each entry names the module that marks it selected; that module's
+# `dependsOn` pulls in the shared AGENTS.md base. Consumed by the quick-mode
+# harness question and --harness in configure.py. Harness modules are the only
+# modules --harness adds or removes.
+HARNESSES = {
+    "agents-md": {
+        "title": "Other AGENTS.md readers (Codex CLI, Cursor, Copilot's agent, Zed, Windsurf, Amp, Aider, ...)",
+        "module": "agents-md",
+    },
+    "gemini": {
+        "title": "Gemini CLI",
+        "module": "gemini-cli",
+    },
+}
+
+# core/CLAUDE.md sections the agents-md templates re-shape instead of copying,
+# so the --check drift guard skips them. Every OTHER core section must appear,
+# word for word, in agents-md/AGENTS.md or agents-md/CLAUDE.md.
+AGENTS_MD_SPLIT_HEADINGS = frozenset({
+    "External tools Claude may use",   # CLIs -> AGENTS.md, MCP servers -> CLAUDE.md
+})
 
 
 # ---- Claude Code compatibility range ----

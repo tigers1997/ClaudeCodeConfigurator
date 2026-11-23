@@ -1,0 +1,54 @@
+@AGENTS.md
+
+# {{project_name}} — Claude Code
+
+<!--
+CLAUDE.md — loaded at every Claude Code session start. The first line imports
+AGENTS.md, the harness-neutral source of truth shared with other agents:
+project facts, commands, style and review rules live THERE. This file holds
+only what is specific to Claude Code. Target: under 200 lines combined with
+AGENTS.md. Path-scoped detail belongs in .claude/rules/*.md.
+-->
+
+## Shared instructions
+
+Project facts, commands, code style, testing and review rules live in `AGENTS.md` (imported above) so every agent harness works from one source of truth. Edit them there, not here, and commit `AGENTS.md` together with this file. Keep this file to what is specific to Claude Code.
+
+## Repo bootstrap
+The cc-configure scaffold makes assumptions about what to track vs. ignore. Honor them when first-committing a new project (`git init` + first `git add`) or when restructuring `.gitignore`:
+
+- **Commit:** `CLAUDE.md`, `.claude/` (agents, hooks, skills, rules, settings.json, output-styles), `.mcp*.json`, `claude-ctx` if present, project source.
+- **Gitignore by default:** `.claude/settings.local.json` (machine-local), `.claude/logs/`, `.claude/.frozen` / `.guarded` / `.careful` (transient session state), `.claude-config.json` (configurator working-state). cc-configure appends the `# --- Claude Code ---` block to `.gitignore` automatically — if you rewrite or replace `.gitignore`, preserve that block (or rerun `cc-configure --retrofit` to re-append it).
+- **Nested upstream clones** (vendored deps, fork wrappers) should be gitignored and keep their own `.git/` — don't try to nest two repos in one tree. List the subdir in `.gitignore` *above* the Claude Code block.
+- **Committing from Windows:** cc-configure appends a `.gitattributes` block pinning `eol=lf` for the hook scripts, so CRLF can't reach a teammate's checkout. Git can't record the *executable* bit that way, though, and `core.filemode=false` (the Windows default) drops it — a teammate on Linux/macOS then hits "Permission denied" on `./claude-ctx`. After the first `git add`, run `git update-index --chmod=+x claude-ctx` (and the same for any `.claude/skills/**/scripts/*`).
+
+## MCP servers
+
+- **Enabled in `.mcp.json`:** {{mcps}}
+
+## Working with Claude (collaboration patterns)
+
+These are *how the human should drive*, not rules Claude enforces. Distilled from teams that use Claude Code in production.
+
+- **Task classification.** Decide up-front: is this peripheral/prototyping work (accept edits, let Claude run) or core logic (synchronous review, every edit inspected)? `.claude/settings.json` pins the starting mode (`permissions.defaultMode`, Manual by default) so a session never *starts* in auto mode; switch per session with Shift+Tab (Manual → Accept edits → Plan) and don't let the mode drift mid-session. Auto mode routes edits through `sed` and heredocs, which the scaffold's Write/Edit hooks never see.
+- **Slot-machine style for long runs.** Commit your state, let Claude run autonomously for ~30 minutes, then either accept the result or `git reset --hard` and start fresh. Wrestling a bad run to success almost always loses to a clean restart.
+- **Commit as you go.** Ask Claude to commit incrementally during work, not at the end. Smaller commits = cheaper rewinds and less context bloat from a giant pending diff.
+- **Self-sufficient loops.** Wire `test`/`lint`/`typecheck` into a `Stop` or `PostToolUse` hook so Claude runs them automatically and catches its own mistakes — no need for you to referee every turn.
+- **Spec-driven restart.** For features that span many files: first run `/plan` to produce a spec, save it to `spec/<feature>.md`, then **start a fresh session** and implement from `@spec/<feature>.md`. The restart matters — a clean context produces sharper code than a planning-polluted one.
+
+### Tool-calling guardrails (fill these in as you observe quirks on this project)
+
+- <!-- e.g. "Run `pytest tests/`, not `pytest` alone — it picks up stale compiled files" -->
+- <!-- e.g. "Don't `cd` into subdirs; all commands run from repo root" -->
+- <!-- add more as model quirks surface -->
+
+## Claude Code behavior rules
+
+- **Plan before diff.** For any change touching more than one file, enter plan mode (Shift+Tab twice) and show a plan before editing. Plan mode is read-only and the cheapest turn-for-turn.
+- **Small diffs.** Prefer small, reviewable commits. If a task grows, split it.
+- **Ask, don't assume.** When requirements are ambiguous, ask one question rather than guessing.
+- **Test what you write.** If you add logic, add or update a test in the same turn.
+- **No silent writes.** Summarize every file you create or edit at the end of the turn.
+- **Stay inside the repo.** Do not `cd` outside the project; do not touch `.git/`, `.env*`, or credential files.
+
+{{efficiency_rules}}

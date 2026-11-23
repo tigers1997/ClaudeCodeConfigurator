@@ -4,9 +4,10 @@ cc-configure — CLI for the Claude Code project configurator.
 Runs on headless Debian (or anywhere with Python 3.8+). Pure stdlib.
 
 Usage:
-  configure.py                              # 5-question quick mode (default)
+  configure.py                              # 6-question quick mode (default)
   configure.py --detailed                   # full 50-field intake (v1 behavior)
   configure.py --persona solo-newer --yes   # non-interactive, persona-driven
+  configure.py --persona solo-newer --yes --harness gemini   # also serve Gemini CLI
   configure.py --dir /path/to/project       # target a different directory
   configure.py --config .claude-config.json # non-interactive from a saved file
   configure.py --yes \
@@ -32,7 +33,7 @@ try:
     from config_schema import (
         CLAUDE_CODE_COMPAT, MODULES, FORM_SCHEMA, STACK_PRESETS, _DEFAULT_STACK,
         target_path_for, PERSONAS, KNOWN_HOOK_EVENTS, RESERVED_SKILL_NAMES,
-        RESERVED_SKILL_NAME_EXCEPTIONS,
+        RESERVED_SKILL_NAME_EXCEPTIONS, HARNESSES, AGENTS_MD_SPLIT_HEADINGS,
     )
 except ImportError:
     print("ERROR: config_schema.py must be in the same directory as configure.py.", file=sys.stderr)
@@ -217,6 +218,46 @@ def resolve_dependencies(selected: set) -> set:
                     out.add(dep)
                     changed = True
     return out
+
+
+# -----------------------------------------------------------------------------
+# Harnesses (agent tools besides Claude Code that the scaffold also serves)
+# -----------------------------------------------------------------------------
+# The modules that mark a harness as selected. --harness and the quick-mode
+# harness question add and remove ONLY these; every other module stays as the
+# persona / --modules chose it. resolve_dependencies() re-adds agents-md for a
+# harness module that depends on it.
+HARNESS_MODULES = {h["module"] for h in HARNESSES.values()}
+
+
+def harnesses_from_selected(selected) -> list:
+    """Harness ids whose marker module is selected, in HARNESSES order."""
+    return [hid for hid, h in HARNESSES.items() if h["module"] in selected]
+
+
+def parse_harness_arg(spec: str) -> list:
+    """--harness value -> harness ids. `claude-code` (always on) and `none` are
+    accepted no-ops, so `--harness claude-code` means "Claude Code only".
+    Raises ValueError on an unknown id; the caller prints [ ERROR ] and exits 2."""
+    ids = []
+    for tok in (t.strip().lower() for t in spec.split(",")):
+        if not tok or tok in ("claude-code", "claude", "none"):
+            continue
+        if tok not in HARNESSES:
+            raise ValueError(
+                "--harness: unknown harness {!r} (known: claude-code, {})".format(
+                    tok, ", ".join(HARNESSES)))
+        if tok not in ids:
+            ids.append(tok)
+    return ids
+
+
+def apply_harnesses(selected, harness_ids: list) -> set:
+    """Replace the harness modules in `selected` with the ones `harness_ids`
+    imply, then re-resolve dependencies."""
+    out = set(selected) - HARNESS_MODULES
+    out.update(HARNESSES[h]["module"] for h in harness_ids)
+    return resolve_dependencies(out)
 
 
 # -----------------------------------------------------------------------------
@@ -919,6 +960,101 @@ def render_template_index() -> str:
     return "\n".join(lines)
 
 
+# Budget for a rendered AGENTS.md. Codex truncates its combined AGENTS.md chain
+# at 32 KiB (project_doc_max_bytes) without warning, so the scaffold leaves
+# headroom for the user's own additions and nested files.
+AGENTS_MD_MAX_BYTES = 20 * 1024
+
+
+def _md_sections(text: str) -> dict:
+    """Split Markdown into {heading text: body} on level-2/3 headings. A body
+    runs to the next level-2/3 heading, stripped. The heading LEVEL is ignored
+    (`### Repo bootstrap` in core and `## Repo bootstrap` in the bridge are one
+    section); text before the first heading and anything inside a code fence is
+    not a heading."""
+    import re
+    out, cur, buf, in_fence = {}, None, [], False
+    for ln in text.splitlines():
+        if ln.lstrip().startswith("```"):
+            in_fence = not in_fence
+        m = None if in_fence else re.match(r"^#{2,3} (.+?)\s*$", ln)
+        if m:
+            if cur is not None:
+                out[cur] = "\n".join(buf).strip()
+            cur, buf = m.group(1), []
+        elif cur is not None:
+            buf.append(ln)
+    if cur is not None:
+        out[cur] = "\n".join(buf).strip()
+    return out
+
+
+def find_agents_md_drift() -> list:
+    """Problems between templates/core/CLAUDE.md and the two agents-md
+    templates (AGENTS.md = harness-neutral, CLAUDE.md = bridge), as
+    (source, message) tuples; empty when they agree.
+
+    The module splits core/CLAUDE.md in two by hand-kept copy. Every core
+    section must live in exactly one of the two templates, word for word, or be
+    named in AGENTS_MD_SPLIT_HEADINGS; headings only the agents-md templates
+    have (Agent roles, Code Review Rules, ...) are theirs alone and not
+    compared. The bridge must open with the `@AGENTS.md` import — that line is
+    the only thing that makes Claude Code read AGENTS.md."""
+    core_p = TEMPLATE_DIR / "core" / "CLAUDE.md"
+    agents_p = TEMPLATE_DIR / "agents-md" / "AGENTS.md"
+    bridge_p = TEMPLATE_DIR / "agents-md" / "CLAUDE.md"
+    if not (core_p.exists() and agents_p.exists() and bridge_p.exists()):
+        return []  # a missing path is reported by the MODULES registry check
+    found = []
+    bridge_text = bridge_p.read_text(encoding="utf-8")
+    first = bridge_text.splitlines()[0].strip() if bridge_text.strip() else ""
+    if first != "@AGENTS.md":
+        found.append(("templates/agents-md/CLAUDE.md",
+                      f"first line is {first!r}, must be '@AGENTS.md' — the import is how "
+                      "Claude Code reads AGENTS.md"))
+    core = _md_sections(core_p.read_text(encoding="utf-8"))
+    homes = {"AGENTS.md": _md_sections(agents_p.read_text(encoding="utf-8")),
+             "CLAUDE.md": _md_sections(bridge_text)}
+    for heading, body in core.items():
+        if heading in AGENTS_MD_SPLIT_HEADINGS:
+            continue
+        placed = [n for n, secs in homes.items() if heading in secs]
+        if not placed:
+            found.append(("templates/agents-md",
+                          f"core/CLAUDE.md section {heading!r} is in neither template — copy it "
+                          "into AGENTS.md (harness-neutral) or CLAUDE.md (Claude Code only), "
+                          "or add it to AGENTS_MD_SPLIT_HEADINGS"))
+            continue
+        if len(placed) > 1:
+            found.append(("templates/agents-md",
+                          f"section {heading!r} is in both AGENTS.md and CLAUDE.md — keep it "
+                          "in one"))
+        for n in placed:
+            if homes[n][heading] != body:
+                found.append((f"templates/agents-md/{n}",
+                              f"section {heading!r} differs from templates/core/CLAUDE.md — "
+                              "edit both copies, or add it to AGENTS_MD_SPLIT_HEADINGS if the "
+                              "difference is intended"))
+    return found
+
+
+def find_agents_md_oversize() -> list:
+    """(persona, bytes) for every persona whose scaffold with agents-md renders
+    an AGENTS.md over AGENTS_MD_MAX_BYTES (rendered from the schema defaults)."""
+    out = []
+    fv = default_form_values()
+    for pname in PERSONAS:
+        mods, flags = pick_persona_modules(pname)
+        selected = resolve_dependencies(set(mods) | {"agents-md"})
+        files, _, _ = collect_files(fv, selected, flags)
+        for f in files:
+            if f["target"] == "AGENTS.md":
+                size = len(f["content"].encode("utf-8"))
+                if size > AGENTS_MD_MAX_BYTES:
+                    out.append((pname, size))
+    return out
+
+
 def _js_meta_block(text: str) -> str:
     """Return the `export const meta = { ... }` object literal, brace-matched.
 
@@ -1069,6 +1205,30 @@ def run_check() -> int:
             if req and req not in (m.get("flags") or {}):
                 err(f"MODULES[{mid}].flags[{flag_name}]",
                     f"requires references unknown sibling flag: {req}")
+
+    # --- 1b. No two modules write the same target, unless the later one says
+    # so. agents-md/CLAUDE.md deliberately replaces core/CLAUDE.md; anything
+    # else is a registry bug that collect_files() would only catch at scaffold
+    # time, on whichever module combination happened to trigger it.
+    first_writer = {}
+    for m in MODULES:
+        rels = list(m.get("paths") or [])
+        for fdef in (m.get("flags") or {}).values():
+            for lst in (fdef.get("extraPaths") or {}).values():
+                rels.extend(lst)
+        mine = {t for t in (target_path_for(r) for r in rels) if t}
+        overrides = set(m.get("overridesTargets") or ())
+        for tgt in sorted(mine):
+            if tgt in first_writer and first_writer[tgt] != m["id"] and tgt not in overrides:
+                err(f"MODULES[{m['id']}]",
+                    f"writes {tgt}, which module {first_writer[tgt]} already writes — "
+                    "list it in overridesTargets if replacing it is intended")
+            first_writer.setdefault(tgt, m["id"])
+        for tgt in sorted(overrides):
+            if tgt not in mine:
+                err(f"MODULES[{m['id']}]", f"overridesTargets lists {tgt}, which this module does not write")
+            elif first_writer[tgt] == m["id"]:
+                err(f"MODULES[{m['id']}]", f"overridesTargets lists {tgt}, but no earlier module writes it")
 
     # --- 2. PERSONAS registry integrity ---
     mod_ids = {m["id"] for m in MODULES}
@@ -1253,6 +1413,17 @@ def run_check() -> int:
         err(source, f"skill name {name!r} is a Claude Code built-in command or "
                     "bundled skill (RESERVED_SKILL_NAMES) — a project skill of that "
                     "name shadows it, as /review did; rename the skill")
+
+    # --- 4d. agents-md: the two templates track core/CLAUDE.md and stay in
+    # budget. They are a hand-kept split of that file, so without this a section
+    # edited in one place silently diverges from the other.
+    for source, msg in find_agents_md_drift():
+        err(source, msg)
+    for pname, size in find_agents_md_oversize():
+        err("templates/agents-md/AGENTS.md",
+            f"renders {size} bytes for persona {pname!r} + agents-md, over the "
+            f"{AGENTS_MD_MAX_BYTES}-byte budget (Codex truncates its AGENTS.md "
+            "chain at 32768 bytes without warning)")
 
     # --- 5. Generated index is current ---
     if INDEX_PATH.exists():
@@ -1722,6 +1893,33 @@ def check_github_remote(target_dir) -> list:
             f"no GitHub remote detected. `git remote -v` shows: {existing}"
         )
     return warnings
+
+
+def check_agents_md_bridge(target_dir, claude_md_strategy: str, force: bool = False) -> list:
+    """Warn when the agents-md module writes an AGENTS.md but an existing
+    CLAUDE.md that this run leaves in place does not import it.
+
+    Claude Code reads AGENTS.md only when no CLAUDE.md exists, so without an
+    `@AGENTS.md` line the new file is invisible to it. The import is not
+    prepended automatically: an existing CLAUDE.md usually states the same
+    project facts, and importing AGENTS.md on top would load them twice. Silent
+    on a fresh target, with --force / --claude-md overwrite (the bridge replaces
+    the file), and when the import is already there."""
+    existing = Path(target_dir) / "CLAUDE.md"
+    if force or claude_md_strategy == "overwrite" or not existing.is_file():
+        return []
+    try:
+        text = existing.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    if any(ln.strip() == "@AGENTS.md" for ln in text.splitlines()):
+        return []
+    return [
+        "your existing CLAUDE.md does not import AGENTS.md, so Claude Code will not "
+        "read it (Claude Code falls back to AGENTS.md only when no CLAUDE.md exists). "
+        "Once you have merged any duplicated project facts into AGENTS.md, add "
+        "`@AGENTS.md` as the first line of CLAUDE.md."
+    ]
 
 
 def check_mcp_env_vars(form_values: dict, selected: set) -> list:
@@ -2372,11 +2570,13 @@ def apply_file_collision_strategy(files, target_dir, strategy):
     return out, report
 
 
-def write_retrofit_report(target_dir, structured_merges, collision_report):
+def write_retrofit_report(target_dir, structured_merges, collision_report, notes=None):
     """Write .claude-retrofit/REPORT.md describing what the configurator did
-    on a retrofit run. Returns the relative path written, or None if the
-    report would be empty."""
-    if not structured_merges and not collision_report:
+    on a retrofit run. `notes` are free-form follow-ups the run could not
+    perform itself (e.g. the CLAUDE.md that does not import AGENTS.md).
+    Returns the relative path written, or None if the report would be empty."""
+    notes = list(notes or [])
+    if not structured_merges and not collision_report and not notes:
         return None
     report_dir = target_dir / ".claude-retrofit"
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -2441,6 +2641,12 @@ def write_retrofit_report(target_dir, structured_merges, collision_report):
         lines.append("|---|---|")
         for r in overwritten:
             lines.append(f"| `{r['target']}` | `{r['backup']}` |")
+        lines.append("")
+    if notes:
+        lines.append("## Needs your attention")
+        lines.append("")
+        for note in notes:
+            lines.append(f"- {note}")
         lines.append("")
     lines.append("## Next steps")
     lines.append("")
@@ -2626,6 +2832,25 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
     gitignore_lines = []
     gitattributes_lines = []
     placeholders = compute_placeholders(form_values, selected, module_flags)
+    owner = {}  # target -> id of the module that wrote it
+
+    def _emit(m, entry):
+        """Add a file; a later module replaces an earlier one's target only when
+        it lists that target in `overridesTargets` (agents-md replaces
+        CLAUDE.md). Any other collision is a registry bug, which --check also
+        catches statically."""
+        tgt = entry["target"]
+        prev = owner.get(tgt)
+        if prev is None:
+            files.append(entry)
+        elif tgt in (m.get("overridesTargets") or ()):
+            idx = next(i for i, f in enumerate(files) if f["target"] == tgt)
+            files[idx] = entry
+        else:
+            raise SystemExit(red(
+                f"modules {prev} and {m['id']} both write {tgt}; the later one "
+                "must list it in overridesTargets"))
+        owner[tgt] = m["id"]
 
     for m in MODULES:
         if m["id"] not in selected:
@@ -2655,7 +2880,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
                 content = substitute_placeholders(
                     content, placeholders,
                     SHELL_ESCAPERS.get(os.path.splitext(rel)[1]))
-            files.append({
+            _emit(m, {
                 "target": tgt,
                 "content": content,
                 "executable": rel.endswith(".sh") or bool(src.stat().st_mode & stat.S_IXUSR),
@@ -2678,7 +2903,7 @@ def collect_files(form_values: dict, selected: set, module_flags: dict = None) -
                     content = substitute_placeholders(
                         content, placeholders,
                         SHELL_ESCAPERS.get(os.path.splitext(rel)[1]))
-                files.append({
+                _emit(m, {
                     "target": tgt,
                     "content": content,
                     "executable": rel.endswith(".sh") or bool(src.stat().st_mode & stat.S_IXUSR),
@@ -2934,20 +3159,30 @@ def prompt_modules(selected: set):
     return selected
 
 
-def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = False) -> dict:
-    """5-question happy-path intake. Persona drives module/flag/form defaults.
+def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = False,
+                      harness_arg: list = None) -> dict:
+    """6-question happy-path intake. Persona drives module/flag/form defaults.
 
     `skip_persona_q` is set by the v1-NOTICE branch in main(), which has
     already prompted for persona and applied its modules/flags/form defaults.
     Re-prompting from quick_interactive in that case shows the menu twice
-    AND would replace (not union) the user's pre-existing module set."""
+    AND would replace (not union) the user's pre-existing module set.
+
+    `harness_arg` is the parsed --harness value (None when the flag is absent).
+    The persona question replaces `selected` wholesale, so a --harness already
+    applied in main() would be lost; the answer is re-applied at the harness
+    question instead of asking it."""
     print(bold("=" * 60))
     print(bold("  Claude Code project configurator \u2014 quick mode"))
     print(bold("=" * 60))
     print(f"  Target: {green(str(target_dir.resolve()))}")
-    print(dim("  5 questions; documentation fields use [TODO:] placeholders."))
+    print(dim("  6 questions; documentation fields use [TODO:] placeholders."))
     print(dim("  Use --detailed for the full intake. Ctrl+C to abort."))
     print()
+
+    # Read before the persona question: it replaces `selected` wholesale, which
+    # would otherwise drop a saved harness choice before Q4 shows it as the default.
+    saved_harnesses = harnesses_from_selected(initial.get("selected", set()))
 
     if not skip_persona_q:
         # Q1: persona
@@ -2975,21 +3210,48 @@ def quick_interactive(target_dir: Path, initial: dict, skip_persona_q: bool = Fa
         fv["stack_preset"] = stack_keys[int(raw) - 1]
     apply_stack_preset(fv)
 
-    # Q4: repo url (optional). Empty default is intentional — a [TODO:]
+    # Q4: other agent harnesses. Enter keeps what a saved config already picks.
+    if harness_arg is None:
+        harness_arg = _ask_harnesses(saved_harnesses)
+    initial["selected"] = apply_harnesses(initial["selected"], harness_arg)
+
+    # Q5: repo url (optional). Empty default is intentional — a [TODO:]
     # placeholder gets stamped later by normalize_conditional_placeholders.
     fv["repo_url"] = _input(
         f"  Repo URL (optional, e.g. git@github.com:owner/repo.git) "
         f"[{fv.get('repo_url', '')}]: "
     ).strip() or fv.get("repo_url", "")
 
-    # Q5: license
+    # Q6: license
     fv["license"] = _input(f"  License [{fv.get('license', 'MIT')}]: ").strip() or fv.get("license", "MIT")
 
     return initial
 
 
+def _ask_harnesses(current: list) -> list:
+    """Quick-mode question: which agent harnesses to serve besides Claude Code.
+    Enter keeps `current`; `0` or `none` clears; unparseable input keeps
+    `current` too, so a typo never silently drops a saved choice."""
+    ids = list(HARNESSES)
+    print("  Other AI harnesses besides Claude Code (numbers, comma-separated):")
+    for i, hid in enumerate(ids, 1):
+        marker = green("\u2192") if hid in current else " "
+        print(f"   {marker} {i}) {HARNESSES[hid]['title']}")
+    hint = f"Enter = keep {', '.join(current)}; 0 = none" if current else "Enter = none"
+    raw = _input(f"  pick [{hint}]: ").strip().lower()
+    if not raw:
+        return list(current)
+    if raw in ("0", "none"):
+        return []
+    picked = []
+    for tok in raw.replace(",", " ").split():
+        if tok.isdigit() and 1 <= int(tok) <= len(ids) and ids[int(tok) - 1] not in picked:
+            picked.append(ids[int(tok) - 1])
+    return picked or list(current)
+
+
 def _ask_persona(default: str) -> str:
-    print("  Persona \u2014 pick a sensible kit, then we ask 4 follow-ups:")
+    print("  Persona \u2014 pick a sensible kit, then we ask 5 follow-ups:")
     keys = list(PERSONAS.keys())
     for i, k in enumerate(keys, 1):
         p = PERSONAS[k]
@@ -3158,8 +3420,14 @@ def parse_args():
                         "Combine with --yes for fully non-interactive scaffolding. "
                         "Use 'custom' for the v1 explicit-field flow.")
     p.add_argument("--detailed", action="store_true",
-                   help="Use the full 50-field intake (v1 behavior). Default flow asks 5 questions.")
+                   help="Use the full 50-field intake (v1 behavior). Default flow asks 6 questions.")
     p.add_argument("--modules", help="Non-interactive: comma-separated module IDs to enable")
+    p.add_argument("--harness", metavar="LIST",
+                   help="Agent harnesses to serve besides Claude Code, comma-separated "
+                        "({}); `claude-code` or `none` means Claude Code only. Replaces "
+                        "the saved harness set. Adds AGENTS.md as the shared source of "
+                        "truth and turns CLAUDE.md into a bridge that imports it "
+                        "(docs/12-multi-harness.md).".format(" | ".join(HARNESSES)))
     p.add_argument("--yes", action="store_true",
                    help="Non-interactive: accept all defaults (combine with --preset / --modules to override)")
     p.add_argument("--dry-run", action="store_true", help="Show what would be written and exit")
@@ -3402,6 +3670,16 @@ def main():
         # Stored here; rendered as [ DEPRECATED ] / [ MODULE WARNINGS ] blocks.
         initial.setdefault("_deprecations", []).extend(deprecations)
         initial.setdefault("_module_arg_warnings", []).extend(mod_warnings)
+    # --harness runs after --persona / --modules so it can add or drop the
+    # harness modules (and only those) on top of whatever they picked.
+    harness_arg = None
+    if args.harness is not None:
+        try:
+            harness_arg = parse_harness_arg(args.harness)
+        except ValueError as e:
+            print(bold(red("[ ERROR ]")), str(e), file=sys.stderr)
+            sys.exit(2)
+        initial["selected"] = apply_harnesses(initial.get("selected", set()), harness_arg)
 
     # --hook-shell is a scaffold-shaping answer, so it lives in formValues and
     # persists to .claude-config.json like the rest of the intake.
@@ -3412,7 +3690,7 @@ def main():
     # --yes / --config / --modules / --persona / --preset / --save-config-only:
     # skip interactive entirely (preserves v1 non-interactive paths).
     # --detailed: opt back into the full v1 50-field interactive() flow.
-    # default (no flags): quick 5-question mode via quick_interactive().
+    # default (no flags): quick 6-question mode via quick_interactive().
     if args.yes or args.config or args.preset or args.modules or args.persona or args.save_config_only:
         config = initial
     elif args.detailed:
@@ -3420,7 +3698,8 @@ def main():
     else:
         # When the v1-NOTICE branch already prompted for a persona, skip Q1
         # in quick_interactive so the menu doesn't appear twice.
-        config = quick_interactive(target_dir, initial, skip_persona_q=is_v1_config)
+        config = quick_interactive(target_dir, initial, skip_persona_q=is_v1_config,
+                                   harness_arg=harness_arg)
 
     # Resolve any declared module dependencies before saving or scaffolding,
     # so we never generate an inconsistent set.
@@ -3488,6 +3767,15 @@ def main():
     if "github-actions" in config["selected"]:
         for w in check_github_remote(target_dir):
             module_warnings.append(("github-actions", w))
+    # The doc the [TODO:] placeholders land in, and a retrofit CLAUDE.md that
+    # would leave the new AGENTS.md unread (surfaced again in NEXT STEPS and
+    # the retrofit report below).
+    project_doc = "AGENTS.md" if "agents-md" in config["selected"] else "CLAUDE.md"
+    bridge_warnings = []
+    if "agents-md" in config["selected"]:
+        bridge_warnings = check_agents_md_bridge(target_dir, args.claude_md, args.force)
+        for w in bridge_warnings:
+            module_warnings.append(("agents-md", w))
     if module_warnings:
         print()
         print(bold(yellow("[ MODULE WARNINGS ]")))
@@ -3568,17 +3856,26 @@ def main():
         print()
         print(bold(yellow("[ PLACEHOLDERS ]")))
         for field, excerpt in placeholders:
-            print(f"  {yellow('!')} CLAUDE.md (field={field}) — {dim(excerpt)}")
+            print(f"  {yellow('!')} {project_doc} (field={field}) — {dim(excerpt)}")
 
     next_steps = []
     if placeholders:
-        next_steps.append("Edit CLAUDE.md to fill in the [TODO:] placeholders above.")
+        next_steps.append(f"Edit {project_doc} to fill in the [TODO:] placeholders above.")
+    if "agents-md" in config["selected"]:
+        next_steps.append(
+            "AGENTS.md is the shared source of truth for every harness and CLAUDE.md "
+            "imports it (`@AGENTS.md`): edit project facts in AGENTS.md, keep CLAUDE.md "
+            "for Claude Code specifics, and commit both.")
+    if bridge_warnings:
+        next_steps.append(
+            "Add `@AGENTS.md` to your existing CLAUDE.md so Claude Code reads AGENTS.md "
+            "— see [ MODULE WARNINGS ] above.")
     if not args.dry_run and not (target_dir / ".git").is_dir():
         next_steps.append(
             "No git repo here yet — `git init -b main && git add . && "
             "git commit -m 'chore: cc-configure scaffold'`. The Claude Code "
             ".gitignore block already excludes machine-local / transient files; "
-            "see CLAUDE.md `### Repo bootstrap` for what to track."
+            "see CLAUDE.md § Repo bootstrap for what to track."
         )
     persona = initial.get("persona", "custom")
     if persona == "solo-newer":
@@ -3609,9 +3906,9 @@ def main():
             print(f"  {blue('i')} {path}")
         if len(design_docs) > 5:
             print(dim(f"      … and {len(design_docs) - 5} more"))
-        print(dim("  CLAUDE.md will be written from your form answers (generic template)."))
+        print(dim(f"  {project_doc} will be written from your form answers (generic template)."))
         print(dim("  After scaffolding, fold project-wide invariants from the design"))
-        print(dim("  doc(s) into CLAUDE.md. See Next steps below."))
+        print(dim(f"  doc(s) into {project_doc}. See Next steps below."))
 
     print()
     print(bold(blue("[ SUMMARY ]")))
@@ -3694,7 +3991,8 @@ def main():
                         dry_run=False, backup=not args.no_backup)
     # Write the retrofit report up-front so its path joins the wrote group
     # rather than landing between backed-up and saved-config lines.
-    report_path = write_retrofit_report(target_dir, merge_messages, collision_report)
+    report_path = write_retrofit_report(target_dir, merge_messages, collision_report,
+                                        notes=bridge_warnings)
 
     # Per-task MCP profile alternates render as a single grouped line so
     # they don't visually crowd the active .mcp.json among regular writes.

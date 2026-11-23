@@ -12,7 +12,7 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 ## Checks
 
 ### 1. CLAUDE.md size
-- Read `CLAUDE.md` (repo root). Count lines.
+- Read `CLAUDE.md` (repo root). Count lines. If its first line is `@AGENTS.md` (the `agents-md` module's bridge), count `AGENTS.md` too: the import loads it at every session start, so the cap applies to both files together.
 - `≤ 200` → ✓ within soft cap
 - `201–300` → ⚠ over soft cap; recommend moving path-specific content to `.claude/rules/*.md`
 - `> 300` → ✗ significantly bloated; suggest specific section candidates to split off
@@ -179,6 +179,16 @@ Audit the current project's `.claude/` directory. Produce a checklist report. Do
 - `useAutoModeDuringPlan` = `false` → `[ ✓ ] Plan mode: prompts for shell commands`. Otherwise → `[ ⚠ ] Plan mode: the auto-mode classifier approves shell commands silently — set useAutoModeDuringPlan: false in ~/.claude/settings.json or .claude/settings.local.json`. Never suggest the committed `.claude/settings.json` for this key; it is honored from user, local or managed scope only.
 - File absent → the three ⚠ lines, each starting `no ~/.claude/settings.json —`. The full setup, including the VS Code extension and the optional managed-settings ceiling, is docs/11 § Once per machine.
 
+### 18. Cross-harness instructions
+
+- Skip (`[ - ]`) unless `AGENTS.md` exists at the repo root.
+- Claude Code reads `AGENTS.md` only when no `CLAUDE.md` exists (2.1.277+), so a repo that shares instructions with other harnesses needs a `CLAUDE.md` whose first line is `@AGENTS.md`. Read `CLAUDE.md`:
+  - A line that is exactly `@AGENTS.md` → `[ ✓ ] AGENTS.md bridge: CLAUDE.md imports AGENTS.md`.
+  - `CLAUDE.md` absent → `[ ✓ ] AGENTS.md only: Claude Code falls back to it because there is no CLAUDE.md`. Valid, but nothing Claude Code-specific can live in it.
+  - `CLAUDE.md` present without that line → `[ ⚠ ] AGENTS.md bridge: CLAUDE.md does not import AGENTS.md, so Claude Code never reads it → add @AGENTS.md as the first line of CLAUDE.md once duplicated facts are merged`.
+- Codex concatenates `AGENTS.md` files from the repo root down to the working directory and silently truncates the chain at 32768 bytes (`project_doc_max_bytes`). Size the root file with `wc -c AGENTS.md`: over 32768 → `[ ✗ ] AGENTS.md budget: N bytes; Codex drops the rest of the chain at 32768 → trim, or move directory-specific detail into nested AGENTS.md files`; over 24576 → `[ ⚠ ] AGENTS.md budget: N bytes, under 8 KiB left for nested files`; otherwise `[ ✓ ] AGENTS.md budget: N of 32768 bytes`.
+- `GEMINI.md` exists → it must contain a line `@./AGENTS.md`, or `.gemini/settings.json` must list `AGENTS.md` under `context.fileName`; otherwise `[ ⚠ ] Gemini CLI: GEMINI.md does not import AGENTS.md, and Gemini CLI reads GEMINI.md, not AGENTS.md, by default`. Otherwise `[ ✓ ] Gemini CLI: reads AGENTS.md`.
+
 ## Output format
 
 ```
@@ -204,6 +214,8 @@ PROJECT /absolute/path/here
 [ ✓ ] Auto-updates: off (DISABLE_AUTOUPDATER in ~/.claude/settings.json)
 [ ⚠ ] Auto mode: one Shift+Tab away — set disableAutoMode: "disable" in ~/.claude/settings.json
 [ ✓ ] Plan mode: prompts for shell commands
+[ ✓ ] AGENTS.md bridge: CLAUDE.md imports AGENTS.md
+[ ✓ ] AGENTS.md budget: 4434 of 32768 bytes
 
 Suggested next actions:
 1. Extract frontend-specific rules from CLAUDE.md (lines 45–78) into .claude/rules/frontend.md with paths: "src/frontend/**"

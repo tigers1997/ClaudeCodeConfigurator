@@ -31,7 +31,7 @@ jobs:
       - name: Smoke-test every opt-in module combination
         run: |
           set -e
-          for mod in multi-agent github-actions lockdown experiments-memory mcp ui; do
+          for mod in multi-agent github-actions lockdown experiments-memory mcp ui agents-md gemini-cli; do
             target=$(mktemp -d)
             echo "--- scaffolding core + $mod into $target"
             python3 configure.py --yes --modules "core,$mod" --dry-run --dir "$target"
@@ -52,6 +52,23 @@ jobs:
               || { echo "snapshot drift for persona=$p"; exit 1; }
           done
           echo "all 5 persona snapshots match"
+
+      - name: Harness snapshot tests
+        run: |
+          set -e
+          target=$(mktemp -d)
+          python3 configure.py --persona solo-experienced --yes --harness gemini --dir "$target" >/dev/null
+          actual=$(cd "$target" && find . -type f | LC_ALL=C sort)
+          diff --strip-trailing-cr <(echo "$actual") examples/harness-gemini/expected-tree.txt \
+            || { echo "snapshot drift for harness-gemini"; exit 1; }
+          echo "harness snapshot matches"
+
+      - name: agents-md fixture tests
+        run: |
+          set -e
+          for t in test/agents-md/test-*.sh; do
+            bash "$t"
+          done
 
       - name: Microbit enforcer fixture tests
         run: |

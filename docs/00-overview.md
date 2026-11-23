@@ -37,6 +37,7 @@ Everything in this kit is a structured choice about which levers to pull and how
 8. **[Retrofit guide](09-retrofit-guide.md)** — what belongs in CLAUDE.md vs. elsewhere; how to triage an existing complex CLAUDE.md before running `cc-configure`; what the configurator does on a retrofit run; how to resolve staged conflicts (manual or via `/retrofit`)
 9. **[Plugin ecosystem](10-plugin-ecosystem.md)** — the relationship between the configurator and the official Claude Code plugin marketplace; comparison table of overlapping surfaces; recommended dual-stack workflow; how to swap configurator skills for plugin equivalents
 10. **[Getting started](11-getting-started.md)** — two end-to-end walkthroughs: brand-new project (with `superpowers` brainstorming first) and existing-project retrofit (with `/retrofit` for staged-conflict resolution). Read this first.
+11. **[Multi-harness projects](12-multi-harness.md)** — one source of truth for Claude Code and other agent tools: who reads `CLAUDE.md` vs `AGENTS.md` vs `GEMINI.md`, the `@AGENTS.md` bridge, the 32 KiB Codex budget, and what a repository can and cannot control about which model does what
 
 (`07-backlog.md` is local-only, gitignored — project roadmap notes.)
 
@@ -58,6 +59,8 @@ Which modules operationalize which docs:
 | `ui` | Doc 06 (statusline + "plan" output style) |
 | `lockdown` | Doc 05 (`DISABLE_UPDATES=1` for air-gapped environments) |
 | `experiments-memory` | Doc 08 (nested `memory/experiments/CLAUDE.md` — zero-cost lazy loading) |
+| `agents-md` | Doc 12 (`AGENTS.md` as the shared source of truth, `CLAUDE.md` as an `@AGENTS.md` bridge) |
+| `gemini-cli` | Doc 12 (`GEMINI.md` importing `AGENTS.md`) |
 
 ## Guiding principles
 
