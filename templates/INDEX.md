@@ -188,6 +188,25 @@ Status line script (project dir | branch | model | context % | OS+tool-version c
 
 - flag `no_version_chip`
 
+## `agents-md`
+
+Shares one set of project instructions across agent tools.
+
+| Template | Installs to |
+|---|---|
+| `agents-md/AGENTS.md` | `AGENTS.md` |
+| `agents-md/CLAUDE.md` | `CLAUDE.md` |
+
+## `gemini-cli`
+
+Lets Gemini CLI read the shared instructions.
+
+| Template | Installs to |
+|---|---|
+| `gemini-cli/GEMINI.md` | `GEMINI.md` |
+
+- depends on `agents-md`
+
 ## How settings merge works
 
 Several modules contribute `hooks` entries, and they all land in one

@@ -17,7 +17,8 @@ set -euo pipefail
 tmp=$(mktemp -d)
 trap "rm -rf $tmp" EXIT
 
-python3 configure.py --persona small-team --yes --dir "$tmp" >/dev/null
+# --harness gemini adds AGENTS.md, the CLAUDE.md bridge and GEMINI.md to what is checked.
+python3 configure.py --persona small-team --yes --harness gemini --dir "$tmp" >/dev/null
 
 python3 - "$tmp" <<'PY'
 import sys

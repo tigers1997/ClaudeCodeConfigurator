@@ -54,17 +54,18 @@ Then do the one-time machine setup in [`docs/11-getting-started.md` § Once per 
 From any project directory:
 
 ```bash
-cc-configure                               # quick mode (5 questions)
+cc-configure                               # quick mode (6 questions)
 cc-configure --detailed                    # full 55-field intake (v1 behavior)
 cc-configure --persona solo-newer --yes    # one-shot for newer coders
 cc-configure --persona small-team --yes    # one-shot, team kit
+cc-configure --persona small-team --yes --harness gemini   # also serve Gemini CLI via a shared AGENTS.md
 cc-configure --yes                         # reuse existing .claude-config.json
 cc-configure --dry-run                     # preview without writing
 cc-configure --whats-new                   # what a re-run would pick up (reads .claude/.cc-manifest.json)
 cc-configure --help                        # full flags
 ```
 
-Quick mode asks **five questions**: persona, project name, stack preset, repo URL, license. The persona pre-picks modules + flags + sensible defaults; documentation fields default to bracketed `[TODO: ...]` placeholders the user fills in later.
+Quick mode asks **six questions**: persona, project name, stack preset, other AI harnesses, repo URL, license. The persona pre-picks modules + flags + sensible defaults; documentation fields default to bracketed `[TODO: ...]` placeholders the user fills in later.
 
 ### Personas
 
@@ -125,7 +126,7 @@ Picking `Python (uv)` flips `cmd_test` from `pnpm test` to `uv run pytest`, etc.
 
 ## Modules
 
-There are 11 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
+There are 14 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-pro`, `lockdown`) still translate to their post-v1.6.0 homes.
 
 | Module | What it installs |
 | --- | --- |
@@ -140,6 +141,8 @@ There are 11 modules; legacy IDs (`commands-core`, `agents`, `token-efficiency-p
 | **ui** | Custom status line (project \| branch \| model \| ctx% \| OS+tool-version chip like `deb13 · pg17 · node20 · py3.13`; optionally effort + thinking indicators when 2.1.119+ is running), `statusline-last-prompt.sh` variant, and a "plan" output style. Sub-flag: `no_version_chip` omits the chip (sets `CC_STATUSLINE_NO_VERSION_CHIP=1`) for narrow terminals or privacy. |
 | **recommend-plugins** | Drops `docs/recommended-plugins.md` — a stack-aware list of official Claude Code plugins worth considering (always-recommended set + stack-specific picks computed from your form answers). Reference doc; refreshes on every `cc-configure` run. See [`docs/10-plugin-ecosystem.md`](docs/10-plugin-ecosystem.md) for how plugins relate to the configurator. |
 | **experiments-memory** | Opt-in only. Lazy-loaded `memory/experiments/CLAUDE.md` defines a 5-section format (hypothesis/setup/result/conclusion/follow-ups) for logging experiments. Zero context cost until Claude reads files in that folder. |
+| **agents-md** | Opt-in (`--harness agents-md`, or quick-mode question 4). Serves other agent tools from one shared file: `AGENTS.md` holds the harness-neutral project memory (commands, style, testing, **Agent roles**, **Code Review Rules**) that Codex CLI, Cursor, Copilot's agent, Zed, Windsurf, Amp, Aider and others read directly, and `CLAUDE.md` becomes a bridge whose first line is `@AGENTS.md` plus the Claude Code specifics. Claude Code reads `AGENTS.md` only when no `CLAUDE.md` exists, so the import is what shares it. A Claude-only scaffold is unchanged. `--check` fails if the two templates drift from `core/CLAUDE.md` or `AGENTS.md` renders over 20 KiB (Codex truncates its AGENTS.md chain at 32 KiB). See [`docs/12-multi-harness.md`](docs/12-multi-harness.md). |
+| **gemini-cli** | Opt-in (`--harness gemini`; depends on `agents-md`). A `GEMINI.md` that imports `AGENTS.md`, because Gemini CLI reads `GEMINI.md` by default and `AGENTS.md` only when `context.fileName` lists it. |
 
 ## Token-efficiency presets
 
@@ -171,7 +174,7 @@ All five preflight checks are silent on a clean default scaffold; informational 
 --dir DIR               Target project directory (default: .)
 --config FILE           Load answers from a JSON file; skip prompts
 --detailed              Run the full 55-field interactive intake (v1 behavior).
-                        Default is 5-question quick mode.
+                        Default is 6-question quick mode.
 --persona NAME          Persona pre-pick: solo-newer | solo-experienced |
                         small-team | library-author | custom. Combine with
                         --yes for fully non-interactive scaffolding.
@@ -180,6 +183,12 @@ All five preflight checks are silent on a clean default scaffold; informational 
 --modules M1,M2,...     Comma-separated module IDs. Legacy IDs (lockdown,
                         token-efficiency-pro, commands-core, agents) still
                         accepted; each emits a [ DEPRECATED ] line.
+--harness LIST          Agent tools to serve besides Claude Code, comma-
+                        separated: agents-md | gemini. Replaces the saved
+                        harness set ("claude-code" or "none" = Claude Code
+                        only); other modules are untouched. Adds AGENTS.md as
+                        the shared source of truth and makes CLAUDE.md a
+                        bridge that imports it. See docs/12-multi-harness.md.
 --yes                   Accept defaults / saved config
 --dry-run               Preview without writing (informational only — bypasses
                         the retrofit-abort behavior)
@@ -225,7 +234,7 @@ configure.py        # the CLI
 config_schema.py    # modules + form fields + stack presets
 install.sh          # installer
 templates/          # raw source for every file the CLI writes
-docs/               # 12-part knowledge base (00-overview → 11-getting-started;
+docs/               # 13-part knowledge base (00-overview → 12-multi-harness;
                     #  07-backlog.md is gitignored as local-only roadmap)
 ```
 

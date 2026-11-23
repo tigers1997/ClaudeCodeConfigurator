@@ -86,7 +86,7 @@ For "reminders to myself that shouldn't be in the committed CLAUDE.md" — like 
 
 ## AGENTS.md
 
-The multi-tool-neutral equivalent that some teams use (Cursor, Cline, etc.). Claude Code doesn't read it directly, but you can bridge:
+The multi-tool-neutral equivalent that Codex CLI, Cursor, Copilot's agent, Zed and others read. Claude Code reads it **only as a fallback when no `CLAUDE.md` exists** (2.1.277+); with both files present it reads `CLAUDE.md` alone. To share one file, bridge with an import:
 
 ```markdown
 @AGENTS.md
@@ -94,6 +94,8 @@ The multi-tool-neutral equivalent that some teams use (Cursor, Cline, etc.). Cla
 ## Claude Code specifics
 - Use plan mode for changes under `src/billing/`.
 ```
+
+`cc-configure --harness agents-md` writes exactly this split and keeps the two files in step; see [`12-multi-harness.md`](12-multi-harness.md).
 
 ## Sanity checks
 
